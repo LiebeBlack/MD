@@ -12,6 +12,7 @@ registra una app propia en Azure, basta cambiar esta constante.
 from __future__ import annotations
 
 import json
+import re
 import time
 import urllib.error
 import urllib.parse
@@ -114,7 +115,11 @@ def _post_raw_json(url: str, payload: dict, timeout: float = 30.0,
             detail = json.loads(error.read().decode("utf-8"))
         except Exception:  # noqa: BLE001
             detail = {"message": str(error.code)}
-        raise MsaError(detail.get("message") or f"HTTP {error.code} en {url}")
+        parts = [str(detail.get(key) or "")
+                 for key in ("error", "error_description", "message",
+                             "XErr", "Message")]
+        raise MsaError(" ".join(part for part in parts if part).strip()
+                       or f"HTTP {error.code} en {url}")
     except urllib.error.URLError as error:
         raise MsaError(f"Sin conexion: {error.reason}") from error
 
@@ -210,15 +215,34 @@ def _xbox_user_token(msa_access_token: str) -> tuple[str, str]:
     return token, uhs
 
 
+_XSTS_ERRORS = {
+    2148916233: "La cuenta de Microsoft no tiene un perfil de Xbox. "
+               "Crea uno gratis en xbox.com y vuelve a intentarlo.",
+    2148916235: "La cuenta es menor de edad y la familia no permite "
+               "iniciar sesion en esta aplicacion.",
+    2148916238: "La cuenta es menor de edad. Un adulto de la familia debe "
+               "iniciar sesion o ajustar los permisos de la cuenta.",
+    2148916567: "La cuenta de Microsoft esta siendo usada en otro "
+               "dispositivo. Espera unos minutos y reintenta.",
+}
+
+
 def _xsts_token(xbox_token: str, uhs: str) -> str:
-    data = _post_raw_json(_XSTS_URL, {
-        "Properties": {
-            "SandboxId": "RETAIL",
-            "UserTokens": [xbox_token],
-        },
-        "RelyingParty": "rp://api.minecraftservices.com/",
-        "TokenType": "JWT",
-    })
+    try:
+        data = _post_raw_json(_XSTS_URL, {
+            "Properties": {
+                "SandboxId": "RETAIL",
+                "UserTokens": [xbox_token],
+            },
+            "RelyingParty": "rp://api.minecraftservices.com/",
+            "TokenType": "JWT",
+        })
+    except MsaError as error:
+        # Los errores XSTS vienen como {"XErr": codigo, "Message": ...}
+        match = re.search(r"(\d{10})", str(error))
+        if match and int(match.group(1)) in _XSTS_ERRORS:
+            raise MsaError(_XSTS_ERRORS[int(match.group(1))]) from error
+        raise MsaError(f"Xbox Live rechazo el token: {error}") from error
     token = data.get("Token")
     if not token:
         raise MsaError("No se pudo obtener el token XSTS de Xbox Live.")
@@ -234,7 +258,14 @@ def _minecraft_session(msa_access_token: str) -> McSession:
     mc_token = login.get("access_token")
     if not mc_token:
         raise MsaError("Minecraft Services rechazo el inicio de sesion.")
-    profile = _get_json(_MC_PROFILE_URL, mc_token)
+    try:
+        profile = _get_json(_MC_PROFILE_URL, mc_token)
+    except MsaError as error:
+        raise MsaError(
+            "La cuenta de Microsoft no tiene un perfil de Minecraft "
+            "Java Edition (o no es el titular de la licencia). "
+            f"Detalle: {error}"
+        ) from error
     mc_uuid = (profile.get("id") or "").replace("-", "")
     mc_name = profile.get("name") or ""
     if not mc_uuid or not mc_name:

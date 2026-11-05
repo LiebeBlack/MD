@@ -317,6 +317,8 @@ def spawn(command: list[str], cwd: Path, auto_close: bool,
 def install_and_launch(version_id: str, settings, ctx: TaskContext,
                        with_assets: bool = True,
                        on_spawned=None) -> LaunchOutcome:
+    if (getattr(settings, "active_account", "") or "").startswith("ms:"):
+        ctx.stage("Verificando sesion de Microsoft")
     profile = msauth.resolve_profile(settings)
 
     prepared = prepare(version_id, ctx, with_assets=with_assets)

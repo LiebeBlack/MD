@@ -135,6 +135,7 @@ class MainWindow(QMainWindow):
         self.stage_label = self.play_page.stage_label
 
         columns.addWidget(right, 1)
+        self._go_page(0)
 
     def _build_sidebar(self) -> QWidget:
         sidebar = QWidget()
@@ -204,14 +205,13 @@ class MainWindow(QMainWindow):
         self.status_label = QLabel("Listo para jugar.")
         self.status_label.setObjectName("statusLabel")
         layout.addWidget(self.status_label, 1)
-        layout.addWidget(faint_label("F1 nada · Ctrl+, ajustes"))
+        layout.addWidget(faint_label("Ctrl+, para abrir Ajustes"))
         return bar
 
     # ------------------------------------------------------------ navegacion
     def _go_page(self, index: int) -> None:
         self.stack.setCurrentIndex(index)
         for i, button in enumerate(self.nav_buttons):
-            active = "true" if i == index else "false"
             if button.property("active") != (i == index):
                 button.setProperty("active", i == index)
                 _repolish(button)
@@ -491,12 +491,18 @@ class MainWindow(QMainWindow):
             return
         combo = self.play_page.version_combo
         index = combo.findData(version_id)
-        if index >= 0:
-            combo.setCurrentIndex(index)
+        if index < 0:
+            # Perfil local que el manifiesto no lista: se agrega para que
+            # _selected_version() devuelva exactamente esta version.
+            combo.addItem(f"{version_id}  · local", version_id)
+            index = combo.count() - 1
+        combo.setCurrentIndex(index)
         self.settings.version = version_id
         self._on_play_clicked()
 
     def delete_version(self, version_id: str) -> None:
+        if self._is_busy():
+            return
         target = paths.version_dir(version_id)
         if not target.exists():
             return

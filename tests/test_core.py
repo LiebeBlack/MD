@@ -11,8 +11,9 @@ from types import SimpleNamespace
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from azero import paths
-from azero.auth import create_profile, offline_uuid, validate_username
+from azero import database, msauth, paths
+from azero.auth import (OnlineProfile, create_profile, offline_uuid,
+                        validate_username)
 from azero.install import PreparedGame
 from azero.launch import build_command
 from azero.libraries import maven_path
@@ -256,6 +257,71 @@ class TestJavaCompatibility(unittest.TestCase):
         self.assertTrue(_major_compatible(21, 17))
         self.assertFalse(_major_compatible(8, 17))
         self.assertFalse(_major_compatible(16, 21))
+
+
+class TestOnlineProfile(unittest.TestCase):
+    def test_uuid_dashed(self) -> None:
+        profile = OnlineProfile(name="Alex", uuid="a" * 32,
+                                access_token="tok")
+        self.assertEqual(profile.uuid_dashed,
+                         "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
+        self.assertEqual(profile.user_type, "msa")
+
+
+class TestResolveProfile(unittest.TestCase):
+    def test_offline_profile(self) -> None:
+        settings = SimpleNamespace(username="Steve", active_account="")
+        profile = msauth.resolve_profile(settings)
+        self.assertEqual(profile.name, "Steve")
+        self.assertEqual(profile.uuid, offline_uuid("Steve"))
+        self.assertEqual(profile.user_type, "legacy")
+
+    def test_invalid_offline_name(self) -> None:
+        settings = SimpleNamespace(username="no vale!", active_account="")
+        with self.assertRaises(msauth.MsaError):
+            msauth.resolve_profile(settings)
+
+    def test_missing_ms_account(self) -> None:
+        settings = SimpleNamespace(username="Steve",
+                                   active_account="ms:deadbeef")
+        with self.assertRaises(msauth.MsaError):
+            msauth.resolve_profile(settings)
+
+
+class TestDatabase(unittest.TestCase):
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self._old = paths.DATA_DIR
+        paths.DATA_DIR = Path(self._tmp.name)
+        paths.SETTINGS_FILE = paths.DATA_DIR / "settings.json"
+        database.init_db()
+
+    def tearDown(self) -> None:
+        paths.DATA_DIR = self._old
+        self._tmp.cleanup()
+
+    def test_downloads_and_sessions_roundtrip(self) -> None:
+        database.log_download("version", "Cliente 1.15.2",
+                              version_id="1.15.2", size_bytes=100)
+        sid = database.session_start("Steve", "u", "1.15.2", "offline",
+                                     pid=123)
+        database.session_end(sid, exit_code=0)
+        downloads = database.list_downloads()
+        sessions = database.list_sessions()
+        self.assertEqual(len(downloads), 1)
+        self.assertEqual(downloads[0]["label"], "Cliente 1.15.2")
+        self.assertEqual(len(sessions), 1)
+        self.assertEqual(sessions[0]["exit_code"], 0)
+        self.assertIsNotNone(sessions[0]["ended"])
+
+    def test_accounts_roundtrip(self) -> None:
+        database.save_account("a" * 32, "TestMC", "refresh")
+        database.save_account("a" * 32, "TestMC2", "refresh2")
+        accounts = database.list_accounts()
+        self.assertEqual(len(accounts), 1)
+        self.assertEqual(accounts[0]["mc_name"], "TestMC2")
+        database.delete_account("a" * 32)
+        self.assertEqual(database.list_accounts(), [])
 
 
 if __name__ == "__main__":

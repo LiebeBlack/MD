@@ -10,6 +10,7 @@ from __future__ import annotations
 import sqlite3
 import threading
 import time
+from contextlib import closing
 from pathlib import Path
 from typing import Any
 
@@ -59,14 +60,15 @@ def _db_path() -> Path:
 
 
 def _connect() -> sqlite3.Connection:
-    conn = sqlite3.connect(str(_db_path()), timeout=10)
+    conn = sqlite3.connect(str(_db_path()), timeout=10,
+                           isolation_level=None)  # autocommit
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
     return conn
 
 
 def init_db() -> None:
-    with _lock, _connect() as conn:
+    with _lock, closing(_connect()) as conn:
         conn.executescript(_SCHEMA)
 
 
@@ -75,7 +77,7 @@ def log_download(kind: str, label: str, version_id: str = "",
                  size_bytes: int = 0, status: str = "ok",
                  detail: str = "") -> int:
     """Registra un evento de descarga/instalacion. Devuelve el id."""
-    with _lock, _connect() as conn:
+    with _lock, closing(_connect()) as conn:
         cur = conn.execute(
             "INSERT INTO downloads (ts, kind, label, version_id, size_bytes,"
             " status, detail) VALUES (?,?,?,?,?,?,?)",
@@ -87,7 +89,7 @@ def log_download(kind: str, label: str, version_id: str = "",
 
 def list_downloads(limit: int = 200) -> list[dict[str, Any]]:
     init_db()
-    with _lock, _connect() as conn:
+    with _lock, closing(_connect()) as conn:
         rows = conn.execute(
             "SELECT * FROM downloads ORDER BY ts DESC LIMIT ?",
             (int(limit),),
@@ -98,7 +100,7 @@ def list_downloads(limit: int = 200) -> list[dict[str, Any]]:
 # -------------------------------------------------------------- sesiones
 def session_start(username: str, uuid_: str, version_id: str,
                   account: str, pid: int | None = None) -> int:
-    with _lock, _connect() as conn:
+    with _lock, closing(_connect()) as conn:
         cur = conn.execute(
             "INSERT INTO sessions (started, username, uuid, version_id,"
             " account, pid) VALUES (?,?,?,?,?,?)",
@@ -109,7 +111,7 @@ def session_start(username: str, uuid_: str, version_id: str,
 
 def session_end(session_id: int, exit_code: int | None = None,
                 detail: str = "") -> None:
-    with _lock, _connect() as conn:
+    with _lock, closing(_connect()) as conn:
         conn.execute(
             "UPDATE sessions SET ended=?, exit_code=?, detail=? WHERE id=?",
             (time.time(), exit_code, detail, int(session_id)),
@@ -118,7 +120,7 @@ def session_end(session_id: int, exit_code: int | None = None,
 
 def list_sessions(limit: int = 200) -> list[dict[str, Any]]:
     init_db()
-    with _lock, _connect() as conn:
+    with _lock, closing(_connect()) as conn:
         rows = conn.execute(
             "SELECT * FROM sessions ORDER BY started DESC LIMIT ?",
             (int(limit),),
@@ -129,7 +131,7 @@ def list_sessions(limit: int = 200) -> list[dict[str, Any]]:
 # -------------------------------------------------------------- cuentas
 def save_account(mc_uuid: str, mc_name: str, refresh_token: str) -> None:
     """Guarda o actualiza una cuenta Microsoft (id = UUID de Minecraft)."""
-    with _lock, _connect() as conn:
+    with _lock, closing(_connect()) as conn:
         conn.execute(
             "INSERT INTO accounts (id, provider, mc_uuid, mc_name,"
             " msa_refresh_token, created) VALUES (?, 'microsoft', ?,?,?,?)"
@@ -141,7 +143,7 @@ def save_account(mc_uuid: str, mc_name: str, refresh_token: str) -> None:
 
 def list_accounts() -> list[dict[str, Any]]:
     init_db()
-    with _lock, _connect() as conn:
+    with _lock, closing(_connect()) as conn:
         rows = conn.execute(
             "SELECT id, mc_uuid, mc_name, created FROM accounts"
             " ORDER BY mc_name"
@@ -151,7 +153,7 @@ def list_accounts() -> list[dict[str, Any]]:
 
 def get_account(account_id: str) -> dict[str, Any] | None:
     init_db()
-    with _lock, _connect() as conn:
+    with _lock, closing(_connect()) as conn:
         row = conn.execute(
             "SELECT * FROM accounts WHERE id=?", (account_id,)
         ).fetchone()
@@ -159,13 +161,13 @@ def get_account(account_id: str) -> dict[str, Any] | None:
 
 
 def delete_account(account_id: str) -> None:
-    with _lock, _connect() as conn:
+    with _lock, closing(_connect()) as conn:
         conn.execute("DELETE FROM accounts WHERE id=?", (account_id,))
 
 
 def clear_history(kind: str | None = None) -> int:
     """Borra historial. kind=None limpia descargas y sesiones."""
-    with _lock, _connect() as conn:
+    with _lock, closing(_connect()) as conn:
         if kind is None:
             cur = conn.execute("DELETE FROM downloads")
             conn.execute("DELETE FROM sessions")

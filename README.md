@@ -19,6 +19,13 @@ OptiFine, modo offline, Java automático (Temurin) y ajustes de rendimiento.
 - Modo offline con UUID v3 determinista (compatible con `nameUUIDFromBytes`).
 - Control de recursos: memoria RAM, prioridad de proceso, afinidad de CPU y
   recolector de basura (GC).
+- Interfaz con navegación lateral y páginas: Jugar, Versiones (gestor de
+  archivos instalados), Cuenta e Historial, y Ajustes.
+- Cuentas: perfil offline con nombre personalizado o cuenta Microsoft
+  (device code) para servidores oficiales online-mode. Todo el contenido
+  es gratuito y funciona sin cuenta.
+- Historial persistente de descargas, sesiones y registros en
+  `data/launcher.db` (SQLite).
 - Conexión rápida a servidor (`host:puerto`) y argumentos JVM extra.
 - Portable por defecto: todos los datos en `./data` (o `%APPDATA%\AZeroCraft`
   cuando está instalado en Program Files). Se puede reubicar con la variable
@@ -104,7 +111,9 @@ azero/                # núcleo + UI
   java.py             # detección y descarga de Java (Temurin)
   launch.py           # línea de comandos, spawn y tuning de proceso
   optifine.py         # instalación de OptiFine headless
-  ui/                 # PyQt6: ventana, tema, widgets
+  msauth.py           # cuenta Microsoft (device code → Minecraft Services)
+  database.py         # SQLite: historial, sesiones y cuentas
+  ui/                 # PyQt6: ventana, páginas, tema, widgets
 installer/setup.iss   # script de Inno Setup
 packaging/            # icono y scripts de build
 azero.spec            # spec de PyInstaller

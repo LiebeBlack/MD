@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import os
-import shutil
 import time
 from pathlib import Path
 
@@ -75,8 +74,8 @@ class ScrollPage(QWidget):
         self.content = QWidget()
         self.content.setObjectName("page")
         self.body = QVBoxLayout(self.content)
-        self.body.setContentsMargins(22, 18, 22, 18)
-        self.body.setSpacing(14)
+        self.body.setContentsMargins(18, 14, 18, 14)
+        self.body.setSpacing(12)
         self.scroll.setWidget(self.content)
         outer.addWidget(self.scroll)
 
@@ -91,9 +90,9 @@ class PlayPage(ScrollPage):
     # ------------------------------------------------------------- build
     def _build(self) -> None:
         head = QHBoxLayout()
-        head.setSpacing(10)
+        head.setSpacing(8)
         titles = QVBoxLayout()
-        titles.setSpacing(2)
+        titles.setSpacing(1)
         title = QLabel("Jugar")
         title.setObjectName("pageTitle")
         sub = QLabel("Elige tu jugador y version, y pulsa JUGAR.")
@@ -107,13 +106,13 @@ class PlayPage(ScrollPage):
         self.body.addLayout(head)
 
         columns = QHBoxLayout()
-        columns.setSpacing(16)
+        columns.setSpacing(14)
 
         left = QWidget()
-        left.setFixedWidth(400)
+        left.setFixedWidth(384)
         left_layout = QVBoxLayout(left)
         left_layout.setContentsMargins(0, 0, 0, 0)
-        left_layout.setSpacing(12)
+        left_layout.setSpacing(10)
 
         left_layout.addWidget(self._account_card())
         left_layout.addWidget(self._version_card())
@@ -122,7 +121,7 @@ class PlayPage(ScrollPage):
         self.play_button = QPushButton("JUGAR")
         self.play_button.setObjectName("playButton")
         self.play_button.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.play_button.setMinimumHeight(52)
+        self.play_button.setMinimumHeight(46)
         self.play_button.clicked.connect(self.shell._on_play_clicked)
         left_layout.addWidget(self.play_button)
 
@@ -132,7 +131,7 @@ class PlayPage(ScrollPage):
         left_layout.addStretch(1)
         columns.addWidget(left)
 
-        console_card = Card(margins=14, spacing=10)
+        console_card = Card(margins=12, spacing=8)
         console_head = QHBoxLayout()
         console_head.addWidget(section_label("Registro"))
         console_head.addStretch(1)
@@ -152,7 +151,7 @@ class PlayPage(ScrollPage):
         console_card.body.addWidget(self.console, 1)
 
         progress_row = QHBoxLayout()
-        progress_row.setSpacing(10)
+        progress_row.setSpacing(8)
         self.progress = QProgressBar()
         self.progress.setRange(0, 1)
         self.progress.setValue(0)
@@ -170,7 +169,7 @@ class PlayPage(ScrollPage):
         self.body.addLayout(columns, 1)
 
     def _account_card(self) -> Card:
-        card = Card(margins=14, spacing=10)
+        card = Card(margins=12, spacing=8)
         card.body.addWidget(section_label("Jugador"))
 
         row = QHBoxLayout()
@@ -209,7 +208,7 @@ class PlayPage(ScrollPage):
         return card
 
     def _version_card(self) -> Card:
-        card = Card(margins=14, spacing=10)
+        card = Card(margins=12, spacing=8)
         card.body.addWidget(section_label("Version"))
 
         self.version_combo = QComboBox()
@@ -243,7 +242,7 @@ class PlayPage(ScrollPage):
         return card
 
     def _quick_card(self) -> Card:
-        card = Card(margins=14, spacing=10)
+        card = Card(margins=12, spacing=8)
         card.body.addWidget(section_label("Ajustes rapidos"))
 
         head = QHBoxLayout()
@@ -333,7 +332,7 @@ class VersionsPage(ScrollPage):
         self.body.addLayout(head)
 
         stats = QHBoxLayout()
-        stats.setSpacing(12)
+        stats.setSpacing(10)
         self.stat_versions = self._stat_card("VERSIONES", "0")
         self.stat_size = self._stat_card("TAMANO", "0 MB")
         self.stat_sessions = self._stat_card("PARTIDAS", "0")
@@ -344,8 +343,8 @@ class VersionsPage(ScrollPage):
 
         self.body.addWidget(section_label("Versiones instaladas"))
         self.installed_list = QListWidget()
-        self.installed_list.setMinimumHeight(180)
-        self.installed_list.setMaximumHeight(260)
+        self.installed_list.setMinimumHeight(160)
+        self.installed_list.setMaximumHeight(230)
         self.body.addWidget(self.installed_list)
 
         row = QHBoxLayout()
@@ -374,8 +373,8 @@ class VersionsPage(ScrollPage):
         self.body.addWidget(Divider())
         self.body.addWidget(section_label("Registros del juego"))
         self.logs_list = QListWidget()
-        self.logs_list.setMinimumHeight(120)
-        self.logs_list.setMaximumHeight(200)
+        self.logs_list.setMinimumHeight(110)
+        self.logs_list.setMaximumHeight(180)
         self.logs_list.itemDoubleClicked.connect(self._open_log)
         self.body.addWidget(self.logs_list)
         self.body.addWidget(faint_label(
@@ -387,8 +386,8 @@ class VersionsPage(ScrollPage):
         frame = QFrame()
         frame.setObjectName("statCard")
         layout = QVBoxLayout(frame)
-        layout.setContentsMargins(14, 10, 14, 10)
-        layout.setSpacing(2)
+        layout.setContentsMargins(12, 8, 12, 8)
+        layout.setSpacing(1)
         val = QLabel(value)
         val.setObjectName("statValue")
         val.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
@@ -495,6 +494,7 @@ class VersionsPage(ScrollPage):
             layout.addWidget(folder)
             layout.addWidget(delete)
 
+            row.ensurePolished()
             item = QListWidgetItem()
             item.setSizeHint(row.sizeHint())
             self.installed_list.addItem(item)
@@ -620,7 +620,7 @@ class AccountPage(ScrollPage):
         self.body.addStretch(1)
 
     def _offline_card(self) -> Card:
-        card = Card(margins=14, spacing=10)
+        card = Card(margins=12, spacing=8)
         card.body.addWidget(section_label("Perfil offline"))
         card.body.addWidget(muted_label(
             "Nombre libre para servidores sin verificacion. "
@@ -653,7 +653,7 @@ class AccountPage(ScrollPage):
         return card
 
     def _microsoft_card(self) -> Card:
-        card = Card(margins=14, spacing=10)
+        card = Card(margins=12, spacing=8)
         head = QHBoxLayout()
         head.addWidget(section_label("Cuenta Microsoft"))
         head.addStretch(1)
@@ -673,8 +673,8 @@ class AccountPage(ScrollPage):
 
         card.body.addWidget(section_label("Cuentas guardadas"))
         self.accounts_list = QListWidget()
-        self.accounts_list.setMinimumHeight(120)
-        self.accounts_list.setMaximumHeight(240)
+        self.accounts_list.setMinimumHeight(110)
+        self.accounts_list.setMaximumHeight(210)
         card.body.addWidget(self.accounts_list)
         return card
 
@@ -701,7 +701,8 @@ class AccountPage(ScrollPage):
 
     # --------------------------------------------------------- microsoft
     def _start_login(self) -> None:
-        if self._login_worker and self._login_worker.isRunning():
+        worker = self._login_worker
+        if worker is not None and worker.isRunning():
             return
         dialog = MSLoginDialog(self)
         self._login_dialog = dialog
@@ -710,8 +711,11 @@ class AccountPage(ScrollPage):
         worker.done.connect(self._on_login_done)
         worker.failed.connect(self._on_login_failed)
         worker.finished.connect(worker.deleteLater)
+        worker.finished.connect(
+            lambda: setattr(self, "_login_worker", None))
         self._login_worker = worker
         dialog.cancel_requested.connect(worker.cancel)
+        dialog.finished.connect(lambda *_: worker.cancel())
         worker.start()
         dialog.exec()
 
@@ -776,6 +780,7 @@ class AccountPage(ScrollPage):
                 self._remove_account(aid))
             layout.addWidget(remove)
 
+            row.ensurePolished()
             item = QListWidgetItem()
             item.setSizeHint(row.sizeHint())
             self.accounts_list.addItem(item)
@@ -911,7 +916,7 @@ class SettingsPage(ScrollPage):
 
         settings = self.shell.settings
         form = QFormLayout()
-        form.setSpacing(12)
+        form.setSpacing(10)
         form.setLabelAlignment(Qt.AlignmentFlag.AlignLeft)
         form.setFieldGrowthPolicy(
             QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
@@ -942,7 +947,7 @@ class SettingsPage(ScrollPage):
         self.show_all.setChecked(settings.show_all_versions)
         form.addRow("", self.show_all)
 
-        card = Card(margins=14, spacing=10)
+        card = Card(margins=12, spacing=8)
         card.body.addWidget(section_label("Java y arranque"))
         card.body.addLayout(form)
 
@@ -975,7 +980,7 @@ class SettingsPage(ScrollPage):
 
     def _performance_card(self) -> Card:
         settings = self.shell.settings
-        card = Card(margins=14, spacing=10)
+        card = Card(margins=12, spacing=8)
         card.body.addWidget(section_label("Rendimiento"))
 
         perf_row = QHBoxLayout()
@@ -1032,7 +1037,7 @@ class SettingsPage(ScrollPage):
 
     def _video_card(self) -> Card:
         settings = self.shell.settings
-        card = Card(margins=14, spacing=10)
+        card = Card(margins=12, spacing=8)
         card.body.addWidget(section_label("Video"))
 
         res_row = QHBoxLayout()
@@ -1080,7 +1085,7 @@ class SettingsPage(ScrollPage):
         return card
 
     def _data_card(self) -> Card:
-        card = Card(margins=14, spacing=10)
+        card = Card(margins=12, spacing=8)
         card.body.addWidget(section_label("Datos"))
         data = QLabel(str(paths.DATA_DIR))
         data.setObjectName("mono")
@@ -1129,4 +1134,4 @@ class SettingsPage(ScrollPage):
         if reload_needed:
             self.shell._reload_versions()
         self.shell.console.append("Ajustes guardados.")
-        QMessageBox.information(self, "Ajustes", "Ajustes guardados.")
+        self.shell._set_status("Ajustes guardados.", "ok")
