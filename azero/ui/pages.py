@@ -21,7 +21,7 @@ from PyQt6.QtWidgets import (QCheckBox, QComboBox, QDialog, QFileDialog,
                              QFormLayout, QFrame, QHBoxLayout, QLabel,
                              QLineEdit, QListWidget, QListWidgetItem,
                              QMessageBox, QProgressBar, QPushButton,
-                             QScrollArea, QSpinBox,
+                             QScrollArea, QSizePolicy, QSpinBox,
                              QSlider, QTableWidget, QTableWidgetItem,
                              QTreeWidget, QTreeWidgetItem,
                              QVBoxLayout, QWidget)
@@ -127,7 +127,9 @@ class PlayPage(ScrollPage):
         columns.setSpacing(10)
 
         left = QWidget()
-        left.setFixedWidth(340)
+        left.setMinimumWidth(280)
+        left.setSizePolicy(QSizePolicy.Policy.Expanding,
+                           QSizePolicy.Policy.Expanding)
         left_layout = QVBoxLayout(left)
         left_layout.setContentsMargins(0, 0, 0, 0)
         left_layout.setSpacing(8)
@@ -147,7 +149,7 @@ class PlayPage(ScrollPage):
         self.stage_label.setWordWrap(True)
         left_layout.addWidget(self.stage_label)
         left_layout.addStretch(1)
-        columns.addWidget(left)
+        columns.addWidget(left, 2)
 
         console_card = Card(margins=10, spacing=6)
         console_head = QHBoxLayout()
@@ -189,7 +191,7 @@ class PlayPage(ScrollPage):
         progress_row.addWidget(self.percent_label)
         console_card.body.addLayout(progress_row)
 
-        columns.addWidget(console_card, 1)
+        columns.addWidget(console_card, 3)
         self.body.addLayout(columns, 1)
 
     def _copy_console(self) -> None:
@@ -439,9 +441,9 @@ class VersionsPage(ScrollPage):
         self.stat_versions = self._stat_card("VERSIONES", "0")
         self.stat_size = self._stat_card("TAMANO", "0 MB")
         self.stat_sessions = self._stat_card("PARTIDAS", "0")
-        stats.addWidget(self.stat_versions)
-        stats.addWidget(self.stat_size)
-        stats.addWidget(self.stat_sessions)
+        stats.addWidget(self.stat_versions, 1)
+        stats.addWidget(self.stat_size, 1)
+        stats.addWidget(self.stat_sessions, 1)
         self.body.addLayout(stats)
 
         installed_card = Card(margins=10, spacing=6)
@@ -1033,7 +1035,8 @@ class MSLoginDialog(QDialog):
         self._device = device
         self.code_label.setText(device.user_code)
         self.status.setText("Introduce este codigo en la pagina de Microsoft:")
-        link = (f"<a href='{device.verification_uri}' style='color:#3DDC97'>"
+        link = (f"<a href='{device.verification_uri}' "
+                f"style='color:{theme.COLORS['ACCENT']}'>"
                 f"{device.verification_uri}</a>")
         self.link_label.setText(link)
         self.link_label.setOpenExternalLinks(True)
@@ -1041,7 +1044,8 @@ class MSLoginDialog(QDialog):
 
     def show_error(self, message: str) -> None:
         self.status.setText(message)
-        self.status.setStyleSheet("color: #FF6B6B;")
+        self.status.setStyleSheet(
+            f"color: {theme.COLORS['DANGER']};")
         self.code_label.setText("")
         self.link_label.setText("")
         self.wait_label.setVisible(False)
@@ -1109,6 +1113,18 @@ class SettingsPage(ScrollPage):
         self.show_all = QCheckBox("Mostrar todas las versiones del manifiesto")
         self.show_all.setChecked(settings.show_all_versions)
         form.addRow("", self.show_all)
+
+        self.theme_combo = QComboBox()
+        self.theme_combo.addItem("Claro (Office)", "light")
+        self.theme_combo.addItem("Oscuro (Office)", "dark")
+        theme_index = self.theme_combo.findData(settings.ui_theme)
+        self.theme_combo.setCurrentIndex(max(0, theme_index))
+        self.theme_combo.setToolTip(
+            "Tema de la interfaz: claro u oscuro estilo Office 365. "
+            "Se aplica al instante y se guarda."
+        )
+        self.theme_combo.activated.connect(self._on_theme_changed)
+        form.addRow("Tema de la interfaz", self.theme_combo)
 
         card = Card(margins=10, spacing=6)
         card.body.addWidget(section_label("Java y arranque"))
@@ -1738,6 +1754,11 @@ class SettingsPage(ScrollPage):
             "ok")
 
     # ------------------------------------------------------------ acciones
+    def _on_theme_changed(self, index: int) -> None:
+        name = self.theme_combo.itemData(index)
+        if name:
+            self.shell._apply_ui_theme(str(name))
+
     def _browse_java(self) -> None:
         selected, _ = QFileDialog.getOpenFileName(
             self, "Seleccionar ejecutable de Java", "",

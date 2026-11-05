@@ -1,4 +1,4 @@
-"""Tema visual: paleta, iconos generados y hoja de estilos."""
+"""Temas visuales estilo Office 365/Fluent: claro y oscuro, iconos y QSS."""
 
 from __future__ import annotations
 
@@ -12,29 +12,93 @@ from PyQt6.QtWidgets import QApplication
 
 from .. import paths
 
-COLORS = {
-    "BG": "#07090E",
-    "BG_ALT": "#0B0E15",
-    "SURFACE": "#0E131C",
-    "SURFACE_ALT": "#131A26",
-    "SURFACE_HOVER": "#1A2334",
-    "SURFACE_PRESSED": "#0D1420",
-    "BORDER": "#27303F",
-    "BORDER_SOFT": "#171E2B",
-    "BORDER_STRONG": "#33405A",
-    "TEXT": "#EDF2FA",
-    "TEXT_DIM": "#8E9DB4",
-    "TEXT_FAINT": "#5C6B84",
-    "ACCENT": "#3DDC97",
-    "ACCENT_HI": "#63E8B4",
-    "ACCENT_DIM": "#2BAE77",
-    "ACCENT_DEEP": "#1E9A70",
-    "ACCENT_TEXT": "#052015",
-    "ACCENT2": "#8B7CFF",
-    "INFO": "#6CB8FF",
-    "DANGER": "#FF7A7A",
-    "WARN": "#F2C14E",
+# Paletas Office 365 / Fluent. Cada tema define todos los tokens del QSS,
+# incluidos los colores "sueltos" (consola, foco de campos, gradientes).
+LIGHT = {
+    "BG": "#F5F5F5",
+    "BG_ALT": "#FFFFFF",
+    "SURFACE": "#FFFFFF",
+    "SURFACE_ALT": "#F5F5F5",
+    "SURFACE_HOVER": "#EBEBEB",
+    "SURFACE_PRESSED": "#E1E1E1",
+    "BORDER": "#D2D0CE",
+    "BORDER_SOFT": "#EBEBEB",
+    "BORDER_STRONG": "#A19F9D",
+    "TEXT": "#252423",
+    "TEXT_DIM": "#605E5C",
+    "TEXT_FAINT": "#8A8886",
+    "ACCENT": "#185ABD",
+    "ACCENT_HI": "#0F6CBD",
+    "ACCENT_DIM": "#124A9E",
+    "ACCENT_DEEP": "#0B3D77",
+    "ACCENT_TEXT": "#FFFFFF",
+    "ACCENT2": "#881798",
+    "INFO": "#0F6CBD",
+    "DANGER": "#C50F1F",
+    "WARN": "#CA5010",
+    # Tokens extra para el QSS (rgb suelto para rgba(), fondos, degradados)
+    "ACCENT_RGB": "24, 90, 189",
+    "DANGER_RGB": "197, 15, 31",
+    "FIELD_FOCUS": "#FBFCFE",
+    "CONSOLE_BG": "#FAF9F8",
+    "CONSOLE_TEXT": "#323130",
+    "CONSOLE_SEL": "#D6E4F7",
+    "OK_COLOR": "#107C10",
+    "CARD_A": "#FFFFFF",
+    "CARD_B": "#FBFBFB",
+    "PANEL_A": "#FFFFFF",
+    "PANEL_B": "#F7F7F7",
+    "PLAY_A": "#3E8BDD",
+    "PLAY_B": "#185ABD",
+    "PLAY_A_HI": "#5592E4",
+    "PLAY_B_HI": "#0F6CBD",
 }
+
+DARK = {
+    "BG": "#1F1F1F",
+    "BG_ALT": "#252526",
+    "SURFACE": "#2D2D2D",
+    "SURFACE_ALT": "#333333",
+    "SURFACE_HOVER": "#3B3B3B",
+    "SURFACE_PRESSED": "#424242",
+    "BORDER": "#4A4A4A",
+    "BORDER_SOFT": "#3A3A3A",
+    "BORDER_STRONG": "#6E6E6E",
+    "TEXT": "#FFFFFF",
+    "TEXT_DIM": "#ADADAD",
+    "TEXT_FAINT": "#8A8A8A",
+    "ACCENT": "#3E8BDD",
+    "ACCENT_HI": "#5592E4",
+    "ACCENT_DIM": "#2B6CB8",
+    "ACCENT_DEEP": "#1E4E8C",
+    "ACCENT_TEXT": "#FFFFFF",
+    "ACCENT2": "#B180D7",
+    "INFO": "#6CB6FF",
+    "DANGER": "#F1707B",
+    "WARN": "#F2C14E",
+    "ACCENT_RGB": "62, 139, 221",
+    "DANGER_RGB": "241, 112, 123",
+    "FIELD_FOCUS": "#333333",
+    "CONSOLE_BG": "#1E1E1E",
+    "CONSOLE_TEXT": "#D4D4D4",
+    "CONSOLE_SEL": "#264F78",
+    "OK_COLOR": "#6CCB5F",
+    "CARD_A": "#2D2D2D",
+    "CARD_B": "#2B2B2B",
+    "PANEL_A": "#252526",
+    "PANEL_B": "#222222",
+    "PLAY_A": "#5592E4",
+    "PLAY_B": "#2B6CB8",
+    "PLAY_A_HI": "#6FA8F5",
+    "PLAY_B_HI": "#3E8BDD",
+}
+
+THEMES = {"light": LIGHT, "dark": DARK}
+THEME_NAMES = {"light": "Claro", "dark": "Oscuro"}
+
+# Paleta activa: la leen paginas/widgets via theme.COLORS[...].
+COLORS = dict(LIGHT)
+_active = "light"
 
 
 def _ui_assets_dir() -> Path:
@@ -71,12 +135,13 @@ def _draw_check(path: Path, color: str) -> None:
     pixmap.save(str(path))
 
 
-def generate_assets() -> dict[str, str]:
+def generate_assets(palette: dict | None = None) -> dict[str, str]:
+    palette = palette or COLORS
     folder = _ui_assets_dir()
     chevron = folder / "chevron.png"
     check = folder / "check.png"
-    _draw_chevron(chevron, COLORS["TEXT_DIM"])
-    _draw_check(check, COLORS["ACCENT_TEXT"])
+    _draw_chevron(chevron, palette["TEXT_DIM"])
+    _draw_check(check, palette["ACCENT_TEXT"])
     return {
         "chevron": chevron.as_posix(),
         "check": check.as_posix(),
@@ -89,15 +154,15 @@ def app_icon() -> QIcon:
     painter = QPainter(pixmap)
     painter.setRenderHint(QPainter.RenderHint.Antialiasing)
     path = QPainterPath()
-    path.addRoundedRect(QRectF(4, 4, 120, 120), 30, 30)
+    path.addRoundedRect(QRectF(4, 4, 120, 120), 26, 26)
     gradient = QLinearGradient(0, 0, 128, 128)
-    gradient.setColorAt(0.0, QColor("#4BF0B2"))
-    gradient.setColorAt(1.0, QColor("#1FAE86"))
+    gradient.setColorAt(0.0, QColor("#3E8BDD"))
+    gradient.setColorAt(1.0, QColor("#185ABD"))
     painter.fillPath(path, gradient)
 
     font = QFont("Segoe UI", 58, QFont.Weight.Bold)
     painter.setFont(font)
-    painter.setPen(QColor(COLORS["ACCENT_TEXT"]))
+    painter.setPen(QColor("#FFFFFF"))
     painter.drawText(QRectF(0, 0, 128, 128), Qt.AlignmentFlag.AlignCenter, "A")
     painter.end()
     return QIcon(pixmap)
@@ -110,7 +175,7 @@ QSS = Template("""
 QWidget {
     color: $TEXT;
     font-family: "Segoe UI", "Inter", "Noto Sans", sans-serif;
-    font-size: 8.5pt;
+    font-size: 9pt;
 }
 QWidget#root {
     background-color: $BG;
@@ -122,19 +187,21 @@ QStackedWidget, QScrollArea {
     background: transparent;
 }
 
-/* ---- tarjetas y paneles ---- */
+/* ---- tarjetas y paneles (degradado sutil tipo Fluent/Mica) ---- */
 QFrame#card {
-    background-color: $SURFACE;
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                                stop:0 $CARD_A, stop:1 $CARD_B);
     border: 1px solid $BORDER_SOFT;
-    border-radius: 7px;
+    border-radius: 8px;
 }
 QFrame#card:hover {
-    border-color: #1D2635;
+    border-color: $BORDER;
 }
 QFrame#softPanel {
-    background-color: $SURFACE_ALT;
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                                stop:0 $CARD_A, stop:1 $CARD_B);
     border: 1px solid $BORDER_SOFT;
-    border-radius: 7px;
+    border-radius: 8px;
 }
 QFrame#softPanel:hover {
     border-color: $BORDER;
@@ -147,123 +214,121 @@ QLabel {
 QLabel#brandTitle {
     font-family: "Segoe UI", "Inter", sans-serif;
     font-size: 13pt;
-    font-weight: 800;
-    letter-spacing: 0.4px;
+    font-weight: 700;
+    letter-spacing: 0.2px;
 }
 QLabel#brandAccent {
     color: $ACCENT;
 }
 QLabel#sectionLabel {
     color: $TEXT_FAINT;
-    font-size: 7pt;
+    font-size: 7.5pt;
     font-weight: 700;
-    letter-spacing: 1.8px;
+    letter-spacing: 1.4px;
     padding-top: 2px;
 }
 QLabel#muted {
     color: $TEXT_DIM;
-    font-size: 7pt;
+    font-size: 8pt;
     line-height: 1.35;
 }
 QLabel#faint {
     color: $TEXT_FAINT;
-    font-size: 7pt;
+    font-size: 7.5pt;
 }
 QLabel#mono {
     color: $TEXT_FAINT;
     font-family: "Cascadia Mono", "Consolas", monospace;
-    font-size: 7pt;
+    font-size: 7.5pt;
 }
 QLabel#valueLabel {
     color: $TEXT;
-    font-weight: 700;
+    font-weight: 600;
 }
 QLabel#pill {
-    background-color: rgba(61, 220, 151, 0.11);
+    background-color: rgba($ACCENT_RGB, 0.10);
     color: $ACCENT;
-    border: 1px solid rgba(61, 220, 151, 0.30);
-    border-radius: 7px;
-    padding: 2px 8px;
-    font-size: 7pt;
+    border: 1px solid rgba($ACCENT_RGB, 0.28);
+    border-radius: 10px;
+    padding: 2px 10px;
+    font-size: 7.5pt;
     font-weight: 700;
-    letter-spacing: 0.9px;
+    letter-spacing: 0.8px;
 }
 QLabel#pillDim {
     background-color: $SURFACE_ALT;
     color: $TEXT_DIM;
     border: 1px solid $BORDER;
-    border-radius: 7px;
-    padding: 2px 8px;
-    font-size: 7pt;
+    border-radius: 10px;
+    padding: 2px 10px;
+    font-size: 7.5pt;
 }
 QLabel#statusLabel {
     color: $TEXT_DIM;
-    font-size: 7pt;
+    font-size: 8pt;
 }
 QLabel#statusError {
     color: $DANGER;
-    font-size: 7pt;
+    font-size: 8pt;
     font-weight: 600;
 }
 QLabel#statusOk {
-    color: $ACCENT;
-    font-size: 7pt;
+    color: $OK_COLOR;
+    font-size: 8pt;
     font-weight: 600;
 }
 
 /* ---- campos de texto ---- */
 QLineEdit {
-    background-color: $SURFACE_ALT;
+    background-color: $SURFACE;
     border: 1px solid $BORDER;
-    border-radius: 7px;
-    padding: 4px 8px;
-    selection-background-color: $ACCENT_DIM;
-    selection-color: $ACCENT_TEXT;
+    border-radius: 6px;
+    padding: 5px 9px;
+    selection-background-color: rgba($ACCENT_RGB, 0.22);
+    selection-color: $TEXT;
 }
 QLineEdit:hover {
     border-color: $BORDER_STRONG;
-    background-color: #16202F;
 }
 QLineEdit:focus {
     border-color: $ACCENT;
-    background-color: #101828;
+    background-color: $FIELD_FOCUS;
 }
 QLineEdit:disabled {
     color: $TEXT_FAINT;
-    background-color: #0F1520;
+    background-color: $SURFACE_ALT;
 }
 QLineEdit#nameEdit {
-    font-size: 10.5pt;
-    font-weight: 700;
+    font-size: 11pt;
+    font-weight: 600;
     padding: 2px 6px;
     background: transparent;
     border: 1px solid transparent;
-    border-radius: 7px;
+    border-radius: 6px;
 }
 QLineEdit#nameEdit:hover, QLineEdit#nameEdit:focus {
-    background-color: $SURFACE_ALT;
+    background-color: $SURFACE;
     border-color: $BORDER;
 }
 
 /* ---- combos ---- */
 QComboBox {
-    background-color: $SURFACE_ALT;
+    background-color: $SURFACE;
     border: 1px solid $BORDER;
-    border-radius: 7px;
-    padding: 4px 30px 4px 9px;
+    border-radius: 6px;
+    padding: 5px 30px 5px 9px;
     min-height: 15px;
 }
 QComboBox:hover {
     border-color: $BORDER_STRONG;
-    background-color: #16202F;
 }
 QComboBox:focus {
     border-color: $ACCENT;
-    background-color: #101828;
+    background-color: $FIELD_FOCUS;
 }
 QComboBox:disabled {
     color: $TEXT_FAINT;
-    background-color: #0F1520;
+    background-color: $SURFACE_ALT;
 }
 QComboBox::drop-down {
     border: none;
@@ -275,24 +340,24 @@ QComboBox::down-arrow {
     height: 13px;
 }
 QComboBox QAbstractItemView {
-    background-color: $SURFACE_ALT;
+    background-color: $SURFACE;
     border: 1px solid $BORDER_STRONG;
-    border-radius: 7px;
+    border-radius: 6px;
     padding: 5px;
-    selection-background-color: rgba(61, 220, 151, 0.15);
+    selection-background-color: rgba($ACCENT_RGB, 0.12);
     selection-color: $TEXT;
     outline: none;
 }
 QComboBox QAbstractItemView::item {
-    padding: 3px 6px;
-    border-radius: 6px;
+    padding: 4px 7px;
+    border-radius: 5px;
     min-height: 15px;
 }
 QComboBox QAbstractItemView::item:hover {
     background-color: $SURFACE_HOVER;
 }
 QComboBox QAbstractItemView::item:selected {
-    background-color: rgba(61, 220, 151, 0.15);
+    background-color: rgba($ACCENT_RGB, 0.12);
 }
 
 /* ---- botones ---- */
@@ -300,10 +365,10 @@ QAbstractButton:focus {
     border-color: $ACCENT_DIM;
 }
 QPushButton {
-    background-color: $SURFACE_ALT;
+    background-color: $SURFACE;
     border: 1px solid $BORDER;
-    border-radius: 7px;
-    padding: 3px 8px;
+    border-radius: 6px;
+    padding: 5px 11px;
     color: $TEXT;
     font-weight: 600;
 }
@@ -317,33 +382,33 @@ QPushButton:pressed {
 }
 QPushButton:disabled {
     color: $TEXT_FAINT;
-    background-color: #0E141F;
+    background-color: $SURFACE_ALT;
     border-color: $BORDER_SOFT;
 }
 QPushButton#playButton {
     background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                                stop:0 #4BF0B2, stop:1 #25B57F);
-    border: 1px solid rgba(255, 255, 255, 0.10);
+                                stop:0 $PLAY_A, stop:1 $PLAY_B);
+    border: 1px solid rgba(255, 255, 255, 0.18);
     border-radius: 7px;
     color: $ACCENT_TEXT;
-    font-size: 10.5pt;
-    font-weight: 800;
-    letter-spacing: 1.2px;
-    padding: 11px 18px;
+    font-size: 11pt;
+    font-weight: 700;
+    letter-spacing: 1px;
+    padding: 12px 18px;
 }
 QPushButton#playButton:hover {
     background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                                stop:0 #6FF2C4, stop:1 #35D493);
-    border-color: rgba(255, 255, 255, 0.18);
+                                stop:0 $PLAY_A_HI, stop:1 $PLAY_B_HI);
+    border-color: rgba(255, 255, 255, 0.28);
 }
 QPushButton#playButton:pressed {
     background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                                stop:0 #2BBE8F, stop:1 #1E9A70);
+                                stop:0 $PLAY_B, stop:1 $ACCENT_DIM);
 }
 QPushButton#playButton:disabled {
-    background: #14201D;
-    border-color: #1E2E2A;
-    color: #47705F;
+    background: $SURFACE_ALT;
+    border-color: $BORDER_SOFT;
+    color: $TEXT_FAINT;
 }
 QPushButton#playButton[busy="true"] {
     background-color: $SURFACE_ALT;
@@ -357,9 +422,9 @@ QPushButton#playButton[busy="true"]:hover {
 QPushButton#ghostButton {
     background: transparent;
     border: 1px solid transparent;
-    border-radius: 7px;
+    border-radius: 6px;
     color: $TEXT_DIM;
-    padding: 2px 6px;
+    padding: 4px 8px;
     font-weight: 600;
 }
 QPushButton#ghostButton:hover {
@@ -376,32 +441,32 @@ QPushButton#ghostButton:disabled {
     border-color: transparent;
 }
 QPushButton#accentGhost {
-    background: rgba(61, 220, 151, 0.07);
-    border: 1px solid rgba(61, 220, 151, 0.32);
-    border-radius: 7px;
+    background-color: rgba($ACCENT_RGB, 0.07);
+    border: 1px solid rgba($ACCENT_RGB, 0.30);
+    border-radius: 6px;
     color: $ACCENT;
-    padding: 3px 8px;
-    font-size: 8.5pt;
-    font-weight: 700;
+    padding: 5px 11px;
+    font-size: 9pt;
+    font-weight: 600;
 }
 QPushButton#accentGhost:hover {
-    background-color: rgba(61, 220, 151, 0.15);
-    border-color: rgba(61, 220, 151, 0.50);
+    background-color: rgba($ACCENT_RGB, 0.13);
+    border-color: rgba($ACCENT_RGB, 0.50);
 }
 QPushButton#accentGhost:pressed {
-    background-color: rgba(61, 220, 151, 0.22);
+    background-color: rgba($ACCENT_RGB, 0.20);
 }
 QPushButton#accentGhost:disabled {
     color: $TEXT_FAINT;
-    background-color: #0E141F;
+    background-color: $SURFACE_ALT;
     border-color: $BORDER_SOFT;
 }
 QPushButton#iconButton {
     background: transparent;
     border: 1px solid transparent;
-    border-radius: 7px;
+    border-radius: 6px;
     padding: 5px;
-    font-size: 10.5pt;
+    font-size: 10pt;
     color: $TEXT_DIM;
 }
 QPushButton#iconButton:hover {
@@ -417,64 +482,63 @@ QPushButton#iconButton:disabled {
 }
 QPushButton#dangerButton {
     background: transparent;
-    border: 1px solid rgba(255, 122, 122, 0.35);
-    border-radius: 7px;
+    border: 1px solid rgba($DANGER_RGB, 0.35);
+    border-radius: 6px;
     color: $DANGER;
-    padding: 4px 10px;
+    padding: 5px 11px;
     font-weight: 600;
 }
 QPushButton#dangerButton:hover {
-    background-color: rgba(255, 122, 122, 0.12);
-    border-color: rgba(255, 122, 122, 0.55);
+    background-color: rgba($DANGER_RGB, 0.08);
+    border-color: rgba($DANGER_RGB, 0.55);
 }
 QPushButton#dangerButton:pressed {
-    background-color: rgba(255, 122, 122, 0.20);
+    background-color: rgba($DANGER_RGB, 0.14);
 }
 QPushButton#dangerButton:disabled {
-    color: #6E4A4A;
-    border-color: rgba(255, 122, 122, 0.15);
+    color: $TEXT_FAINT;
+    border-color: rgba($DANGER_RGB, 0.15);
 }
 QPushButton#primaryButton {
     background-color: $ACCENT;
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    border-radius: 7px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 6px;
     color: $ACCENT_TEXT;
-    font-weight: 700;
-    padding: 4px 10px;
+    font-weight: 600;
+    padding: 6px 12px;
 }
 QPushButton#primaryButton:hover {
     background-color: $ACCENT_HI;
-    border-color: rgba(255, 255, 255, 0.22);
+    border-color: rgba(255, 255, 255, 0.25);
 }
 QPushButton#primaryButton:pressed {
     background-color: $ACCENT_DIM;
 }
 QPushButton#primaryButton:disabled {
-    background-color: #14201D;
-    border-color: #1E2E2A;
-    color: #47705F;
+    background-color: $SURFACE_ALT;
+    border-color: $BORDER_SOFT;
+    color: $TEXT_FAINT;
 }
 
 /* ---- spin boxes ---- */
 QSpinBox {
-    background-color: $SURFACE_ALT;
+    background-color: $SURFACE;
     border: 1px solid $BORDER;
-    border-radius: 7px;
-    padding: 3px 6px;
+    border-radius: 6px;
+    padding: 5px 6px;
     min-height: 15px;
     color: $TEXT;
 }
 QSpinBox:hover {
     border-color: $BORDER_STRONG;
-    background-color: #16202F;
 }
 QSpinBox:focus {
     border-color: $ACCENT;
-    background-color: #101828;
+    background-color: $FIELD_FOCUS;
 }
 QSpinBox:disabled {
     color: $TEXT_FAINT;
-    background-color: #0F1520;
+    background-color: $SURFACE_ALT;
 }
 QSpinBox::up-button, QSpinBox::down-button {
     width: 22px;
@@ -483,7 +547,7 @@ QSpinBox::up-button, QSpinBox::down-button {
 }
 QSpinBox::up-button:hover, QSpinBox::down-button:hover {
     background-color: $SURFACE_HOVER;
-    border-radius: 5px;
+    border-radius: 4px;
 }
 QSpinBox::up-button:pressed, QSpinBox::down-button:pressed {
     background-color: $ACCENT_DIM;
@@ -492,8 +556,8 @@ QSpinBox::up-button:pressed, QSpinBox::down-button:pressed {
 /* ---- checks y sliders ---- */
 QCheckBox {
     color: $TEXT_DIM;
-    spacing: 7px;
-    font-size: 7pt;
+    spacing: 8px;
+    font-size: 8.5pt;
 }
 QCheckBox:hover {
     color: $TEXT;
@@ -502,15 +566,15 @@ QCheckBox:disabled {
     color: $TEXT_FAINT;
 }
 QCheckBox::indicator {
-    width: 13px;
-    height: 13px;
-    border-radius: 5px;
+    width: 15px;
+    height: 15px;
+    border-radius: 4px;
     border: 1px solid $BORDER_STRONG;
-    background-color: $SURFACE_ALT;
+    background-color: $SURFACE;
 }
 QCheckBox::indicator:hover {
     border-color: $ACCENT_DIM;
-    background-color: #16202F;
+    background-color: $SURFACE_HOVER;
 }
 QCheckBox::indicator:checked {
     background-color: $ACCENT;
@@ -521,13 +585,13 @@ QCheckBox::indicator:checked:hover {
     background-color: $ACCENT_HI;
 }
 QCheckBox::indicator:disabled {
-    background-color: #10151F;
+    background-color: $SURFACE_ALT;
     border-color: $BORDER_SOFT;
 }
 
 QSlider::groove:horizontal {
-    height: 4px;
-    background: #1B2333;
+    height: 5px;
+    background: $SURFACE_HOVER;
     border-radius: 3px;
 }
 QSlider::sub-page:horizontal {
@@ -536,71 +600,73 @@ QSlider::sub-page:horizontal {
     border-radius: 3px;
 }
 QSlider::add-page:horizontal {
-    background: #161F2E;
+    background: $SURFACE_PRESSED;
     border-radius: 3px;
 }
 QSlider::handle:horizontal {
-    background: #F2FBF7;
-    width: 11px;
-    height: 11px;
+    background: $SURFACE;
+    width: 13px;
+    height: 13px;
     margin: -4px 0;
-    border-radius: 7px;
-    border: 2px solid #0A0E15;
+    border-radius: 8px;
+    border: 2px solid $BORDER_STRONG;
 }
 QSlider::handle:horizontal:hover {
-    background: #FFFFFF;
+    border-color: $ACCENT;
+    background: $FIELD_FOCUS;
 }
 QSlider::handle:horizontal:pressed {
-    background: $ACCENT_HI;
+    background: $ACCENT;
+    border-color: $ACCENT;
 }
 QSlider::sub-page:horizontal:disabled, QSlider::groove:horizontal:disabled {
-    background: #151B27;
+    background: $SURFACE_PRESSED;
 }
 
 /* ---- consola y progreso ---- */
 QPlainTextEdit#console {
-    background-color: #06090F;
+    background-color: $CONSOLE_BG;
     border: 1px solid $BORDER_SOFT;
-    border-radius: 7px;
-    color: #A9B8CE;
+    border-radius: 8px;
+    color: $CONSOLE_TEXT;
     font-family: "Cascadia Mono", "Consolas", monospace;
-    font-size: 7pt;
-    selection-background-color: #1F4C3C;
-    padding: 6px;
+    font-size: 8pt;
+    selection-background-color: $CONSOLE_SEL;
+    padding: 8px;
 }
 QPlainTextEdit#console:hover {
     border-color: $BORDER;
 }
 
 QProgressBar {
-    background-color: #101724;
+    background-color: $SURFACE_HOVER;
     border: 1px solid $BORDER_SOFT;
-    border-radius: 5px;
-    height: 6px;
+    border-radius: 4px;
+    height: 7px;
     text-align: center;
     color: transparent;
 }
 QProgressBar::chunk {
     background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
                                 stop:0 $ACCENT_DIM, stop:1 $ACCENT);
-    border-radius: 4px;
+    border-radius: 3px;
 }
 
 /* ---- scrollbars ---- */
 QScrollBar:vertical {
     background: transparent;
-    width: 7px;
+    width: 8px;
     margin: 2px 2px;
 }
 QScrollBar::handle:vertical {
-    background: #2B3850;
+    background: $BORDER;
     border-radius: 5px;
     min-height: 30px;
     border: 2px solid transparent;
     background-clip: padding;
 }
 QScrollBar::handle:vertical:hover {
-    background: #3D4F6E;
+    background: $BORDER_STRONG;
     background-clip: padding;
 }
 QScrollBar::handle:vertical:pressed {
@@ -615,18 +681,18 @@ QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
 }
 QScrollBar:horizontal {
     background: transparent;
-    height: 7px;
+    height: 8px;
     margin: 2px 2px;
 }
 QScrollBar::handle:horizontal {
-    background: #2B3850;
+    background: $BORDER;
     border-radius: 5px;
     min-width: 30px;
     border: 2px solid transparent;
     background-clip: padding;
 }
 QScrollBar::handle:horizontal:hover {
-    background: #3D4F6E;
+    background: $BORDER_STRONG;
     background-clip: padding;
 }
 QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
@@ -641,12 +707,12 @@ QDialog {
     background-color: $BG_ALT;
 }
 QToolTip {
-    background-color: $SURFACE_ALT;
+    background-color: $SURFACE;
     color: $TEXT;
     border: 1px solid $BORDER_STRONG;
-    border-radius: 7px;
-    padding: 4px 8px;
-    font-size: 7pt;
+    border-radius: 6px;
+    padding: 5px 9px;
+    font-size: 8pt;
 }
 QMessageBox {
     background-color: $SURFACE;
@@ -657,50 +723,51 @@ QFrame#divider {
     border: none;
 }
 
-/* ---- barra lateral ---- */
+/* ---- barra lateral y barra de estado (degradado sutil) ---- */
 QWidget#sidebar {
-    background-color: $BG_ALT;
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                                stop:0 $PANEL_A, stop:1 $PANEL_B);
     border-right: 1px solid $BORDER_SOFT;
 }
 QWidget#statusBar {
-    background-color: $BG_ALT;
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                                stop:0 $PANEL_A, stop:1 $PANEL_B);
     border-top: 1px solid $BORDER_SOFT;
 }
 QLabel#navTitle {
     color: $TEXT_FAINT;
-    font-size: 7pt;
+    font-size: 7.5pt;
     font-weight: 700;
-    letter-spacing: 1.8px;
-    padding: 4px 12px 2px 12px;
+    letter-spacing: 1.4px;
+    padding: 6px 12px 2px 12px;
 }
 QPushButton#navButton {
     background: transparent;
     border: 1px solid transparent;
-    border-radius: 7px;
+    border-radius: 6px;
     color: $TEXT_DIM;
     text-align: left;
-    padding: 4px 8px;
-    font-size: 8.5pt;
+    padding: 6px 10px;
+    font-size: 9pt;
     font-weight: 600;
-    min-height: 15px;
+    min-height: 18px;
 }
 QPushButton#navButton:hover {
-    background-color: $SURFACE_HOVER;
+    background-color: rgba($ACCENT_RGB, 0.06);
     color: $TEXT;
 }
 QPushButton#navButton:pressed {
-    background-color: $SURFACE_PRESSED;
+    background-color: rgba($ACCENT_RGB, 0.12);
 }
 QPushButton#navButton[active="true"] {
-    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                                stop:0 rgba(61,220,151,0.18), stop:1 rgba(61,220,151,0.07));
-    border-color: rgba(61, 220, 151, 0.30);
+    background-color: rgba($ACCENT_RGB, 0.12);
+    border-color: rgba($ACCENT_RGB, 0.20);
     color: $ACCENT;
     font-weight: 700;
 }
 QLabel#navBadge {
     color: $TEXT_FAINT;
-    font-size: 7pt;
+    font-size: 7.5pt;
 }
 
 /* ---- paginas ---- */
@@ -709,14 +776,14 @@ QWidget#page {
 }
 QLabel#pageTitle {
     color: $TEXT;
-    font-size: 14pt;
-    font-weight: 800;
-    letter-spacing: 0.4px;
+    font-size: 15pt;
+    font-weight: 700;
+    letter-spacing: 0.2px;
 }
 QLabel#pageSubtitle {
     color: $TEXT_DIM;
-    font-size: 8.5pt;
-    letter-spacing: 0.2px;
+    font-size: 9pt;
+    letter-spacing: 0.1px;
 }
 QFrame#pageHeader {
     background: transparent;
@@ -727,16 +794,16 @@ QFrame#pageHeader {
 QTableWidget, QListWidget, QTreeWidget {
     background-color: $SURFACE;
     border: 1px solid $BORDER_SOFT;
-    border-radius: 7px;
+    border-radius: 8px;
     gridline-color: $BORDER_SOFT;
     color: $TEXT;
-    font-size: 7pt;
-    selection-background-color: rgba(61, 220, 151, 0.14);
+    font-size: 8.5pt;
+    selection-background-color: rgba($ACCENT_RGB, 0.12);
     selection-color: $TEXT;
     outline: none;
 }
 QTableWidget::item, QListWidget::item, QTreeWidget::item {
-    padding: 2px 8px;
+    padding: 3px 8px;
     border: none;
 }
 QTableWidget::item:hover, QListWidget::item:hover,
@@ -747,9 +814,9 @@ QHeaderView::section {
     background-color: $SURFACE_ALT;
     color: $TEXT_FAINT;
     border: none;
-    border-bottom: 1px solid $BORDER;
-    padding: 3px 8px;
-    font-size: 7pt;
+    border-bottom: 1px solid $BORDER_SOFT;
+    padding: 5px 9px;
+    font-size: 7.5pt;
     font-weight: 700;
     letter-spacing: 1px;
 }
@@ -758,7 +825,7 @@ QTableCornerButton::section {
     border: none;
 }
 QListWidget::item:selected, QTreeWidget::item:selected {
-    background-color: rgba(61, 220, 151, 0.14);
+    background-color: rgba($ACCENT_RGB, 0.12);
     color: $TEXT;
 }
 QTreeWidget::branch {
@@ -767,21 +834,22 @@ QTreeWidget::branch {
 
 /* ---- tarjetas de estadistica ---- */
 QFrame#statCard {
-    background-color: $SURFACE_ALT;
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                                stop:0 $CARD_A, stop:1 $CARD_B);
     border: 1px solid $BORDER_SOFT;
-    border-radius: 7px;
+    border-radius: 8px;
 }
 QFrame#statCard:hover {
     border-color: $BORDER;
 }
 QLabel#statValue {
     color: $TEXT;
-    font-size: 10.5pt;
-    font-weight: 800;
+    font-size: 12pt;
+    font-weight: 700;
 }
 QLabel#statCaption {
     color: $TEXT_FAINT;
-    font-size: 7pt;
+    font-size: 7.5pt;
     letter-spacing: 0.8px;
 }
 
@@ -795,16 +863,27 @@ QScrollArea > QWidget > QWidget {
 """)
 
 
-def build_stylesheet() -> str:
-    assets = generate_assets()
-    return QSS.substitute(**COLORS, CHEVRON=assets["chevron"],
+def build_stylesheet(theme_name: str = "light") -> str:
+    palette = THEMES.get(theme_name, LIGHT)
+    assets = generate_assets(palette)
+    return QSS.substitute(**palette, CHEVRON=assets["chevron"],
                           CHECK=assets["check"])
 
 
-def apply_theme(app: QApplication) -> None:
+def apply_theme(app: QApplication, theme_name: str = "light") -> None:
+    """Aplica el tema indicado ('light' u 'dark') a toda la aplicacion."""
+    global COLORS, _active
+    theme_name = theme_name if theme_name in THEMES else "light"
+    _active = theme_name
+    palette = THEMES[theme_name]
+    COLORS = dict(palette)
     app.setStyle("Fusion")
     app.setWindowIcon(app_icon())
     font = QFont("Segoe UI", 10)
     font.setHintingPreference(QFont.HintingPreference.PreferFullHinting)
     app.setFont(font)
-    app.setStyleSheet(build_stylesheet())
+    app.setStyleSheet(build_stylesheet(theme_name))
+
+
+def current_theme_name() -> str:
+    return _active

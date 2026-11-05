@@ -19,7 +19,7 @@ _BOOL_FIELDS = {
 _STR_FIELDS = {
     "username", "active_account", "version", "java_path",
     "extra_jvm_args", "server", "optifine_profile", "last_optifine",
-    "game_priority", "gc_preset", "win_geometry",
+    "game_priority", "gc_preset", "win_geometry", "ui_theme",
 }
 
 
@@ -76,6 +76,8 @@ class Settings:
     hw_defaults_applied: bool = False
     # Geometria de la ventana (base64 de saveGeometry) para restaurarla.
     win_geometry: str = ""
+    # Tema de la interfaz: "light" (Office claro) u "dark" (Office oscuro).
+    ui_theme: str = "light"
 
     @classmethod
     def load(cls) -> "Settings":
@@ -85,6 +87,8 @@ class Settings:
         data = {key: value for key, value in raw.items() if key in valid}
         data = _sanitize(data)
         settings = cls(**data)
+        if settings.ui_theme not in ("light", "dark"):
+            settings.ui_theme = "light"
         # Ajuste unico al hardware real en el primer arranque (equipo modesto:
         # menos RAM para el juego y GC de un solo hilo). Solo toca valores que
         # siguen en su default antiguo; una eleccion manual posterior se respeta.

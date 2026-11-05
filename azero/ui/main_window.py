@@ -10,7 +10,8 @@ from PyQt6.QtCore import QByteArray, Qt, QTimer, QUrl
 from PyQt6.QtGui import QDesktopServices, QKeySequence, QShortcut
 from PyQt6.QtWidgets import (QApplication, QFileDialog, QHBoxLayout, QLabel,
                              QMainWindow, QMessageBox, QPushButton,
-                             QStackedWidget, QVBoxLayout, QWidget)
+                             QSizePolicy, QStackedWidget, QVBoxLayout,
+                             QWidget)
 
 from .. import (APP_NAME, APP_VERSION, database, hardware, paths)
 from ..auth import offline_uuid, validate_username
@@ -69,13 +70,13 @@ def _java_major_display(version_id: str) -> int:
     return _java_major_for(version_id)
 
 
-def _enable_dark_titlebar(window: QWidget) -> None:
+def _apply_titlebar_theme(window: QWidget, dark: bool) -> None:
     if not sys.platform.startswith("win"):
         return
     try:
         import ctypes
 
-        value = ctypes.c_int(1)
+        value = ctypes.c_int(1 if dark else 0)
         hwnd = int(window.winId())
         # DWMWA_USE_IMMERSIVE_DARK_MODE = 20 (Windows 10 2004+)
         ctypes.windll.dwmapi.DwmSetWindowAttribute(
@@ -180,35 +181,36 @@ class MainWindow(QMainWindow):
         icon.setPixmap(theme.app_icon().pixmap(30, 30))
         icon.setFixedSize(30, 30)
         brand_row.addWidget(icon)
-        brand = QLabel(
-            '<span style="color:#E8EEF7">AZero</span>'
-            '<span style="color:#3DDC97">Craft</span>'
-        )
-        brand.setObjectName("brandTitle")
-        brand.setTextFormat(Qt.TextFormat.RichText)
-        brand.setStyleSheet("font-size: 14pt;")
-        brand_row.addWidget(brand)
+        self.brand_title = QLabel()
+        self.brand_title.setObjectName("brandTitle")
+        self.brand_title.setTextFormat(Qt.TextFormat.RichText)
+        self.brand_title.setStyleSheet("font-size: 14pt;")
+        self._refresh_brand()
+        brand_row.addWidget(self.brand_title)
         brand_row.addStretch(1)
         layout.addLayout(brand_row)
         layout.addSpacing(8)
 
-        layout.addWidget(self._nav_label("MENU"))
         self.nav_buttons: list[QPushButton] = []
-        for index, (icon_text, label) in enumerate((
-                ("▶", "Jugar"),
-                ("▦", "Versiones"),
-                ("◉", "Cuenta"),
-                ("⚙", "Ajustes"),
-                ("i", "Acerca de"),
-        )):
-            button = QPushButton(f"  {icon_text}   {label}")
-            button.setObjectName("navButton")
-            button.setCursor(Qt.CursorShape.PointingHandCursor)
-            button.setCheckable(True)
-            button.clicked.connect(
-                lambda _=False, i=index: self._go_page(i))
-            self.nav_buttons.append(button)
-            layout.addWidget(button)
+        sections = (
+            ("JUEGO", (("▶", "Jugar"), ("▦", "Versiones"))),
+            ("CUENTA", (("◉", "Cuenta"),)),
+            ("SISTEMA", (("⚙", "Ajustes"), ("i", "Acerca de"))),
+        )
+        for section, items in sections:
+            layout.addWidget(self._nav_label(section))
+            for icon_text, label in items:
+                index = len(self.nav_buttons)
+                button = QPushButton(f"  {icon_text}   {label}")
+                button.setObjectName("navButton")
+                button.setCursor(Qt.CursorShape.PointingHandCursor)
+                button.setCheckable(True)
+                button.setSizePolicy(QSizePolicy.Policy.Expanding,
+                                     QSizePolicy.Policy.Fixed)
+                button.clicked.connect(
+                    lambda _=False, i=index: self._go_page(i))
+                self.nav_buttons.append(button)
+                layout.addWidget(button)
 
         layout.addStretch(1)
 
@@ -217,8 +219,50 @@ class MainWindow(QMainWindow):
         self.side_status.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.side_status)
         layout.addSpacing(6)
+
+        self.theme_button = QPushButton()
+        self.theme_button.setObjectName("ghostButton")
+        self.theme_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.theme_button.setToolTip("Cambiar entre tema claro y oscuro")
+        self.theme_button.clicked.connect(self._toggle_theme)
+        self._refresh_theme_button()
+        layout.addWidget(self.theme_button)
+        layout.addSpacing(4)
         layout.addWidget(faint_label(f"{APP_NAME} {APP_VERSION} · portable"))
         return sidebar
+
+    def _refresh_brand(self) -> None:
+        text = theme.COLORS["TEXT"]
+        accent = theme.COLORS["ACCENT"]
+        self.brand_title.setText(
+            f'<span style="color:{text}">AZero</span>'
+            f'<span style="color:{accent}">Craft</span>'
+        )
+
+    def _refresh_theme_button(self) -> None:
+        dark = theme.current_theme_name() == "dark"
+        self.theme_button.setText("  ☀   Tema: Claro" if dark
+                                  else "  ☾   Tema: Oscuro")
+
+    def _toggle_theme(self) -> None:
+        name = ("light" if theme.current_theme_name() == "dark"
+                else "dark")
+        self._apply_ui_theme(name)
+
+    def _apply_ui_theme(self, name: str) -> None:
+        """Cambia el tema de toda la interfaz en caliente y lo guarda."""
+        name = name if name in theme.THEMES else "light"
+        self.settings.ui_theme = name
+        try:
+            self.settings.save()
+        except OSError:
+            pass
+        app = QApplication.instance()
+        if app is not None:
+            theme.apply_theme(app, name)
+        _apply_titlebar_theme(self, name == "dark")
+        self._refresh_brand()
+        self._refresh_theme_button()
 
     def _nav_label(self, text: str) -> QLabel:
         label = QLabel(text)
@@ -815,7 +859,7 @@ class MainWindow(QMainWindow):
         super().showEvent(event)
         if not self._titlebar_done:
             self._titlebar_done = True
-            _enable_dark_titlebar(self)
+            _apply_titlebar_theme(self, theme.current_theme_name() == "dark")
 
     def closeEvent(self, event) -> None:  # noqa: N802 - API de Qt
         try:

@@ -75,10 +75,10 @@ class Avatar(QWidget):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
-        # Tonos teal/azules para mantener la identidad visual del launcher.
-        hue = 138 + (self._seed % 72)
-        top = QColor.fromHsv(hue, 120, 235)
-        bottom = QColor.fromHsv((hue + 22) % 360, 175, 160)
+        # Tonos azules para mantener la identidad visual del launcher.
+        hue = 205 + (self._seed % 40)
+        top = QColor.fromHsv(hue, 150, 230)
+        bottom = QColor.fromHsv((hue + 25) % 360, 190, 165)
 
         path = QPainterPath()
         path.addRoundedRect(QRectF(0, 0, self._size, self._size),
@@ -90,7 +90,7 @@ class Avatar(QWidget):
 
         font = QFont("Segoe UI", int(self._size * 0.34), QFont.Weight.Bold)
         painter.setFont(font)
-        painter.setPen(QColor(10, 20, 16, 210))
+        painter.setPen(QColor(255, 255, 255, 225))
         painter.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, self._initials)
         painter.end()
 

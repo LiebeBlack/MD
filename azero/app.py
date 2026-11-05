@@ -89,6 +89,9 @@ def main() -> int:
             paths.set_data_dir(chosen)
 
     settings = Settings.load()
+    # Reaplica el tema con la preferencia guardada (el dialogo de primer
+    # arranque ya mostro el tema claro por defecto).
+    theme.apply_theme(app, settings.ui_theme)
     window = MainWindow(settings)
     window.show()
     return app.exec()
