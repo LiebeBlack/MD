@@ -870,7 +870,7 @@ class MSLoginDialog(QDialog):
         self._device = device
         self.code_label.setText(device.user_code)
         self.status.setText("Introduce este codigo en la pagina de Microsoft:")
-        link = (f"<a href='{device.verification_uri}' style='color:#3DE0A0'>"
+        link = (f"<a href='{device.verification_uri}' style='color:#3DDC97'>"
                 f"{device.verification_uri}</a>")
         self.link_label.setText(link)
         self.link_label.setOpenExternalLinks(True)

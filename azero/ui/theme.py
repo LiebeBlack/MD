@@ -13,19 +13,19 @@ from PyQt6.QtWidgets import QApplication
 from .. import paths
 
 COLORS = {
-    "BG": "#0A0D13",
-    "SURFACE": "#111722",
-    "SURFACE_ALT": "#161E2C",
-    "SURFACE_HOVER": "#1C2636",
-    "BORDER": "#232D3F",
-    "BORDER_SOFT": "#1B2432",
-    "TEXT": "#E7EEF9",
-    "TEXT_DIM": "#93A1B7",
-    "TEXT_FAINT": "#5F6C81",
-    "ACCENT": "#3DE0A0",
-    "ACCENT_DIM": "#2BB57F",
-    "ACCENT_TEXT": "#062018",
-    "DANGER": "#FF6B6B",
+    "BG": "#0B0E14",
+    "SURFACE": "#11161F",
+    "SURFACE_ALT": "#171E2A",
+    "SURFACE_HOVER": "#1D2634",
+    "BORDER": "#26303F",
+    "BORDER_SOFT": "#1C2431",
+    "TEXT": "#E8EEF7",
+    "TEXT_DIM": "#94A2B8",
+    "TEXT_FAINT": "#5E6B80",
+    "ACCENT": "#3DDC97",
+    "ACCENT_DIM": "#2BAE77",
+    "ACCENT_TEXT": "#052015",
+    "DANGER": "#FF7070",
     "WARN": "#F2C14E",
 }
 
@@ -111,6 +111,9 @@ QWidget#root {
 QMainWindow {
     background-color: $BG;
 }
+QStackedWidget, QScrollArea {
+    background: transparent;
+}
 QFrame#card {
     background-color: $SURFACE;
     border: 1px solid $BORDER_SOFT;
@@ -141,7 +144,7 @@ QLabel#sectionLabel {
 }
 QLabel#muted {
     color: $TEXT_DIM;
-    font-size: 9pt;
+    font-size: 8.5pt;
 }
 QLabel#faint {
     color: $TEXT_FAINT;
@@ -157,9 +160,9 @@ QLabel#valueLabel {
     font-weight: 700;
 }
 QLabel#pill {
-    background-color: rgba(61, 224, 160, 0.10);
+    background-color: rgba(61, 220, 151, 0.10);
     color: $ACCENT;
-    border: 1px solid rgba(61, 224, 160, 0.28);
+    border: 1px solid rgba(61, 220, 151, 0.28);
     border-radius: 8px;
     padding: 2px 8px;
     font-size: 8pt;
@@ -241,7 +244,7 @@ QComboBox QAbstractItemView {
     border: 1px solid $BORDER;
     border-radius: 8px;
     padding: 4px;
-    selection-background-color: rgba(61, 224, 160, 0.14);
+    selection-background-color: rgba(61, 220, 151, 0.14);
     selection-color: $TEXT;
     outline: none;
 }
@@ -281,7 +284,7 @@ QPushButton#playButton {
     padding: 9px 14px;
 }
 QPushButton#playButton:hover {
-    background-color: #58F0B6;
+    background-color: #6FE7B8;
 }
 QPushButton#playButton:pressed {
     background-color: $ACCENT_DIM;
@@ -311,13 +314,13 @@ QPushButton#ghostButton:hover {
 }
 QPushButton#accentGhost {
     background: transparent;
-    border: 1px solid rgba(61, 224, 160, 0.35);
+    border: 1px solid rgba(61, 220, 151, 0.35);
     color: $ACCENT;
     padding: 4px 11px;
     font-size: 9pt;
 }
 QPushButton#accentGhost:hover {
-    background-color: rgba(61, 224, 160, 0.10);
+    background-color: rgba(61, 220, 151, 0.10);
 }
 QPushButton#iconButton {
     background: transparent;
@@ -359,8 +362,8 @@ QSpinBox::up-button:hover, QSpinBox::down-button:hover {
 }
 QCheckBox {
     color: $TEXT_DIM;
-    spacing: 10px;
-    font-size: 9pt;
+    spacing: 8px;
+    font-size: 8.5pt;
 }
 QCheckBox:hover {
     color: $TEXT;
@@ -492,8 +495,8 @@ QPushButton#navButton:hover {
     color: $TEXT;
 }
 QPushButton#navButton[active="true"] {
-    background-color: rgba(61, 224, 160, 0.10);
-    border-color: rgba(61, 224, 160, 0.26);
+    background-color: rgba(61, 220, 151, 0.10);
+    border-color: rgba(61, 220, 151, 0.26);
     color: $ACCENT;
 }
 QLabel#navBadge {
@@ -521,7 +524,7 @@ QTableWidget, QListWidget {
     gridline-color: $BORDER_SOFT;
     color: $TEXT;
     font-size: 8.5pt;
-    selection-background-color: rgba(61, 224, 160, 0.14);
+    selection-background-color: rgba(61, 220, 151, 0.14);
     selection-color: $TEXT;
     outline: none;
 }
@@ -547,7 +550,7 @@ QTableCornerButton::section {
     border: none;
 }
 QListWidget::item:selected {
-    background-color: rgba(61, 224, 160, 0.14);
+    background-color: rgba(61, 220, 151, 0.14);
     color: $TEXT;
 }
 QPushButton#dangerButton {
@@ -568,7 +571,7 @@ QPushButton#primaryButton {
     padding: 6px 14px;
 }
 QPushButton#primaryButton:hover {
-    background-color: #58F0B6;
+    background-color: #6FE7B8;
 }
 QPushButton#primaryButton:disabled {
     background-color: #1C2A2A;

@@ -89,8 +89,8 @@ class MainWindow(QMainWindow):
         database.init_db()
 
         self.setWindowTitle(f"{APP_NAME} Launcher")
-        self.resize(1180, 780)
-        self.setMinimumSize(1020, 700)
+        self.resize(1160, 760)
+        self.setMinimumSize(1000, 680)
 
         self._build_ui()
         self._apply_settings()
@@ -140,28 +140,28 @@ class MainWindow(QMainWindow):
     def _build_sidebar(self) -> QWidget:
         sidebar = QWidget()
         sidebar.setObjectName("sidebar")
-        sidebar.setFixedWidth(208)
+        sidebar.setFixedWidth(196)
         layout = QVBoxLayout(sidebar)
-        layout.setContentsMargins(12, 16, 12, 12)
-        layout.setSpacing(4)
+        layout.setContentsMargins(10, 14, 10, 10)
+        layout.setSpacing(3)
 
         brand_row = QHBoxLayout()
-        brand_row.setSpacing(10)
+        brand_row.setSpacing(9)
         icon = QLabel()
-        icon.setPixmap(theme.app_icon().pixmap(34, 34))
-        icon.setFixedSize(34, 34)
+        icon.setPixmap(theme.app_icon().pixmap(30, 30))
+        icon.setFixedSize(30, 30)
         brand_row.addWidget(icon)
         brand = QLabel(
-            '<span style="color:#E7EEF9">AZero</span>'
-            '<span style="color:#3DE0A0">Craft</span>'
+            '<span style="color:#E8EEF7">AZero</span>'
+            '<span style="color:#3DDC97">Craft</span>'
         )
         brand.setObjectName("brandTitle")
         brand.setTextFormat(Qt.TextFormat.RichText)
-        brand.setStyleSheet("font-size: 15pt;")
+        brand.setStyleSheet("font-size: 14pt;")
         brand_row.addWidget(brand)
         brand_row.addStretch(1)
         layout.addLayout(brand_row)
-        layout.addSpacing(10)
+        layout.addSpacing(8)
 
         layout.addWidget(self._nav_label("MENU"))
         self.nav_buttons: list[QPushButton] = []
@@ -198,9 +198,9 @@ class MainWindow(QMainWindow):
     def _build_status_bar(self) -> QWidget:
         bar = QWidget()
         bar.setObjectName("sidebar")
-        bar.setStyleSheet("border-right: none; border-top: 1px solid #1B2432;")
+        bar.setStyleSheet("border-right: none; border-top: 1px solid #1C2431;")
         layout = QHBoxLayout(bar)
-        layout.setContentsMargins(18, 8, 18, 8)
+        layout.setContentsMargins(14, 6, 14, 6)
         layout.setSpacing(10)
         self.status_label = QLabel("Listo para jugar.")
         self.status_label.setObjectName("statusLabel")
