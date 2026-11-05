@@ -122,9 +122,13 @@
   .shot .bar{display:flex;gap:7px;padding:12px 14px;border-bottom:1px solid var(--border-soft);background:#0D121B}
   .shot .bar i{width:11px;height:11px;border-radius:50%;background:#2A3548}
   .shot .bar i:nth-child(1){background:#FF5F57}.shot .bar i:nth-child(2){background:#FEBC2E}.shot .bar i:nth-child(3){background:#28C840}
-  .mock{display:grid;grid-template-columns:340px 1fr;gap:14px;padding:18px}
-  @media(max-width:760px){.mock{grid-template-columns:1fr}}
+  .mock{display:grid;grid-template-columns:118px 290px 1fr;gap:14px;padding:18px}
+  @media(max-width:900px){.mock{grid-template-columns:1fr}}
   .mock .col{display:flex;flex-direction:column;gap:10px}
+  .mside{background:#0D1119;border:1px solid var(--border-soft);border-radius:12px;padding:10px;display:flex;flex-direction:column;gap:6px}
+  .mnav{height:22px;border-radius:6px;background:var(--surface-alt);font-size:9px;font-weight:700;color:var(--faint);display:flex;align-items:center;padding:0 9px;letter-spacing:.8px}
+  .mnav.on{background:rgba(61,224,160,.12);color:var(--accent);border:1px solid rgba(61,224,160,.3)}
+  .mside .sp{flex:1}
   .mcard{background:var(--surface);border:1px solid var(--border-soft);border-radius:12px;padding:12px 14px}
   .mcard h4{font-size:10px;letter-spacing:1.4px;color:var(--faint);font-weight:700;margin-bottom:8px}
   .mline{height:10px;border-radius:5px;background:var(--surface-alt);margin:7px 0}
@@ -211,8 +215,9 @@
     <h1>Juega <span>Minecraft</span> sin complicaciones</h1>
     <p>
       AZeroCraft instala, configura y lanza Minecraft 1.8 a 1.15.2 con un solo
-      clic: descarga automática desde Mojang, Java Temurin incluido, OptiFine
-      sin Instalador oficial y control total de los recursos del sistema.
+      clic: descarga automática desde Mojang, Java Temurin incluido, OptiFine,
+      cuenta Microsoft opcional, historial de descargas y una interfaz con
+      páginas estilo navegador — todo gratis, sin cuenta obligatoria.
     </p>
     <div class="cta">
       <a class="btn btn-primary" href="#download">Descargar para Windows</a>
@@ -233,14 +238,22 @@
     <div class="sec-head" style="margin:0 auto 44px;text-align:center">
       <div class="kicker">Interfaz</div>
       <h2>Diseño oscuro, información clara</h2>
-      <p>Estado de la versión, memoria, OptiFine y registro en tiempo real — todo en una sola ventana compacta.</p>
+      <p>Navegación lateral con cuatro páginas — Jugar, Versiones, Cuenta y Ajustes — más registro en tiempo real, todo en una ventana compacta.</p>
     </div>
     <div class="shot">
       <div class="bar"><i></i><i></i><i></i></div>
       <div class="mock">
+        <div class="mside">
+          <div class="mnav on">▶ JUGAR</div>
+          <div class="mnav">▦ VERSIONES</div>
+          <div class="mnav">◉ CUENTA</div>
+          <div class="mnav">⚙ AJUSTES</div>
+          <div class="sp"></div>
+          <div class="mnav" style="color:var(--accent);border:1px solid rgba(61,224,160,.3)">● LISTO</div>
+        </div>
         <div class="col">
           <div class="mcard">
-            <h4>CUENTA</h4>
+            <h4>JUGADOR</h4>
             <div style="display:flex;gap:10px;align-items:center">
               <div style="width:38px;height:38px;border-radius:11px;background:linear-gradient(135deg,#4BF0B2,#1FAE86);display:grid;place-items:center;color:#062018;font-weight:800">AZ</div>
               <div style="flex:1">
@@ -250,12 +263,12 @@
             </div>
           </div>
           <div class="mcard">
-            <h4>VERSIÓN</h4>
+            <h4>VERSIÓN · OPTIFINE</h4>
             <div class="mline w80" style="background:#1C2636;border:1px solid var(--border)"></div>
             <div class="mline w60"></div>
           </div>
           <div class="mcard">
-            <h4>MEMORIA RAM</h4>
+            <h4>MEMORIA RAM · AJUSTES RÁPIDOS</h4>
             <div class="mline accent"></div>
             <div class="mline w40"></div>
           </div>
@@ -325,6 +338,21 @@
         <h3>Portable de verdad</h3>
         <p>Todo vive en <code>./data</code> junto al ejecutable. Copia la carpeta a un USB y sigue jugando. En instalación de sistema usa <code>%APPDATA%</code> automáticamente.</p>
       </div>
+      <div class="card">
+        <div class="ico">☁</div>
+        <h3>Cuenta Microsoft opcional</h3>
+        <p>Inicio de sesión por código de dispositivo (sin contraseña en el launcher) para servidores oficiales online-mode. El perfil offline sigue siendo 100 % gratuito y sin registro.</p>
+      </div>
+      <div class="card">
+        <div class="ico">🕘</div>
+        <h3>Historial completo</h3>
+        <p>Versiones instaladas con su tamaño, historial de descargas, sesiones jugadas y registros del juego — todo persistido en SQLite local.</p>
+      </div>
+      <div class="card">
+        <div class="ico">🧠</div>
+        <h3>Ajustes según tu hardware</h3>
+        <p>El selector de RAM se adapta a la memoria instalada (nada de 16 GB en un PC de 4 GB), GC Serial automático en CPUs débiles y pipeline OpenGL para Intel UHD.</p>
+      </div>
     </div>
   </div>
 </section>
@@ -365,8 +393,8 @@
     <div class="perf">
       <div class="card">
         <h3>Memoria RAM</h3>
-        <div class="val">1 – 16 GB</div>
-        <p>Slider con pasos de 512 MB. <code>-Xms</code>/<code>-Xmx</code> ajustados automáticamente.</p>
+        <div class="val">Adaptativa</div>
+        <p>El máximo del selector se calcula con tu RAM real (~0.5 GB de reserva). <code>-Xms</code>/<code>-Xmx</code> ajustados automáticamente.</p>
       </div>
       <div class="card">
         <h3>Prioridad del proceso</h3>
@@ -383,6 +411,11 @@
         <div class="val">G1 · Serial · Parallel</div>
         <p>Elige el GC de la JVM: Serial para equipos modestos, G1 para máximo rendimiento.</p>
       </div>
+      <div class="card">
+        <h3>Video y GPU</h3>
+        <div class="val">OpenGL · Full HD</div>
+        <p>Resolución forzada, distancia de renderizado en chunks y aceleración OpenGL de Java2D para Intel UHD y gráficos integrados.</p>
+      </div>
     </div>
   </div>
 </section>
@@ -397,17 +430,19 @@
     </div>
     <div class="card">
       <div class="arch">
-        <div class="node core">UI PyQt6<small>main_window · theme · widgets</small></div>
+        <div class="node core">UI PyQt6<small>main_window · pages · theme</small></div>
         <span class="arrow">→</span>
-        <div class="node">workers<small>QThread: manifest · launch · optifine</small></div>
+        <div class="node">workers<small>QThread: manifest · launch · optifine · msauth</small></div>
         <span class="arrow">→</span>
-        <div class="node">launch / install<small>línea de comandos · spawn</small></div>
+        <div class="node">launch / install<small>línea de comandos · spawn · profiles</small></div>
         <span class="arrow">→</span>
         <div class="node">manifest · libraries<small>herencia · reglas · classpath</small></div>
         <span class="arrow">→</span>
         <div class="node">util · assets<small>descargas SHA-1 · objetos</small></div>
         <span class="arrow">→</span>
-        <div class="node">Mojang<small>piston-meta · libraries · resources</small></div>
+        <div class="node">database<small>SQLite: historial · sesiones · cuentas</small></div>
+        <span class="arrow">→</span>
+        <div class="node">Mojang · MS<small>piston-meta · Xbox Live · Minecraft Services</small></div>
       </div>
       <div style="margin-top:26px;display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px">
         <div class="mcard"><h4>SEGURIDAD</h4><p style="color:var(--dim);font-size:13px">Extracción de ZIP sin path traversal, verificación de hashes en cada descarga, URLs solo de dominios oficiales.</p></div>
@@ -512,8 +547,10 @@ python tools\verify_version.py 1.12.1   # QA real: manifiesto → assets → URL
           facilitar el acceso legítimo a Minecraft Java Edition. No incluye, redistribuye ni
           modifica los archivos del juego: en tiempo de ejecución descarga los recursos
           directamente de los servidores oficiales de Mojang, igual que haría cualquier otro
-          launcher. Para jugar en servidores online o en Realms debes disponer de una cuenta
-          oficial de Minecraft; el modo offline está pensado para uso personal y singleplayer.
+          launcher. Para jugar en servidores online o en Realms puedes usar tu cuenta oficial
+          de Minecraft desde la pestaña <b style="color:var(--text)">Cuenta</b> (opcional,
+          por código de dispositivo); el perfil offline con nombre propio funciona siempre,
+          gratis y sin registro, en singleplayer y servidores sin verificación.
         </p>
         <p style="margin-bottom:12px">
           <b style="color:var(--text)">Responsabilidad.</b> El software se ofrece "tal cual", sin
@@ -524,8 +561,9 @@ python tools\verify_version.py 1.12.1   # QA real: manifiesto → assets → URL
         <p>
           <b style="color:var(--text)">Privacidad.</b> AZeroCraft no recopila datos de usuario,
           telemetría ni estadísticas. Las únicas conexiones de red son las descargas de los
-          servidores oficiales de Mojang/Adoptium y, opcionalmente, los servidores de Minecraft a
-          los que tú decidas conectarte.
+          servidores oficiales de Mojang/Adoptium, el inicio de sesión de Microsoft
+          <b style="color:var(--text)">solo si tú lo inicias</b> desde la pestaña Cuenta, y los
+          servidores de Minecraft a los que decidas conectarte.
         </p>
       </div>
     </div>
