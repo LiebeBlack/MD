@@ -83,18 +83,24 @@ class LaunchWorker(QThread):
 
     def _stream_game_log(self, handle: launch.LaunchHandle) -> None:
         offset = 0
-        while handle.process.poll() is None:
-            time.sleep(0.4)
+
+        def drain() -> None:
+            nonlocal offset
             try:
                 with handle.log_path.open("rb") as stream:
                     stream.seek(offset)
                     chunk = stream.read()
                     offset = stream.tell()
             except OSError:
-                continue
+                return
             for line in chunk.decode("utf-8", errors="replace").splitlines():
                 if line.strip():
                     self.game_log.emit(line)
+
+        while handle.process.poll() is None:
+            time.sleep(0.4)
+            drain()
+        drain()  # leer el tramo final que quedo en el buffer del archivo
         try:
             handle.log_handle.close()
         except (OSError, ValueError):

@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from . import java as java_module
-from . import paths
+from . import hardware, paths
 from .auth import OfflineProfile, create_profile, validate_username
 from .constants import APP_NAME, APP_VERSION
 from .install import PreparedGame, TaskContext, prepare
@@ -100,7 +100,15 @@ def _quick_connect(settings) -> list[str]:
     if not server:
         return []
     host, port = server, "25565"
-    if server.count(":") == 1 and not server.startswith("["):
+    if server.startswith("["):
+        # IPv6 con corchetes: [::1]:25565
+        end = server.find("]")
+        if end > 0:
+            host = server[1:end]
+            rest = server[end + 1:]
+            if rest.startswith(":") and rest[1:].isdigit():
+                port = rest[1:]
+    elif server.count(":") == 1:
         candidate_host, candidate_port = server.rsplit(":", 1)
         if candidate_port.isdigit():
             host, port = candidate_host, candidate_port
@@ -145,6 +153,11 @@ def build_command(prepared: PreparedGame, profile: OfflineProfile, settings,
 
     jvm.extend(_GC_FLAGS.get(getattr(settings, "gc_preset", "auto"), []))
 
+    # Aceleracion por GPU: pipeline OpenGL de Java2D (util en iGPU Intel UHD
+    # y drivers antiguos donde D3D falla o es mas lento).
+    if getattr(settings, "gpu_accel", True):
+        jvm.append("-Dsun.java2d.opengl=true")
+
     extra = (settings.extra_jvm_args or "").strip()
     if extra:
         jvm.extend(shlex.split(extra, posix=False))
@@ -165,6 +178,46 @@ def build_command(prepared: PreparedGame, profile: OfflineProfile, settings,
     game_args.extend(_quick_connect(settings))
 
     return [str(runtime.java), *jvm, *game_args]
+
+
+def apply_video_options(game_dir: Path, settings) -> None:
+    """Aplica resolucion y distancia de renderizado en options.txt.
+
+    Solo escribe las claves configuradas en el launcher; el resto del
+    archivo del usuario se conserva intacto. Nunca debe romper el arranque.
+    """
+    updates: dict[str, str] = {}
+    width = int(getattr(settings, "resolution_width", 0) or 0)
+    height = int(getattr(settings, "resolution_height", 0) or 0)
+    if width > 0 and height > 0:
+        updates["overrideWidth"] = str(width)
+        updates["overrideHeight"] = str(height)
+    distance = int(getattr(settings, "render_distance", 0) or 0)
+    if 2 <= distance <= 32:
+        updates["renderDistance"] = str(distance)
+    if not updates:
+        return
+
+    try:
+        options = game_dir / "options.txt"
+        lines = options.read_text(encoding="utf-8",
+                                  errors="replace").splitlines() \
+            if options.exists() else []
+        seen = set()
+        out = []
+        for line in lines:
+            key = line.split(":", 1)[0].strip()
+            if key in updates:
+                out.append(f"{key}:{updates[key]}")
+                seen.add(key)
+            else:
+                out.append(line)
+        for key, value in updates.items():
+            if key not in seen:
+                out.append(f"{key}:{value}")
+        options.write_text("\n".join(out) + "\n", encoding="utf-8")
+    except OSError:
+        pass
 
 
 def tail_log(path: Path, lines: int = 25) -> str:
@@ -283,6 +336,8 @@ def install_and_launch(version_id: str, settings, ctx: TaskContext,
     ctx.stage("Construyendo linea de comandos")
     command = build_command(prepared, profile, settings, runtime)
     ctx.log(f"Lanzando {version_id} como {profile.name} (UUID {profile.uuid})")
+    ctx.log(f"Hardware: {hardware.summary()}")
+    apply_video_options(prepared.game_dir, settings)
 
     handle = spawn(command, prepared.game_dir, bool(settings.auto_close),
                    settings)

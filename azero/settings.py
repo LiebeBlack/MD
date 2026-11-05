@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass, fields
 
+from . import paths
 from .constants import DEFAULT_MEMORY_MB
-from .paths import SETTINGS_FILE, ensure_dirs
 from .util import read_json, write_json
 
 
@@ -26,15 +26,20 @@ class Settings:
     game_priority: str = "normal"   # idle|below_normal|normal|above_normal|high
     cpu_cores: int = 0              # 0 = todos los nucleos
     gc_preset: str = "auto"         # auto|g1|serial|parallel
+    # Aceleracion y video (Intel UHD / iGPU incluidos).
+    gpu_accel: bool = True          # pipeline OpenGL para Java2D
+    resolution_width: int = 0       # 0 = automaticamente
+    resolution_height: int = 0
+    render_distance: int = 0        # 0 = automatico, si no 2-32 chunks
 
     @classmethod
     def load(cls) -> "Settings":
-        ensure_dirs()
-        raw = read_json(SETTINGS_FILE, {}) or {}
+        paths.ensure_dirs()
+        raw = read_json(paths.SETTINGS_FILE, {}) or {}
         valid = {item.name for item in fields(cls)}
         data = {key: value for key, value in raw.items() if key in valid}
         return cls(**data)
 
     def save(self) -> None:
-        ensure_dirs()
-        write_json(SETTINGS_FILE, asdict(self))
+        paths.ensure_dirs()
+        write_json(paths.SETTINGS_FILE, asdict(self))

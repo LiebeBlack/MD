@@ -1,9 +1,48 @@
+# ============================================================
+# AZeroCraft Launcher - exclusiones del repositorio
+# ============================================================
+
+# --- Datos del launcher y de Minecraft (descargas, versiones,
+#     librerias, assets, nativos, Java, logs, settings) ---
 data/
+data-dir.txt
+*.log
+
+# --- Python ---
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
 .venv/
 venv/
-.venv-build/
+.env
+.env.*
+!.env.example
+
+# --- Tests / calidad ---
+.pytest_cache/
+.coverage
+htmlcov/
+
+# --- Builds y empaquetado ---
+# Salida de PyInstaller (ejecutable onedir + instalador Inno Setup)
 dist/
 build/
 *.spec.bak
+AZeroCraft.spec.bak
+
+# Entorno virtual usado por build.ps1
+.venv-build/
+
+# --- IDEs / SO ---
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# --- temporales ---
+tmp/
+temp/
+*.tmp
+*.part

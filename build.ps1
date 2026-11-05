@@ -61,11 +61,22 @@ if ($Installer) {
         if ($candidates) { $iscc = $candidates[0] }
     }
     if (-not $iscc) {
-        Write-Warning "Inno Setup no encontrado. Instala Inno Setup 6 y ejecuta: ISCC installer\setup.iss"
-    } else {
-        Invoke-Step "Inno Setup" { & $iscc installer\setup.iss }
-        Write-Host "`nInstalador generado en: $root\dist\AZeroCraft-Setup-*.exe" -ForegroundColor Green
+        # Intentar instalar Inno Setup 6 via Chocolatey
+        if (Get-Command choco.exe -ErrorAction SilentlyContinue) {
+            Write-Host "Inno Setup no encontrado; instalando via Chocolatey..." -ForegroundColor Yellow
+            choco install innosetup -y --no-progress
+            $candidates = @(
+                "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe",
+                "${env:ProgramFiles}\Inno Setup 6\ISCC.exe"
+            ) | Where-Object { Test-Path $_ }
+            if ($candidates) { $iscc = $candidates[0] }
+        }
     }
+    if (-not $iscc) {
+        throw "Inno Setup 6 no esta instalado. Instalalo desde https://jrsoftware.org/isinfo.php o con: choco install innosetup"
+    }
+    Invoke-Step "Inno Setup" { & $iscc installer\setup.iss }
+    Write-Host "`nInstalador generado en: $root\dist\AZeroCraft-Setup-*.exe" -ForegroundColor Green
 }
 
 Write-Host "`nListo." -ForegroundColor Green

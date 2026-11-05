@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AZeroCraft Launcher — Minecraft 1.8 a 1.15.2</title>
+<meta name="description" content="Launcher ligero de Minecraft Java para Windows: instalación automática, OptiFine, Java Temurin y control total de recursos.">
+<style>
+  :root{
+    --bg:#0A0D13; --surface:#111722; --surface-alt:#161E2C; --surface-hover:#1C2636;
+    --border:#232D3F; --border-soft:#1B2432;
+    --text:#E7EEF9; --dim:#93A1B7; --faint:#5F6C81;
+    --accent:#3DE0A0; --accent-dim:#2BB57F; --accent-text:#062018;
+    --danger:#FF6B6B; --warn:#F2C14E;
+    --radius:14px;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    background:var(--bg); color:var(--text);
+    font-family:"Segoe UI","Inter","Noto Sans",system-ui,sans-serif;
+    font-size:16px; line-height:1.6;
+  }
+  .wrap{max-width:1080px;margin:0 auto;padding:0 24px}
+  code,.mono{font-family:"Cascadia Mono","Consolas",monospace}
+  code{background:var(--surface-alt);border:1px solid var(--border-soft);
+      border-radius:6px;padding:2px 7px;font-size:.88em;color:var(--accent)}
+  pre{
+    background:#0A0F17;border:1px solid var(--border-soft);border-radius:10px;
+    padding:16px 18px;overflow-x:auto;font-size:13.5px;line-height:1.55;
+    color:#B9C6D8;margin:14px 0;
+  }
+  pre code{background:none;border:none;padding:0;color:inherit}
+
+  /* ---------- header ---------- */
+  header{
+    position:sticky;top:0;z-index:50;
+    background:rgba(10,13,19,.85);backdrop-filter:blur(12px);
+    border-bottom:1px solid var(--border-soft);
+  }
+  .nav{display:flex;align-items:center;gap:12px;height:60px}
+  .logo{display:flex;align-items:center;gap:10px;font-weight:800;font-size:18px;text-decoration:none;color:var(--text)}
+  .logo .mark{
+    width:30px;height:30px;border-radius:9px;display:grid;place-items:center;
+    background:linear-gradient(135deg,#4BF0B2,#1FAE86);color:var(--accent-text);
+    font-weight:800;font-size:15px;
+  }
+  .logo b{color:var(--accent)}
+  nav.links{margin-left:auto;display:flex;gap:4px;align-items:center}
+  nav.links a{
+    color:var(--dim);text-decoration:none;font-size:14px;font-weight:600;
+    padding:8px 12px;border-radius:8px;transition:.15s;
+  }
+  nav.links a:hover{color:var(--text);background:var(--surface-alt)}
+  .btn{
+    display:inline-flex;align-items:center;gap:8px;text-decoration:none;
+    font-weight:700;font-size:14px;border-radius:10px;padding:10px 18px;
+    transition:.15s;border:1px solid transparent;cursor:pointer;
+  }
+  .btn-primary{background:var(--accent);color:var(--accent-text)}
+  .btn-primary:hover{background:#58F0B6;transform:translateY(-1px)}
+  .btn-ghost{background:transparent;border-color:var(--border);color:var(--text)}
+  .btn-ghost:hover{background:var(--surface-alt);border-color:#2E3B51}
+  .btn-sm{padding:7px 14px;font-size:13px;border-radius:8px}
+
+  /* ---------- hero ---------- */
+  .hero{padding:88px 0 64px;text-align:center;position:relative;overflow:hidden}
+  .hero::before{
+    content:"";position:absolute;inset:0;pointer-events:none;
+    background:
+      radial-gradient(600px 300px at 20% 0%,rgba(61,224,160,.08),transparent),
+      radial-gradient(700px 350px at 80% 10%,rgba(61,224,160,.06),transparent);
+  }
+  .hero .badge{
+    display:inline-block;font-size:12px;font-weight:700;letter-spacing:1.2px;
+    color:var(--accent);background:rgba(61,224,160,.1);
+    border:1px solid rgba(61,224,160,.28);border-radius:999px;
+    padding:5px 14px;margin-bottom:22px;
+  }
+  .hero h1{font-size:clamp(34px,6vw,58px);font-weight:800;letter-spacing:-1px;line-height:1.08}
+  .hero h1 span{color:var(--accent)}
+  .hero p{color:var(--dim);font-size:18px;max-width:640px;margin:20px auto 0}
+  .hero .cta{display:flex;gap:12px;justify-content:center;margin-top:34px;flex-wrap:wrap}
+  .hero .stats{display:flex;gap:0;justify-content:center;margin-top:56px;flex-wrap:wrap}
+  .stat{padding:0 34px;border-left:1px solid var(--border-soft)}
+  .stat:first-child{border-left:none}
+  .stat b{display:block;font-size:26px;color:var(--text)}
+  .stat span{font-size:12.5px;color:var(--faint);font-weight:600;letter-spacing:.6px;text-transform:uppercase}
+
+  /* ---------- sections ---------- */
+  section{padding:72px 0}
+  .sec-head{max-width:640px;margin-bottom:40px}
+  .sec-head .kicker{font-size:12px;font-weight:700;letter-spacing:1.6px;color:var(--accent);text-transform:uppercase}
+  .sec-head h2{font-size:32px;font-weight:800;margin:10px 0 12px;letter-spacing:-.5px}
+  .sec-head p{color:var(--dim)}
+
+  .grid{display:grid;gap:16px}
+  .grid-3{grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}
+  .grid-2{grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}
+
+  .card{
+    background:var(--surface);border:1px solid var(--border-soft);
+    border-radius:var(--radius);padding:24px;transition:.2s;
+  }
+  .card:hover{border-color:var(--border);transform:translateY(-2px)}
+  .card .ico{
+    width:42px;height:42px;border-radius:11px;display:grid;place-items:center;
+    background:rgba(61,224,160,.1);border:1px solid rgba(61,224,160,.25);
+    font-size:20px;margin-bottom:16px;
+  }
+  .card h3{font-size:16.5px;font-weight:700;margin-bottom:8px}
+  .card p{color:var(--dim);font-size:14px}
+  .card ul{margin:10px 0 0 18px;color:var(--dim);font-size:14px}
+  .card li{margin:5px 0}
+
+  /* mockup del launcher */
+  .shot{
+    border:1px solid var(--border);border-radius:16px;overflow:hidden;
+    background:linear-gradient(160deg,#0E1420,#0A0D13);
+    box-shadow:0 30px 80px rgba(0,0,0,.5);
+  }
+  .shot .bar{display:flex;gap:7px;padding:12px 14px;border-bottom:1px solid var(--border-soft);background:#0D121B}
+  .shot .bar i{width:11px;height:11px;border-radius:50%;background:#2A3548}
+  .shot .bar i:nth-child(1){background:#FF5F57}.shot .bar i:nth-child(2){background:#FEBC2E}.shot .bar i:nth-child(3){background:#28C840}
+  .mock{display:grid;grid-template-columns:340px 1fr;gap:14px;padding:18px}
+  @media(max-width:760px){.mock{grid-template-columns:1fr}}
+  .mock .col{display:flex;flex-direction:column;gap:10px}
+  .mcard{background:var(--surface);border:1px solid var(--border-soft);border-radius:12px;padding:12px 14px}
+  .mcard h4{font-size:10px;letter-spacing:1.4px;color:var(--faint);font-weight:700;margin-bottom:8px}
+  .mline{height:10px;border-radius:5px;background:var(--surface-alt);margin:7px 0}
+  .mline.w60{width:60%}.mline.w80{width:80%}.mline.w40{width:40%}
+  .mline.accent{background:linear-gradient(90deg,var(--accent-dim),var(--accent));width:70%}
+  .mplay{background:var(--accent);color:var(--accent-text);text-align:center;
+         font-weight:800;font-size:12px;letter-spacing:1px;border-radius:10px;padding:11px}
+  .mconsole{background:#0A0F17;border:1px solid var(--border-soft);border-radius:10px;
+            padding:12px;font-family:"Cascadia Mono",monospace;font-size:10.5px;
+            color:#7E8CA3;line-height:1.7;min-height:120px}
+  .mconsole .g{color:var(--accent)}
+
+  /* architecture */
+  .arch{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:center}
+  .node{
+    background:var(--surface);border:1px solid var(--border);border-radius:10px;
+    padding:10px 16px;font-size:13px;font-weight:600;text-align:center;min-width:130px;
+  }
+  .node small{display:block;color:var(--faint);font-weight:400;font-size:11px;margin-top:2px}
+  .node.core{border-color:rgba(61,224,160,.4);background:rgba(61,224,160,.06)}
+  .arrow{color:var(--faint);font-size:18px}
+
+  /* versions table */
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  th,td{text-align:left;padding:11px 14px;border-bottom:1px solid var(--border-soft)}
+  th{color:var(--faint);font-size:11px;letter-spacing:1px;text-transform:uppercase}
+  td{color:var(--dim)}
+  td b{color:var(--text)}
+  .tag{display:inline-block;font-size:11px;font-weight:700;padding:3px 9px;border-radius:6px;letter-spacing:.5px}
+  .tag.ok{background:rgba(61,224,160,.12);color:var(--accent);border:1px solid rgba(61,224,160,.3)}
+  .tag.info{background:rgba(242,193,78,.1);color:var(--warn);border:1px solid rgba(242,193,78,.3)}
+
+  /* perf */
+  .perf{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}
+  .perf .card{padding:20px}
+  .perf .val{font-size:22px;font-weight:800;color:var(--accent);margin:6px 0 4px}
+  .perf p{font-size:13px}
+
+  /* download */
+  .dl{display:flex;gap:14px;flex-wrap:wrap;justify-content:center}
+  .dl .file{
+    background:var(--surface);border:1px solid var(--border-soft);border-radius:12px;
+    padding:18px 22px;min-width:250px;text-align:left;
+  }
+  .dl .file b{display:block;font-size:14.5px}
+  .dl .file span{color:var(--faint);font-size:12.5px}
+  .dl .file .btn{margin-top:12px}
+
+  footer{border-top:1px solid var(--border-soft);padding:36px 0;color:var(--faint);font-size:13px}
+  footer .wrap{display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px}
+  footer a{color:var(--dim);text-decoration:none}
+  footer a:hover{color:var(--accent)}
+
+  @media(max-width:640px){
+    .hero{padding:60px 0 44px}
+    section{padding:52px 0}
+    .stat{padding:0 18px}
+    nav.links a:not(.btn){display:none}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap nav">
+    <a class="logo" href="#">
+      <span class="mark">A</span>AZero<b>Craft</b>
+    </a>
+    <nav class="links">
+      <a href="#features">Funciones</a>
+      <a href="#versions">Versiones</a>
+      <a href="#performance">Rendimiento</a>
+      <a href="#download">Descargar</a>
+      <a href="#build">Compilar</a>
+      <a class="btn btn-primary btn-sm" href="https://github.com/LiebeBlack/MD" target="_blank" rel="noopener">GitHub ↗</a>
+    </nav>
+  </div>
+</header>
+
+<!-- ======================= HERO ======================= -->
+<div class="hero">
+  <div class="wrap">
+    <div class="badge">LANZADOR PARA MINECRAFT JAVA EDITION</div>
+    <h1>Juega <span>Minecraft</span> sin complicaciones</h1>
+    <p>
+      AZeroCraft instala, configura y lanza Minecraft 1.8 a 1.15.2 con un solo
+      clic: descarga automática desde Mojang, Java Temurin incluido, OptiFine
+      sin Instalador oficial y control total de los recursos del sistema.
+    </p>
+    <div class="cta">
+      <a class="btn btn-primary" href="#download">Descargar para Windows</a>
+      <a class="btn btn-ghost" href="#build">Compilar desde código</a>
+    </div>
+    <div class="stats">
+      <div class="stat"><b>1.8 – 1.15.2</b><span>Versiones soportadas</span></div>
+      <div class="stat"><b>0 configuraciones</b><span>Java y assets automáticos</span></div>
+      <div class="stat"><b>100% offline</b><span>UUID v3 compatible con Java</span></div>
+      <div class="stat"><b>~60 MB</b><span>Launcher portable</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ======================= MOCKUP ======================= -->
+<section id="features" style="padding-top:20px">
+  <div class="wrap">
+    <div class="sec-head" style="margin:0 auto 44px;text-align:center">
+      <div class="kicker">Interfaz</div>
+      <h2>Diseño oscuro, información clara</h2>
+      <p>Estado de la versión, memoria, OptiFine y registro en tiempo real — todo en una sola ventana compacta.</p>
+    </div>
+    <div class="shot">
+      <div class="bar"><i></i><i></i><i></i></div>
+      <div class="mock">
+        <div class="col">
+          <div class="mcard">
+            <h4>CUENTA</h4>
+            <div style="display:flex;gap:10px;align-items:center">
+              <div style="width:38px;height:38px;border-radius:11px;background:linear-gradient(135deg,#4BF0B2,#1FAE86);display:grid;place-items:center;color:#062018;font-weight:800">AZ</div>
+              <div style="flex:1">
+                <div class="mline w80" style="height:12px"></div>
+                <div class="mline w40"></div>
+              </div>
+            </div>
+          </div>
+          <div class="mcard">
+            <h4>VERSIÓN</h4>
+            <div class="mline w80" style="background:#1C2636;border:1px solid var(--border)"></div>
+            <div class="mline w60"></div>
+          </div>
+          <div class="mcard">
+            <h4>MEMORIA RAM</h4>
+            <div class="mline accent"></div>
+            <div class="mline w40"></div>
+          </div>
+          <div class="mplay">JUGAR</div>
+        </div>
+        <div class="col">
+          <div class="mconsole">
+            <span class="g">• Leyendo manifiesto oficial</span><br>
+            Descargando 245 archivo(s) (49.6 MB)<br>
+            Extrayendo librerías nativas<br>
+            <span class="g">• Preparando Java 8</span><br>
+            Usando Java 8 (1.8.0_504) desde …\temurin-8<br>
+            Lanzando 1.12.1 como AZeroQA (UUID b50a…)<br>
+            Minecraft iniciado · PID 6308<br>
+            LWJGL Version: 2.9.4 · OpenAL initialized<br>
+            Created: 1024x512 textures-atlas<br>
+            Narrator library for x64 loaded
+          </div>
+          <div class="mcard">
+            <h4>REGISTRO</h4>
+            <div class="mline w80"></div>
+            <div class="mline w60"></div>
+            <div class="mline accent"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ======================= FEATURES ======================= -->
+<section>
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="kicker">Funciones</div>
+      <h2>Todo lo que un launcher debe hacer, sin ruido</h2>
+      <p>Instalación verificada, Java automático, OptiFine y un modo offline que funciona en servidores y singleplayer.</p>
+    </div>
+    <div class="grid grid-3">
+      <div class="card">
+        <div class="ico">⬇</div>
+        <h3>Instalación automática</h3>
+        <p>Descarga el cliente, las librerías, los nativos y los assets directamente de Mojang con verificación SHA-1/SHA-256 y reanudación implícita por archivo.</p>
+      </div>
+      <div class="card">
+        <div class="ico">☕</div>
+        <h3>Java automático</h3>
+        <p>Detecta los JRE instalados y elige el compatible con cada versión. Si falta, descarga Temurin (Eclipse Adoptium) sin intervención.</p>
+      </div>
+      <div class="card">
+        <div class="ico">✦</div>
+        <h3>OptiFine integrado</h3>
+        <p>Aplica el instalador oficial en modo headless y crea un perfil propio que aparece en la lista de versiones junto a las vanilla.</p>
+      </div>
+      <div class="card">
+        <div class="ico">◎</div>
+        <h3>Modo offline real</h3>
+        <p>UUID v3 determinista idéntico al de <code>nameUUIDFromBytes</code> de Java: tu mundo y tu skin offline se mantienen siempre iguales.</p>
+      </div>
+      <div class="card">
+        <div class="ico">⚡</div>
+        <h3>Conexión rápida</h3>
+        <p>Escribe <code>servidor.net:25565</code> y entra directo al servidor al arrancar. Compatible con IPv6.</p>
+      </div>
+      <div class="card">
+        <div class="ico">🗂</div>
+        <h3>Portable de verdad</h3>
+        <p>Todo vive en <code>./data</code> junto al ejecutable. Copia la carpeta a un USB y sigue jugando. En instalación de sistema usa <code>%APPDATA%</code> automáticamente.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ======================= VERSIONS ======================= -->
+<section id="versions" style="background:var(--surface)">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="kicker">Compatibilidad</div>
+      <h2>Versiones y Java</h2>
+      <p>AZeroCraft soporta el rango clásico completo de Minecraft Java Edition con el Java adecuado para cada una.</p>
+    </div>
+    <div class="card" style="padding:0;overflow:hidden">
+      <table>
+        <thead><tr><th>Versiones</th><th>Java requerido</th><th>Formato de argumentos</th><th>Estado</th></tr></thead>
+        <tbody>
+          <tr><td><b>1.8 – 1.12.2</b></td><td>Java 8 (8–16 aceptados)</td><td><code>minecraftArguments</code></td><td><span class="tag ok">Probado · 1.12.1</span></td></tr>
+          <tr><td><b>1.13 – 1.16.5</b></td><td>Java 8</td><td><code>arguments</code> con reglas</td><td><span class="tag ok">Soportado</span></td></tr>
+          <tr><td><b>1.17 – 1.19.x</b></td><td>Java 17</td><td><code>arguments</code> con reglas</td><td><span class="tag info">Soportado</span></td></tr>
+          <tr><td><b>1.20.5+</b></td><td>Java 21</td><td><code>arguments</code> con reglas</td><td><span class="tag info">Soportado</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="color:var(--faint);font-size:13px;margin-top:14px">
+      Las versiones fuera del rango 1.8–1.15.2 están ocultas por defecto; se pueden mostrar todas desde <b>Ajustes</b>.
+    </p>
+  </div>
+</section>
+
+<!-- ======================= PERFORMANCE ======================= -->
+<section id="performance">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="kicker">Control de recursos</div>
+      <h2>Tu PC, tus reglas</h2>
+      <p>Ajusta exactamente cuántos recursos puede consumir el juego mientras juegas o antes de lanzar.</p>
+    </div>
+    <div class="perf">
+      <div class="card">
+        <h3>Memoria RAM</h3>
+        <div class="val">1 – 16 GB</div>
+        <p>Slider con pasos de 512 MB. <code>-Xms</code>/<code>-Xmx</code> ajustados automáticamente.</p>
+      </div>
+      <div class="card">
+        <h3>Prioridad del proceso</h3>
+        <div class="val">5 niveles</div>
+        <p>Reposo, Baja, Normal, Alta y Muy alta vía <code>SetPriorityClass</code> en Windows.</p>
+      </div>
+      <div class="card">
+        <h3>Afinidad de CPU</h3>
+        <div class="val">N núcleos</div>
+        <p>Limita el juego a tantos núcleos lógicos como quieras con <code>SetProcessAffinityMask</code>.</p>
+      </div>
+      <div class="card">
+        <h3>Recolector de basura</h3>
+        <div class="val">G1 · Serial · Parallel</div>
+        <p>Elige el GC de la JVM: Serial para equipos modestos, G1 para máximo rendimiento.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ======================= ARCHITECTURE ======================= -->
+<section style="background:var(--surface)">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="kicker">Arquitectura</div>
+      <h2>Cómo funciona por dentro</h2>
+      <p>Núcleo modular en Python: cada capa tiene una sola responsabilidad y se prueba de forma aislada.</p>
+    </div>
+    <div class="card">
+      <div class="arch">
+        <div class="node core">UI PyQt6<small>main_window · theme · widgets</small></div>
+        <span class="arrow">→</span>
+        <div class="node">workers<small>QThread: manifest · launch · optifine</small></div>
+        <span class="arrow">→</span>
+        <div class="node">launch / install<small>línea de comandos · spawn</small></div>
+        <span class="arrow">→</span>
+        <div class="node">manifest · libraries<small>herencia · reglas · classpath</small></div>
+        <span class="arrow">→</span>
+        <div class="node">util · assets<small>descargas SHA-1 · objetos</small></div>
+        <span class="arrow">→</span>
+        <div class="node">Mojang<small>piston-meta · libraries · resources</small></div>
+      </div>
+      <div style="margin-top:26px;display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px">
+        <div class="mcard"><h4>SEGURIDAD</h4><p style="color:var(--dim);font-size:13px">Extracción de ZIP sin path traversal, verificación de hashes en cada descarga, URLs solo de dominios oficiales.</p></div>
+        <div class="mcard"><h4>CONFIABILIDAD</h4><p style="color:var(--dim);font-size:13px">Reintentos con backoff, cancelación cooperativa, escritura atómica de JSON, caché de manifiestos de 6 h.</p></div>
+        <div class="mcard"><h4>RENDIMIENTO</h4><p style="color:var(--dim);font-size:13px">12 descargas en paralelo, UI en hilo principal + workers QThread, proceso de juego desacoplado del launcher.</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ======================= DOWNLOAD ======================= -->
+<section id="download">
+  <div class="wrap">
+    <div class="sec-head" style="text-align:center;margin-left:auto;margin-right:auto">
+      <div class="kicker">Descargar</div>
+      <h2>Release para Windows</h2>
+      <p>El workflow de CI compila y publica automáticamente cada tag <code>v*</code> en GitHub Releases.</p>
+    </div>
+    <div class="dl" id="dl-grid">
+      <div class="file">
+        <b>Instalador (.exe)</b>
+        <span>AZeroCraft-Setup-x.x.x.exe · Inno Setup · por usuario, sin admin</span>
+        <br><a class="btn btn-primary btn-sm" id="dl-setup" href="https://github.com/LiebeBlack/MD/releases/latest" target="_blank" rel="noopener">Última versión</a>
+      </div>
+      <div class="file">
+        <b>Portable (.zip)</b>
+        <span>AZeroCraft-windows-x64.zip · carpeta completa, datos junto al exe</span>
+        <br><a class="btn btn-ghost btn-sm" id="dl-zip" href="https://github.com/LiebeBlack/MD/releases/latest" target="_blank" rel="noopener">Última versión</a>
+      </div>
+      <div class="file">
+        <b>Código fuente</b>
+        <span>Python 3.11+ · PyQt6 · sin dependencias externas</span>
+        <br><a class="btn btn-ghost btn-sm" href="https://github.com/LiebeBlack/MD" target="_blank" rel="noopener">Ver en GitHub</a>
+      </div>
+    </div>
+    <p style="text-align:center;color:var(--faint);font-size:13px;margin-top:24px">
+      Requisito: Windows 10/11 de 64 bits. El launcher descarga Java automáticamente si hace falta.
+      <br>Los enlaces apuntan al último release publicado; también puedes ver
+      <a href="https://github.com/LiebeBlack/MD/releases" target="_blank" rel="noopener" style="color:var(--accent)">todos los releases</a>.
+    </p>
+  </div>
+</section>
+
+<!-- ======================= BUILD ======================= -->
+<section id="build" style="background:var(--surface)">
+  <div class="wrap">
+    <div class="grid grid-2">
+      <div>
+        <div class="sec-head" style="margin-bottom:20px">
+          <div class="kicker">Compilar</div>
+          <h2 style="font-size:26px">Desde código fuente</h2>
+          <p>Desarrollo local en Python puro — sin Node, sin Docker, sin sorpresas.</p>
+        </div>
+        <pre><code># 1. Entorno e dependencias
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+
+# 2. Ejecutar
+python main.py          # o: python -m azero</code></pre>
+      </div>
+      <div>
+        <div class="sec-head" style="margin-bottom:20px">
+          <div class="kicker">Release</div>
+          <h2 style="font-size:26px">Build de producción</h2>
+          <p>Ejecutable nativo + instalador + publicación en GitHub Releases.</p>
+        </div>
+        <pre><code># Ejecutable onedir (PyInstaller)
+.\build.ps1
+
+# + Instalador Inno Setup (requiere Inno Setup 6)
+.\build.ps1 -Installer
+
+# O publicar todo en GitHub Releases:
+git tag v1.0.0
+git push origin v1.0.0</code></pre>
+      </div>
+    </div>
+    <div class="card" style="margin-top:8px">
+      <h3 style="font-size:15px;margin-bottom:10px">Verificación</h3>
+      <pre style="margin:0"><code>python -m unittest discover -s tests -v   # tests unitarios
+python tools\verify_version.py 1.12.1   # QA real: manifiesto → assets → URLs</code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- ======================= LEGAL / FAIR USE ======================= -->
+<section id="legal" style="padding-top:24px">
+  <div class="wrap">
+    <div class="card" style="border-color:rgba(242,193,78,.25)">
+      <div class="kicker" style="font-size:12px;font-weight:700;letter-spacing:1.6px;color:var(--warn);text-transform:uppercase">Aviso legal · Fair Use</div>
+      <h2 style="font-size:24px;margin:10px 0 14px">Uso responsable del software</h2>
+      <div style="color:var(--dim);font-size:14.5px;columns:1;max-width:900px">
+        <p style="margin-bottom:12px">
+          <b style="color:var(--text)">AZeroCraft Launcher</b> es una herramienta independiente,
+          desarrollada por <b style="color:var(--text)">Liebe Black</b>. No está afiliado, respaldado
+          ni patrocinado por Mojang AB, Microsoft ni Microsoft Studios. "Minecraft" es marca
+          registrada de Mojang Synergies AB.
+        </p>
+        <p style="margin-bottom:12px">
+          <b style="color:var(--text)">Fair use.</b> El launcher se distribuye con la finalidad de
+          facilitar el acceso legítimo a Minecraft Java Edition. No incluye, redistribuye ni
+          modifica los archivos del juego: en tiempo de ejecución descarga los recursos
+          directamente de los servidores oficiales de Mojang, igual que haría cualquier otro
+          launcher. Para jugar en servidores online o en Realms debes disponer de una cuenta
+          oficial de Minecraft; el modo offline está pensado para uso personal y singleplayer.
+        </p>
+        <p style="margin-bottom:12px">
+          <b style="color:var(--text)">Responsabilidad.</b> El software se ofrece "tal cual", sin
+          garantías de ningún tipo, expresas o implícitas. El desarrollador no se hace responsable
+          de daños derivados del uso del launcher, de la pérdida de datos, ni de problemas de
+          compatibilidad con versiones futuras de Minecraft o de OptiFine (marca de sp614x).
+        </p>
+        <p>
+          <b style="color:var(--text)">Privacidad.</b> AZeroCraft no recopila datos de usuario,
+          telemetría ni estadísticas. Las únicas conexiones de red son las descargas de los
+          servidores oficiales de Mojang/Adoptium y, opcionalmente, los servidores de Minecraft a
+          los que tú decidas conectarte.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div>
+      <b style="color:var(--text)">AZeroCraft Launcher</b> · Minecraft no está afiliado a Mojang AB.
+      Los assets y manifiestos se descargan de los servidores oficiales en tiempo de ejecución.
+    </div>
+    <div>
+      <a href="https://github.com/LiebeBlack/MD" target="_blank" rel="noopener">GitHub</a> ·
+      <a href="https://github.com/LiebeBlack/MD/releases" target="_blank" rel="noopener">Releases</a> ·
+      <a href="#legal">Aviso legal</a> ·
+      <a href="https://github.com/LiebeBlack/MD" target="_blank" rel="noopener">por Liebe Black</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+// Descargas dinamicas: toma los assets del ultimo release de GitHub.
+(function () {
+  var REPO = "LiebeBlack/MD";
+  var api = "https://api.github.com/repos/" + REPO + "/releases/latest";
+  fetch(api, { headers: { "Accept": "application/vnd.github+json" } })
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (rel) {
+      if (!rel || !rel.assets) return;
+      var setup = document.getElementById("dl-setup");
+      var zip = document.getElementById("dl-zip");
+      rel.assets.forEach(function (a) {
+        var name = a.name.toLowerCase();
+        var size = (a.size / 1048576).toFixed(1) + " MB";
+        if (name.indexOf("setup") !== -1 && name.endsWith(".exe")) {
+          setup.href = a.browser_download_url;
+          setup.textContent = "Descargar · " + size;
+          setup.parentElement.querySelector("span").textContent = a.name;
+        } else if (name.endsWith(".zip")) {
+          zip.href = a.browser_download_url;
+          zip.textContent = "Descargar · " + size;
+          zip.parentElement.querySelector("span").textContent = a.name;
+        }
+      });
+      // etiqueta de version junto al titulo de la seccion
+      var h2 = document.querySelector("#download .sec-head h2");
+      if (h2 && rel.tag_name) {
+        var tag = document.createElement("span");
+        tag.className = "tag ok";
+        tag.style.marginLeft = "10px";
+        tag.textContent = rel.tag_name;
+        h2.appendChild(tag);
+      }
+    })
+    .catch(function () { /* sin release aun: los enlaces van a /releases */ });
+})();
+</script>
+
+</body>
+</html>

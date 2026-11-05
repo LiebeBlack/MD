@@ -1,0 +1,47 @@
+AZeroCraft Launcher - Aviso legal y condiciones de uso
+Desarrollado por Liebe Black (https://github.com/LiebeBlack)
+
+1. NATURALEZA DEL SOFTWARE
+AZeroCraft Launcher es una herramienta independiente que facilita la
+descarga, instalacion y ejecucion de Minecraft Java Edition. No esta
+afiliado, respaldado ni patrocinado por Mojang AB, Microsoft ni Microsoft
+Studios. "Minecraft" es marca registrada de Mojang Synergies AB.
+
+2. FAIR USE
+El launcher se distribuye con la unica finalidad de facilitar el acceso
+legitimo a Minecraft Java Edition.
+
+- El software NO incluye, NO redistribuye y NO modifica los archivos del
+  juego. En tiempo de ejecucion descarga los recursos directamente de los
+  servidores oficiales de Mojang.
+- Para jugar en servidores online o en Realms es obligatorio disponer de
+  una cuenta oficial valida de Minecraft.
+- El modo offline esta destinado a uso personal y singleplayer.
+
+3. PROPIEDAD DE OPTIFINE
+La funcionalidad OptiFine se basa en el instalador oficial de OptiFine
+(marca de sp614x). El usuario es responsable de obtener dicho instalador
+desde su fuente oficial (optifine.net) y de cumplir sus terminos de uso.
+
+4. AUSENCIA DE GARANTIAS
+El software se ofrece "TAL CUAL", sin garantia de ningun tipo, expresa o
+implicita, incluyendo pero no limitado a garantias de comerciabilidad,
+idoneidad para un proposito particular y no infraccion. El desarrollador
+no garantiza la compatibilidad con versiones futuras de Minecraft, Java
+o OptiFine.
+
+5. LIMITACION DE RESPONSABILIDAD
+En ningun caso el desarrollador sera responsable de danos directos,
+indirectos, incidentales o consecuentes derivados del uso o la imposibilidad
+de uso del software, incluida la perdida de datos o de mundos de juego.
+
+6. PRIVACIDAD
+AZeroCraft no recopila datos personales, telemetria ni estadisticas de uso.
+Las unicas conexiones de red del launcher son:
+  - Descargas de los servidores oficiales de Mojang/Adoptium.
+  - Conexiones a servidores de Minecraft iniciadas por el propio usuario.
+
+7. ACEPTACION
+Al instalar o utilizar AZeroCraft Launcher, el usuario declara haber leido
+y aceptado estos terminos. Si no esta de acuerdo, debe desinstalar el
+software inmediatamente.

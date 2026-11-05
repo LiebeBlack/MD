@@ -1,5 +1,11 @@
 # AZeroCraft Launcher
 
+**Desarrollado por [Liebe Black](https://github.com/LiebeBlack)** ·
+Repositorio: [github.com/LiebeBlack/MD](https://github.com/LiebeBlack/MD)
+
+> Documentación web del proyecto en [`docs/index.html`](docs/index.html)
+> (publicable gratis en GitHub Pages desde la carpeta `/docs`).
+
 Launcher ligero para Minecraft Java Edition (1.8 – 1.15.2) con soporte de
 OptiFine, modo offline, Java automático (Temurin) y ajustes de rendimiento.
 
@@ -79,6 +85,9 @@ El workflow genera y publica como assets del release:
 
 También puede ejecutarse manualmente desde la pestaña *Actions* → *Release*.
 
+Los assets quedan publicados en
+[Releases](https://github.com/LiebeBlack/MD/releases).
+
 > Nota: para generar el instalador localmente se necesita [Inno Setup 6](https://jrsoftware.org/isinfo.php).
 
 ## Estructura
@@ -102,6 +111,16 @@ azero.spec            # spec de PyInstaller
 tools/verify_version.py
 tests/
 ```
+
+## Aviso legal
+
+AZeroCraft Launcher es un proyecto independiente de **Liebe Black**. No está
+afilado a Mojang AB ni Microsoft. El software se distribuye bajo fair use:
+no incluye ni redistribuye archivos del juego, que se descargan en tiempo de
+ejecución desde los servidores oficiales. Para servidores online o Realms se
+requiere una cuenta oficial de Minecraft. El software se ofrece "tal cual",
+sin garantías. Consulta los términos completos en
+[`installer/license.txt`](installer/license.txt).
 
 ## Notas
 

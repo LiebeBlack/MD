@@ -333,6 +333,30 @@ QPushButton#iconButton:hover {
     border-color: $BORDER;
 }
 
+QSpinBox {
+    background-color: $SURFACE_ALT;
+    border: 1px solid $BORDER;
+    border-radius: 8px;
+    padding: 6px 10px;
+    min-height: 18px;
+    color: $TEXT;
+}
+QSpinBox:hover {
+    border-color: #2C3A50;
+}
+QSpinBox:focus {
+    border-color: $ACCENT;
+    background-color: #121A26;
+}
+QSpinBox::up-button, QSpinBox::down-button {
+    width: 20px;
+    border: none;
+    background: transparent;
+}
+QSpinBox::up-button:hover, QSpinBox::down-button:hover {
+    background-color: $SURFACE_HOVER;
+    border-radius: 4px;
+}
 QCheckBox {
     color: $TEXT_DIM;
     spacing: 10px;

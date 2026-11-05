@@ -3,15 +3,17 @@
 
 #define AppName "AZeroCraft"
 #define AppVersion "1.0.0"
-#define AppPublisher "AZeroCraft"
+#define AppPublisher "Liebe Black"
 #define AppExeName "AZeroCraft.exe"
 
 [Setup]
 AppId={{8F3E2A1C-4B5D-4E6F-9A0B-1C2D3E4F5A6B}
+LicenseFile=license.txt
 AppName={#AppName}
 AppVersion={#AppVersion}
 AppVerName={#AppName} {#AppVersion}
 AppPublisher={#AppPublisher}
+MinVersion=10.0
 DefaultDirName={localappdata}\Programs\{#AppName}
 DefaultGroupName={#AppName}
 DisableProgramGroupPage=yes

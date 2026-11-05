@@ -14,7 +14,8 @@ from PyQt6.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog,
                              QPushButton, QSlider, QSpinBox, QVBoxLayout,
                              QWidget)
 
-from .. import APP_NAME, APP_VERSION, java as java_module, optifine, paths
+from .. import (APP_NAME, APP_VERSION, hardware, java as java_module,
+                optifine, paths)
 from ..auth import offline_uuid, validate_username
 from ..constants import MAX_MEMORY_MB, MEMORY_STEP_MB, MIN_MEMORY_MB
 from ..manifest import load_version_profile, local_profiles, parse_version_key
@@ -138,6 +139,10 @@ class SettingsDialog(QDialog):
         else:
             summary = "No se detecto ningun Java instalado."
         layout.addWidget(faint_label(f"Detectados: {summary}"))
+        layout.addWidget(faint_label(
+            f"Hardware: {hardware.summary()} · RAM sugerida: "
+            f"{hardware.recommended_memory_mb()} MB"
+        ))
         layout.addWidget(Divider())
 
         buttons = QHBoxLayout()
@@ -412,8 +417,54 @@ class MainWindow(QMainWindow):
         self.cores_spin.valueChanged.connect(self._on_cores_changed)
         cores_row.addWidget(self.cores_spin)
         cores_row.addStretch(1)
-        cores_row.addWidget(faint_label("0 = todos"))
         card.body.addLayout(cores_row)
+
+        card.body.addWidget(Divider())
+        card.body.addWidget(section_label("Vídeo"))
+
+        res_row = QHBoxLayout()
+        res_row.setSpacing(8)
+        res_row.addWidget(faint_label("Resolución"))
+        self.res_width = QSpinBox()
+        self.res_width.setRange(0, 7680)
+        self.res_width.setSpecialValueText("Auto")
+        self.res_width.setSuffix(" px")
+        self.res_width.setToolTip("Ancho en píxeles (0 = automático)")
+        self.res_width.valueChanged.connect(self._on_resolution_changed)
+        res_row.addWidget(self.res_width)
+        self.res_height = QSpinBox()
+        self.res_height.setRange(0, 4320)
+        self.res_height.setSpecialValueText("Auto")
+        self.res_height.setSuffix(" px")
+        self.res_height.setToolTip("Alto en píxeles (0 = automático)")
+        self.res_height.valueChanged.connect(self._on_resolution_changed)
+        res_row.addWidget(self.res_height)
+        res_row.addStretch(1)
+        card.body.addLayout(res_row)
+
+        dist_row = QHBoxLayout()
+        dist_row.setSpacing(8)
+        dist_row.addWidget(faint_label("Distancia render"))
+        self.dist_spin = QSpinBox()
+        self.dist_spin.setRange(0, 32)
+        self.dist_spin.setSpecialValueText("Auto")
+        self.dist_spin.setToolTip(
+            "Chunks de distancia de renderizado. Menos = más FPS y menos RAM "
+            "en GPUs integradas (Intel UHD)."
+        )
+        self.dist_spin.valueChanged.connect(self._on_render_distance_changed)
+        dist_row.addWidget(self.dist_spin)
+        dist_row.addStretch(1)
+        card.body.addLayout(dist_row)
+
+        self.gpu_check = QCheckBox("Aceleración GPU (OpenGL)")
+        self.gpu_check.setChecked(self.settings.gpu_accel)
+        self.gpu_check.setToolTip(
+            "Pipeline OpenGL de Java2D. Recomendado para Intel UHD e iGPU; "
+            "desactívalo solo si el juego no arranca o falla el render."
+        )
+        self.gpu_check.toggled.connect(self._on_gpu_toggled)
+        card.body.addWidget(self.gpu_check)
         return card
 
     def _build_console_card(self) -> Card:
@@ -502,6 +553,10 @@ class MainWindow(QMainWindow):
         self.priority_combo.setEnabled(not busy)
         self.gc_combo.setEnabled(not busy)
         self.cores_spin.setEnabled(not busy)
+        self.res_width.setEnabled(not busy)
+        self.res_height.setEnabled(not busy)
+        self.dist_spin.setEnabled(not busy)
+        self.gpu_check.setEnabled(not busy)
 
         valid_name = validate_username(self.name_edit.text().strip()) is None
         if self._launch_running():
@@ -568,6 +623,10 @@ class MainWindow(QMainWindow):
             self.gc_combo.setCurrentIndex(index)
         self.cores_spin.setValue(max(0, min(self.cores_spin.maximum(),
                                             self.settings.cpu_cores)))
+        self.res_width.setValue(max(0, self.settings.resolution_width))
+        self.res_height.setValue(max(0, self.settings.resolution_height))
+        self.dist_spin.setValue(max(0, min(32, self.settings.render_distance)))
+        self.gpu_check.setChecked(self.settings.gpu_accel)
 
     def _save_settings(self) -> None:
         self.settings.memory_mb = self.ram_slider.value()
@@ -598,11 +657,24 @@ class MainWindow(QMainWindow):
         self.version_combo.blockSignals(True)
         self.version_combo.clear()
         for entry in entries:
-            self.version_combo.addItem(entry["id"], entry["id"])
+            label = entry["id"]
+            if entry.get("local"):
+                label += "  · OptiFine" if "optifine" in label.lower() else "  · local"
+            self.version_combo.addItem(label, entry["id"])
         index = self.version_combo.findData(current)
         if index < 0:
-            preferred = self.version_combo.findData("1.15.2")
-            index = preferred if preferred >= 0 else 0
+            # Preferir una version ya descargada (juego inmediato) sobre el
+            # maximo del manifiesto.
+            installed = sorted(local_profiles(),
+                               key=parse_version_key, reverse=True)
+            index = -1
+            for profile_id in installed:
+                index = self.version_combo.findData(profile_id)
+                if index >= 0:
+                    break
+            if index < 0:
+                preferred = self.version_combo.findData("1.15.2")
+                index = preferred if preferred >= 0 else 0
         if self.version_combo.count():
             self.version_combo.setCurrentIndex(index)
             self.settings.version = self.version_combo.currentData()
@@ -853,6 +925,19 @@ class MainWindow(QMainWindow):
 
     def _on_cores_changed(self, value: int) -> None:
         self.settings.cpu_cores = value
+        self._save_settings()
+
+    def _on_resolution_changed(self, _value: int) -> None:
+        self.settings.resolution_width = self.res_width.value()
+        self.settings.resolution_height = self.res_height.value()
+        self._save_settings()
+
+    def _on_render_distance_changed(self, value: int) -> None:
+        self.settings.render_distance = value
+        self._save_settings()
+
+    def _on_gpu_toggled(self, checked: bool) -> None:
+        self.settings.gpu_accel = checked
         self._save_settings()
 
     def _open_settings(self) -> None:
