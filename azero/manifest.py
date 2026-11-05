@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+import re
 import time
 from pathlib import Path
 
@@ -90,17 +92,46 @@ def write_version_profile(version_id: str, payload: dict) -> Path:
     return path
 
 
+# Instaladores Forge antiguos (1.12.x) escriben objetos rotos del tipo
+# "{\n,\n\"url\": ...}" dentro de libraries: JSON invalido para json.loads.
+_BROKEN_OBJECT = re.compile(r"\{\s*,[^{}]*\}")
+
+
+def _read_profile_json(path: Path) -> dict | None:
+    payload = read_json(path)
+    if payload is not None:
+        return payload
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return None
+    try:
+        return json.loads(_BROKEN_OBJECT.sub("{}", text))
+    except ValueError:
+        return None
+
+
 def load_version_profile(version_id: str) -> dict | None:
-    return read_json(paths.version_json_path(version_id))
+    path = (paths.find_version_json(version_id)
+            or paths.version_json_path(version_id))
+    return _read_profile_json(path)
 
 
 def local_profiles() -> list[str]:
-    if not paths.VERSIONS_DIR.exists():
-        return []
-    profiles = []
-    for child in paths.VERSIONS_DIR.iterdir():
-        if child.is_dir() and (child / f"{child.name}.json").exists():
-            profiles.append(child.name)
+    """Perfiles locales de todas las raices .minecraft conocidas."""
+    profiles: list[str] = []
+    seen: set[str] = set()
+    for versions_dir in paths.versions_dirs():
+        try:
+            children = sorted(versions_dir.iterdir())
+        except OSError:
+            continue
+        for child in children:
+            if not child.is_dir() or child.name in seen:
+                continue
+            if (child / f"{child.name}.json").exists():
+                seen.add(child.name)
+                profiles.append(child.name)
     return sorted(profiles)
 
 

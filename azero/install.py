@@ -41,24 +41,38 @@ class PreparedGame:
     logging_path: Path | None
 
 
-def ensure_profile(version_id: str, manifest_data: dict | None = None) -> dict:
-    existing = manifest.load_version_profile(version_id)
-    if existing:
-        return existing
+def ensure_profile_chain(version_id: str,
+                         manifest_data: dict | None = None) -> None:
+    """Garantiza el json de la version y de toda su cadena inheritsFrom.
+
+    Los perfiles Forge/OptiFine heredan de la version vanilla; si el json
+    padre falta (nunca se descargo o quedo a medias), resolve_version
+    fallaba aunque el perfil hijo existiera. Los padres siempre son
+    versiones oficiales localizables en el manifiesto de Mojang.
+    """
     manifest_data = manifest_data or manifest.fetch_manifest()
-    entry = manifest.version_entry(manifest_data, version_id)
-    if entry is None:
-        raise FileNotFoundError(
-            f"La version '{version_id}' no aparece en el manifiesto de Mojang."
-        )
-    payload = manifest.fetch_version_json(version_id, entry["url"])
-    manifest.write_version_profile(version_id, payload)
-    return payload
+    current = version_id
+    seen: set[str] = set()
+    while current and current not in seen:
+        seen.add(current)
+        payload = manifest.load_version_profile(current)
+        if payload is None:
+            entry = manifest.version_entry(manifest_data, current)
+            if entry is None:
+                raise FileNotFoundError(
+                    f"El perfil '{current}' no existe localmente ni en "
+                    "el manifiesto de Mojang.")
+            payload = manifest.fetch_version_json(current, entry["url"])
+            manifest.write_version_profile(current, payload)
+        current = payload.get("inheritsFrom")
 
 
 def _client_jar_task(version_json: dict) -> tuple[DownloadTask | None, Path]:
     base_id = version_json["base_id"]
-    jar_path = paths.version_jar_path(base_id)
+    # Si el jar ya existe en otra raiz .minecraft registrada se reutiliza;
+    # si no, se descarga en la raiz oficial.
+    jar_path = (paths.find_version_jar(base_id)
+                or paths.version_jar_path(base_id))
     client = (version_json.get("downloads") or {}).get("client")
     if not client:
         return None, jar_path
@@ -95,10 +109,9 @@ def prepare(version_id: str, ctx: TaskContext, with_assets: bool = True) -> Prep
     ctx.stage("Leyendo manifiesto oficial")
     manifest_data = manifest.fetch_manifest()
 
-    profile_payload = manifest.load_version_profile(version_id)
-    if profile_payload is None:
+    if manifest.load_version_profile(version_id) is None:
         ctx.log(f"Descargando definicion de {version_id}...")
-        profile_payload = ensure_profile(version_id, manifest_data)
+    ensure_profile_chain(version_id, manifest_data)
     version_json = manifest.resolve_version(version_id)
     ctx.check()
 

@@ -185,60 +185,6 @@ def build_command(prepared: PreparedGame,
     return [str(runtime.java), *jvm, *game_args]
 
 
-def apply_video_options(game_dir: Path, settings) -> None:
-    """Aplica resolucion y distancia de renderizado en options.txt.
-
-    Solo escribe las claves configuradas en el launcher; el resto del
-    archivo del usuario se conserva intacto. Nunca debe romper el arranque.
-    """
-    updates: dict[str, str] = {}
-    width = int(getattr(settings, "resolution_width", 0) or 0)
-    height = int(getattr(settings, "resolution_height", 0) or 0)
-    if width > 0 and height > 0:
-        updates["overrideWidth"] = str(width)
-        updates["overrideHeight"] = str(height)
-    distance = int(getattr(settings, "render_distance", 0) or 0)
-    if 2 <= distance <= 32:
-        updates["renderDistance"] = str(distance)
-    max_fps = int(getattr(settings, "max_fps", 0) or 0)
-    if max_fps > 0:
-        updates["maxFps"] = str(max_fps)
-    particles = int(getattr(settings, "particles", -1))
-    if particles in (0, 1, 2):
-        updates["particles"] = str(particles)
-    # VSync y VBO siempre se escriben: son toggles del launcher y sus
-    # defaults coinciden con los del juego, asi que no hay sorpresa.
-    updates["enableVsync"] = (
-        "true" if getattr(settings, "vsync", True) else "false")
-    updates["useVbo"] = (
-        "true" if getattr(settings, "use_vbo", True) else "false")
-    updates["fancyGraphics"] = (
-        "true" if getattr(settings, "fancy_graphics", True) else "false")
-    if not updates:
-        return
-
-    try:
-        options = game_dir / "options.txt"
-        lines = options.read_text(encoding="utf-8",
-                                  errors="replace").splitlines() \
-            if options.exists() else []
-        seen = set()
-        out = []
-        for line in lines:
-            key = line.split(":", 1)[0].strip()
-            if key in updates:
-                out.append(f"{key}:{updates[key]}")
-                seen.add(key)
-            else:
-                out.append(line)
-        for key, value in updates.items():
-            if key not in seen:
-                out.append(f"{key}:{value}")
-        options.write_text("\n".join(out) + "\n", encoding="utf-8")
-    except OSError:
-        pass
-
-
 def tail_log(path: Path, lines: int = 25) -> str:
     try:
         content = path.read_text(encoding="utf-8", errors="replace").splitlines()
@@ -355,7 +301,6 @@ def install_and_launch(version_id: str, settings, ctx: TaskContext,
     command = build_command(prepared, profile, settings, runtime)
     ctx.log(f"Lanzando {version_id} como {profile.name} (UUID {profile.uuid})")
     ctx.log(f"Hardware: {hardware.summary()}")
-    apply_video_options(prepared.game_dir, settings)
 
     handle = spawn(command, prepared.game_dir, bool(settings.auto_close),
                    settings)
@@ -377,6 +322,10 @@ def install_and_launch(version_id: str, settings, ctx: TaskContext,
         ctx.progress(1, 1)
         ctx.stage("Juego lanzado")
         ctx.log("El launcher se cerrara para liberar recursos.")
+        try:
+            handle.log_handle.close()
+        except (OSError, ValueError):
+            pass
     return LaunchOutcome(
         pid=handle.process.pid,
         log_path=handle.log_path,

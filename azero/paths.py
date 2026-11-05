@@ -1,4 +1,9 @@
-"""Rutas de datos del launcher (modo portable por defecto)."""
+"""Rutas de datos del launcher y del juego.
+
+El juego (versiones, libraries, assets, mods) vive siempre en la carpeta
+.minecraft oficial de Mojang, mas las carpetas .minecraft adicionales que
+el usuario registre con el escaner de Versiones.
+"""
 
 from __future__ import annotations
 
@@ -14,8 +19,8 @@ APP_ROOT = Path(__file__).resolve().parent.parent
 def _data_root() -> Path:
     """Raiz estable donde vive la configuracion del launcher.
 
-    - Desarrollo: la carpeta del proyecto (portable).
-    - Ejecutable en carpeta escribible (portable): junto al .exe.
+    - Desarrollo: la carpeta del proyecto.
+    - Ejecutable en carpeta escribible: junto al .exe.
     - Instalado en Program Files: %APPDATA%\\AZeroCraft.
     """
     if getattr(sys, "frozen", False):
@@ -55,6 +60,20 @@ def _default_data_dir() -> Path:
     return DATA_ROOT / "data"
 
 
+def _official_mc_dir() -> Path:
+    """Carpeta .minecraft oficial de Mojang.
+
+    Se usa siempre para que versiones, mundos, resourcepacks, shaderpacks
+    y mods sean compatibles con el launcher oficial y otros launchers.
+    Los datos internos del launcher (ajustes, cache, Java, logs) siguen
+    viviendo en DATA_DIR.
+    """
+    appdata = os.environ.get("APPDATA")
+    if appdata:
+        return Path(appdata) / ".minecraft"
+    return Path.home() / ".minecraft"
+
+
 def _derive() -> None:
     """Recalcula todas las rutas derivadas de DATA_DIR."""
     global DATA_DIR, SETTINGS_FILE, CACHE_DIR, JAVA_DIR, LOGS_DIR
@@ -66,7 +85,7 @@ def _derive() -> None:
     JAVA_DIR = DATA_DIR / "java"
     LOGS_DIR = DATA_DIR / "logs"
 
-    MC_DIR = DATA_DIR / "minecraft"
+    MC_DIR = _official_mc_dir()
     VERSIONS_DIR = MC_DIR / "versions"
     LIBRARIES_DIR = MC_DIR / "libraries"
     ASSETS_DIR = MC_DIR / "assets"
@@ -122,3 +141,69 @@ def version_jar_path(version_id: str) -> Path:
 
 def natives_dir(version_id: str) -> Path:
     return NATIVES_DIR / version_id
+
+
+# ------------------------------------------------- carpetas .minecraft extra
+# Raices .minecraft adicionales registradas por el usuario (escaner de la
+# pestana Versiones). Sus perfiles de version se reconocen igual que los
+# oficiales; las descargas nuevas siempre van a la raiz oficial.
+EXTRA_MC_DIRS: list[Path] = []
+
+
+def set_extra_mc_dirs(dirs) -> None:
+    """Fija las raices .minecraft adicionales (rutas absolutas)."""
+    global EXTRA_MC_DIRS
+    seen: list[Path] = []
+    for item in dirs:
+        try:
+            candidate = Path(item).expanduser().resolve()
+        except (OSError, ValueError):
+            continue
+        if candidate == MC_DIR or candidate in seen:
+            continue
+        seen.append(candidate)
+    EXTRA_MC_DIRS = seen
+
+
+def mc_roots() -> list[Path]:
+    """Todas las raices .minecraft conocidas (oficial primero)."""
+    return [MC_DIR, *EXTRA_MC_DIRS]
+
+
+def versions_dirs() -> list[Path]:
+    """Carpetas versions/ de todas las raices conocidas.
+
+    Usa el global VERSIONS_DIR (puede estar redirigido) como primera
+    entrada; las raices extra siempre derivan de su raiz .minecraft.
+    """
+    return [VERSIONS_DIR,
+            *(root / "versions" for root in EXTRA_MC_DIRS)]
+
+
+def find_version_json(version_id: str) -> Path | None:
+    """Primer <version>.json encontrado en cualquier raiz conocida."""
+    for versions_dir in versions_dirs():
+        candidate = versions_dir / version_id / f"{version_id}.json"
+        if candidate.is_file():
+            return candidate
+    return None
+
+
+def find_version_dir(version_id: str) -> Path | None:
+    """Carpeta de la version donde exista su perfil o su jar."""
+    for versions_dir in versions_dirs():
+        candidate = versions_dir / version_id
+        if candidate.is_dir() and (
+                (candidate / f"{version_id}.json").is_file()
+                or (candidate / f"{version_id}.jar").is_file()):
+            return candidate
+    return None
+
+
+def find_version_jar(version_id: str) -> Path | None:
+    """Primer <version>.jar existente en cualquier raiz conocida."""
+    for versions_dir in versions_dirs():
+        candidate = versions_dir / version_id / f"{version_id}.jar"
+        if candidate.is_file():
+            return candidate
+    return None

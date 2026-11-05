@@ -27,7 +27,7 @@ from PyQt6.QtWidgets import (QCheckBox, QComboBox, QDialog, QFileDialog,
                              QVBoxLayout, QWidget)
 
 from .. import (APP_NAME, APP_VERSION, database, forge, hardware,
-                java as java_module, mods, msauth, paths)
+                java as java_module, mcscan, mods, msauth, paths)
 from ..auth import offline_uuid, validate_username
 from ..constants import (DOCS_URL, ISSUES_URL, MEMORY_STEP_MB,
                          MIN_MEMORY_MB, RELEASES_URL, REPO_URL,
@@ -152,7 +152,11 @@ class PlayPage(ScrollPage):
         columns.addWidget(left, 2)
 
         console_card = Card(margins=10, spacing=6)
+        console_card.setMaximumHeight(340)
+        console_card.setSizePolicy(QSizePolicy.Policy.Expanding,
+                                   QSizePolicy.Policy.Maximum)
         console_head = QHBoxLayout()
+        console_head.setSpacing(6)
         console_head.addWidget(section_label("Registro"))
         console_head.addStretch(1)
         open_folder = QPushButton("Carpeta")
@@ -174,6 +178,8 @@ class PlayPage(ScrollPage):
         console_card.body.addLayout(console_head)
 
         self.console = ConsoleView()
+        self.console.setMinimumHeight(110)
+        self.console.setMaximumHeight(230)
         console_card.body.addWidget(self.console, 1)
 
         progress_row = QHBoxLayout()
@@ -192,6 +198,7 @@ class PlayPage(ScrollPage):
         console_card.body.addLayout(progress_row)
 
         columns.addWidget(console_card, 3)
+        columns.setAlignment(console_card, Qt.AlignmentFlag.AlignTop)
         self.body.addLayout(columns, 1)
 
     def _copy_console(self) -> None:
@@ -310,9 +317,13 @@ class PlayPage(ScrollPage):
             self.mods_status.setText("Sin mods instalados.")
             return
         forge_count = sum(1 for mod in installed if mod.forge)
-        self.mods_status.setText(
-            f"{len(installed)} mod(s) instalado(s)"
-            + (f" · {forge_count} de Forge" if forge_count else ""))
+        text = (f"{len(installed)} mod(s) instalado(s)"
+                + (f" · {forge_count} de Forge" if forge_count else ""))
+        version_id = (self.shell._selected_version() or "").lower()
+        if forge_count and "forge" not in version_id:
+            text += ("  ·  AVISO: los mods de Forge no cargan con esta "
+                     "version; instala Forge en Ajustes > Mods")
+        self.mods_status.setText(text)
 
     def _quick_card(self) -> Card:
         card = Card(margins=10, spacing=6)
@@ -464,12 +475,22 @@ class VersionsPage(ScrollPage):
         row.addWidget(faint_label("Las librerias y assets se comparten entre "
                                   "versiones; el tamano mostrado es del cliente."))
         row.addStretch(1)
+        scan = QPushButton("Añadir carpeta…")
+        scan.setObjectName("accentGhost")
+        scan.setCursor(Qt.CursorShape.PointingHandCursor)
+        scan.setToolTip(
+            "Busca una carpeta .minecraft en cualquier ubicacion y "
+            "registra sus versiones (incluidos perfiles Forge/OptiFine).")
+        scan.clicked.connect(self._add_mc_folder)
+        row.addWidget(scan)
         open_mc = QPushButton("Abrir carpeta .minecraft")
         open_mc.setObjectName("ghostButton")
         open_mc.setCursor(Qt.CursorShape.PointingHandCursor)
         open_mc.clicked.connect(lambda: _open_path(paths.MC_DIR))
         row.addWidget(open_mc)
         installed_card.body.addLayout(row)
+        self.extra_roots_label = faint_label("")
+        installed_card.body.addWidget(self.extra_roots_label)
         self.body.addWidget(installed_card)
 
         downloads_card = Card(margins=10, spacing=6)
@@ -556,30 +577,67 @@ class VersionsPage(ScrollPage):
 
     def _scan_installed(self) -> list[dict]:
         entries = []
-        if not paths.VERSIONS_DIR.exists():
-            return entries
-        for child in sorted(paths.VERSIONS_DIR.iterdir()):
-            if not child.is_dir():
+        seen: set[str] = set()
+        for versions_dir in paths.versions_dirs():
+            try:
+                children = sorted(versions_dir.iterdir())
+            except OSError:
                 continue
-            jar = child / f"{child.name}.jar"
-            profile = child / f"{child.name}.json"
-            if not jar.exists() and not profile.exists():
-                continue
-            size = jar.stat().st_size if jar.exists() else 0
-            lower = child.name.lower()
-            is_of = "optifine" in lower
-            is_forge = "forge" in lower
-            kind = ("OptiFine" if is_of else
-                    "Forge" if is_forge else "Version")
-            # Los perfiles con herencia (OptiFine/Forge) no tienen jar propio:
-            # prepare() descarga el cliente del padre al lanzar.
-            installed = jar.exists() or profile.exists()
-            entries.append({
-                "id": child.name, "size": size, "kind": kind,
-                "installed": installed,
-            })
+            for child in children:
+                if not child.is_dir() or child.name in seen:
+                    continue
+                jar = child / f"{child.name}.jar"
+                profile = child / f"{child.name}.json"
+                if not jar.exists() and not profile.exists():
+                    continue
+                seen.add(child.name)
+                size = jar.stat().st_size if jar.exists() else 0
+                lower = child.name.lower()
+                is_of = "optifine" in lower
+                is_forge = "forge" in lower
+                kind = ("OptiFine" if is_of else
+                        "Forge" if is_forge else "Version")
+                # Los perfiles con herencia (OptiFine/Forge) no tienen jar
+                # propio: prepare() descarga el cliente del padre al lanzar.
+                installed = jar.exists() or profile.exists()
+                entries.append({
+                    "id": child.name, "size": size, "kind": kind,
+                    "installed": installed,
+                })
         entries.sort(key=lambda e: parse_version_key(e["id"]), reverse=True)
         return entries
+
+    def _add_mc_folder(self) -> None:
+        """Escanea una carpeta elegida por el usuario y registra su
+        raiz .minecraft para reconocer sus versiones y perfiles Forge."""
+        folder = QFileDialog.getExistingDirectory(
+            self, "Carpeta con Minecraft (o su carpeta contenedora)")
+        if not folder:
+            return
+        root = mcscan.detect_mc_root(folder)
+        if root is None:
+            QMessageBox.information(
+                self, "Escaner de Minecraft",
+                "No se encontro una carpeta .minecraft valida.\n\n"
+                "Elige la carpeta .minecraft, su subcarpeta versions/, "
+                "o una carpeta que la contenga (aunque tenga otro nombre).")
+            return
+        settings = self.shell.settings
+        current = [line.strip()
+                   for line in settings.extra_mc_dirs.splitlines()
+                   if line.strip()]
+        if root == paths.MC_DIR or str(root) in current:
+            self.shell._set_status(
+                f"La carpeta ya esta registrada: {root}", "ok")
+            return
+        current.append(str(root))
+        settings.extra_mc_dirs = "\n".join(current)
+        paths.set_extra_mc_dirs(current)
+        self.shell._save_settings()
+        self.shell._reload_versions()
+        self.refresh_all()
+        self.shell._set_status(
+            f"Carpeta de Minecraft registrada: {root}", "ok")
 
     def _refresh_installed(self) -> None:
         self.installed_list.clear()
@@ -628,7 +686,8 @@ class VersionsPage(ScrollPage):
             folder.setCursor(Qt.CursorShape.PointingHandCursor)
             folder.clicked.connect(
                 lambda _=False, vid=entry["id"]: _open_path(
-                    paths.version_dir(vid)))
+                    paths.find_version_dir(vid)
+                    or paths.version_dir(vid)))
             delete = QPushButton("Eliminar")
             delete.setObjectName("dangerButton")
             delete.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -654,6 +713,11 @@ class VersionsPage(ScrollPage):
                  "Pulsa JUGAR para descargar una."])
             item.setFlags(Qt.ItemFlag.NoItemFlags)
             self.installed_list.addTopLevelItem(item)
+        extra = [line.strip()
+                 for line in self.shell.settings.extra_mc_dirs.splitlines()
+                 if line.strip()]
+        self.extra_roots_label.setText(
+            "Carpetas adicionales: " + " · ".join(extra) if extra else "")
 
     def _refresh_downloads(self) -> None:
         table = self.downloads_table
@@ -1073,7 +1137,7 @@ class SettingsPage(ScrollPage):
         titles.setSpacing(2)
         title = QLabel("Ajustes")
         title.setObjectName("pageTitle")
-        sub = QLabel("Java, red, rendimiento y video del launcher.")
+        sub = QLabel("Java, red y rendimiento del launcher.")
         sub.setObjectName("pageSubtitle")
         titles.addWidget(title)
         titles.addWidget(sub)
@@ -1144,7 +1208,6 @@ class SettingsPage(ScrollPage):
         self.body.addWidget(card)
 
         self.body.addWidget(self._performance_card())
-        self.body.addWidget(self._video_card())
         self.body.addWidget(self._mods_card())
         self.body.addWidget(self._data_card())
 
@@ -1213,196 +1276,23 @@ class SettingsPage(ScrollPage):
         cores_row.addWidget(self.cores_spin)
         cores_row.addStretch(1)
         card.body.addLayout(cores_row)
-        return card
-
-    def _video_card(self) -> Card:
-        settings = self.shell.settings
-        card = Card(margins=10, spacing=6)
-        card.body.addWidget(section_label("Video"))
-
-        res_row = QHBoxLayout()
-        res_row.setSpacing(8)
-        res_row.addWidget(faint_label("Resolucion"))
-        self.res_width = QSpinBox()
-        self.res_width.setRange(0, 7680)
-        self.res_width.setSpecialValueText("Auto")
-        self.res_width.setSuffix(" px")
-        self.res_width.setValue(max(0, settings.resolution_width))
-        self.res_width.setToolTip("Ancho en pixeles (0 = automatico)")
-        res_row.addWidget(self.res_width)
-        self.res_height = QSpinBox()
-        self.res_height.setRange(0, 4320)
-        self.res_height.setSpecialValueText("Auto")
-        self.res_height.setSuffix(" px")
-        self.res_height.setValue(max(0, settings.resolution_height))
-        self.res_height.setToolTip("Alto en pixeles (0 = automatico)")
-        res_row.addWidget(self.res_height)
-        res_row.addStretch(1)
-        card.body.addLayout(res_row)
-
-        dist_row = QHBoxLayout()
-        dist_row.setSpacing(8)
-        dist_row.addWidget(faint_label("Distancia render"))
-        self.dist_spin = QSpinBox()
-        self.dist_spin.setRange(0, 32)
-        self.dist_spin.setSpecialValueText("Auto")
-        self.dist_spin.setValue(max(0, min(32, settings.render_distance)))
-        self.dist_spin.setToolTip(
-            "Chunks de distancia de renderizado. Menos = mas FPS y menos RAM "
-            "en GPUs integradas (Intel UHD)."
-        )
-        dist_row.addWidget(self.dist_spin)
-        dist_row.addStretch(1)
-        card.body.addLayout(dist_row)
-
-        fps_row = QHBoxLayout()
-        fps_row.setSpacing(8)
-        fps_row.addWidget(faint_label("FPS maximo"))
-        self.fps_combo = QComboBox()
-        for label, value in (("Auto", 0), ("30", 30), ("60", 60),
-                             ("120", 120), ("144", 144), ("240", 240)):
-            self.fps_combo.addItem(label, value)
-        self.fps_combo.setCurrentIndex(
-            max(0, self.fps_combo.findData(settings.max_fps)))
-        self.fps_combo.setToolTip(
-            "Limita los FPS del juego. Auto = sin limite. En Intel UHD "
-            "conviene 60-120 para menos consumo."
-        )
-        fps_row.addWidget(self.fps_combo, 1)
-        card.body.addLayout(fps_row)
-
-        particles_row = QHBoxLayout()
-        particles_row.setSpacing(8)
-        particles_row.addWidget(faint_label("Particulas"))
-        self.particles_combo = QComboBox()
-        for label, value in (("Auto", -1), ("Todas", 0),
-                             ("Reducidas", 1), ("Minimas", 2)):
-            self.particles_combo.addItem(label, value)
-        self.particles_combo.setCurrentIndex(
-            max(0, self.particles_combo.findData(settings.particles)))
-        self.particles_combo.setToolTip(
-            "Densidad de particulas. Minimas = mas FPS en GPUs integradas."
-        )
-        particles_row.addWidget(self.particles_combo, 1)
-        card.body.addLayout(particles_row)
-
-        toggles = QHBoxLayout()
-        toggles.setSpacing(16)
-        self.vsync_check = QCheckBox("VSync")
-        self.vsync_check.setChecked(settings.vsync)
-        self.vsync_check.setToolTip(
-            "Sincroniza los FPS con la frecuencia del monitor "
-            "(evita tearing; consume un poco mas)."
-        )
-        self.vbo_check = QCheckBox("VBO")
-        self.vbo_check.setChecked(settings.use_vbo)
-        self.vbo_check.setToolTip(
-            "Vertex Buffer Objects: renderizado por lotes en la GPU. "
-            "Mas rapido en casi todo el hardware."
-        )
-        toggles.addWidget(self.vsync_check)
-        toggles.addWidget(self.vbo_check)
-        toggles.addStretch(1)
-        card.body.addLayout(toggles)
-
-        toggles2 = QHBoxLayout()
-        toggles2.setSpacing(16)
-        self.fancy_check = QCheckBox("Graficos avanzados (Fancy)")
-        self.fancy_check.setChecked(settings.fancy_graphics)
-        self.fancy_check.setToolTip(
-            "Sombras, animaciones y detalles visuales extra. "
-            "Desactivalo para mas FPS en Intel UHD."
-        )
-        toggles2.addWidget(self.fancy_check)
-        toggles2.addStretch(1)
-        card.body.addLayout(toggles2)
-
-        self.gpu_check = QCheckBox("Aceleracion GPU (OpenGL)")
-        self.gpu_check.setChecked(settings.gpu_accel)
-        self.gpu_check.setToolTip(
-            "Pipeline OpenGL de Java2D. Recomendado para Intel UHD e iGPU; "
-            "desactivalo solo si el juego no arranca o falla el render."
-        )
-        card.body.addWidget(self.gpu_check)
-
-        presets = QHBoxLayout()
-        presets.setSpacing(8)
-        presets.addWidget(faint_label("Preset"))
-        for label, kind in (("Rendimiento", "performance"),
-                            ("Equilibrado", "balanced"),
-                            ("Calidad", "quality")):
-            button = QPushButton(label)
-            button.setObjectName("ghostButton")
-            button.setCursor(Qt.CursorShape.PointingHandCursor)
-            button.setToolTip(f"Aplicar preset '{label}' a los ajustes de video")
-            button.clicked.connect(
-                lambda _checked=False, k=kind: self._apply_video_preset(k))
-            presets.addWidget(button)
-        presets.addStretch(1)
-        card.body.addLayout(presets)
 
         optimize = QPushButton("Optimizar para este equipo")
         optimize.setObjectName("accentGhost")
         optimize.setCursor(Qt.CursorShape.PointingHandCursor)
         optimize.setToolTip(
             "Detecta tu hardware y aplica los ajustes recomendados: "
-            "RAM sugerida, GC, distancia de renderizado y FPS."
+            "RAM sugerida y recolector de basura."
         )
         optimize.clicked.connect(self._optimize_for_hardware)
         card.body.addWidget(optimize)
-
-        options_row = QHBoxLayout()
-        options_row.addStretch(1)
-        edit_options = QPushButton("Editar options.txt del juego")
-        edit_options.setObjectName("ghostButton")
-        edit_options.setCursor(Qt.CursorShape.PointingHandCursor)
-        edit_options.setToolTip(
-            "Abre el options.txt de Minecraft para ajustes manuales "
-            "(se respeta al lanzar; el launcher solo escribe las claves "
-            "configuradas aqui)."
-        )
-        edit_options.clicked.connect(self._open_options_txt)
-        options_row.addWidget(edit_options)
-        card.body.addLayout(options_row)
         return card
-
-    def _open_options_txt(self) -> None:
-        """Abre (o crea) el options.txt del juego en el editor del sistema."""
-        paths.ensure_dirs()
-        options = paths.MC_DIR / "options.txt"
-        if not options.exists():
-            options.write_text("", encoding="utf-8")
-        QDesktopServices.openUrl(QUrl.fromLocalFile(str(options)))
-
-    _VIDEO_PRESETS = {
-        # Distancia, FPS, particulas, vsync, vbo (None = dejar como esta).
-        "performance": dict(render_distance=6, max_fps=120, particles=2,
-                            vsync=False, use_vbo=True),
-        "balanced": dict(render_distance=10, max_fps=144, particles=1,
-                         vsync=True, use_vbo=True),
-        "quality": dict(render_distance=16, max_fps=0, particles=0,
-                        vsync=True, use_vbo=True),
-    }
-
-    def _apply_video_preset(self, kind: str) -> None:
-        preset = self._VIDEO_PRESETS[kind]
-        self.dist_spin.setValue(preset["render_distance"])
-        index = self.fps_combo.findData(preset["max_fps"])
-        if index >= 0:
-            self.fps_combo.setCurrentIndex(index)
-        index = self.particles_combo.findData(preset["particles"])
-        if index >= 0:
-            self.particles_combo.setCurrentIndex(index)
-        self.vsync_check.setChecked(preset["vsync"])
-        self.vbo_check.setChecked(preset["use_vbo"])
-        self.gpu_check.setChecked(True)
 
     def _optimize_for_hardware(self) -> None:
         """Aplica ajustes recomendados segun el hardware detectado.
 
         Equipo modesto (<=4 nucleos o <=6 GB RAM o sin AVX2): prioriza
-        FPS — menos distancia de render, particulas minimas, GC Serial.
-        Equipo potente: equilibrio con mejores ajustes visuales.
+        FPS — menos RAM asignada y GC Serial. Equipo potente: automatico.
         """
         cores = hardware.cpu_cores()
         total_ram = hardware.ram_mb()
@@ -1423,13 +1313,6 @@ class SettingsPage(ScrollPage):
         index = self.gc_combo.findData(gc_target)
         if index >= 0:
             self.gc_combo.setCurrentIndex(index)
-
-        if modest:
-            self._apply_video_preset("performance")
-            self.fancy_check.setChecked(False)
-        else:
-            self._apply_video_preset("balanced")
-            self.fancy_check.setChecked(True)
 
     def _mods_card(self) -> Card:
         card = Card(margins=10, spacing=6)
@@ -1612,6 +1495,9 @@ class SettingsPage(ScrollPage):
         data.setTextInteractionFlags(
             Qt.TextInteractionFlag.TextSelectableByMouse)
         card.body.addWidget(data)
+        mc_label = faint_label(f".minecraft oficial: {paths.MC_DIR}")
+        mc_label.setWordWrap(True)
+        card.body.addWidget(mc_label)
         row = QHBoxLayout()
         open_data = QPushButton("Abrir carpeta de datos")
         open_data.setObjectName("ghostButton")
@@ -1778,15 +1664,6 @@ class SettingsPage(ScrollPage):
         settings.game_priority = self.priority_combo.currentData()
         settings.gc_preset = self.gc_combo.currentData()
         settings.cpu_cores = self.cores_spin.value()
-        settings.resolution_width = self.res_width.value()
-        settings.resolution_height = self.res_height.value()
-        settings.render_distance = self.dist_spin.value()
-        settings.max_fps = self.fps_combo.currentData()
-        settings.particles = self.particles_combo.currentData()
-        settings.vsync = self.vsync_check.isChecked()
-        settings.use_vbo = self.vbo_check.isChecked()
-        settings.fancy_graphics = self.fancy_check.isChecked()
-        settings.gpu_accel = self.gpu_check.isChecked()
         self.shell._save_settings()
         if reload_needed:
             self.shell._reload_versions()

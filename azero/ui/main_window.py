@@ -102,6 +102,10 @@ class MainWindow(QMainWindow):
         self._allow_close = False
 
         database.init_db()
+        paths.set_extra_mc_dirs(
+            line.strip()
+            for line in settings.extra_mc_dirs.splitlines()
+            if line.strip())
 
         self.setWindowTitle(f"{APP_NAME} Launcher")
         self.resize(1120, 720)
@@ -558,6 +562,7 @@ class MainWindow(QMainWindow):
             return
         self.settings.version = version_id
         self._update_version_meta()
+        self.play_page._refresh_mods_status()
         if not self._is_busy():
             self._set_status("Listo para jugar.", "normal")
 
@@ -575,7 +580,7 @@ class MainWindow(QMainWindow):
                 else "Forge" if is_forge
                 else ("Perfil local" if payload.get("inheritsFrom")
                       else "Vanilla"))
-        if paths.version_jar_path(base).exists():
+        if paths.find_version_jar(base) is not None:
             state = "instalada"
         else:
             state = "se descargara al jugar"
@@ -703,7 +708,8 @@ class MainWindow(QMainWindow):
         )
         version_id = self._selected_version() or self.settings.version
         base = self._selected_base() or version_id
-        jar_path = paths.version_jar_path(base)
+        jar_path = (paths.find_version_jar(base)
+                    or paths.version_jar_path(base))
         size = jar_path.stat().st_size if jar_path.exists() else 0
         database.log_download(
             "version", f"Cliente {version_id} listo",
@@ -888,4 +894,18 @@ class MainWindow(QMainWindow):
         if forge_worker is not None and forge_worker.isRunning():
             forge_worker.cancel()
             forge_worker.wait(1500)
+        # Los workers que siguen vivos (p. ej. el juego en curso, que el
+        # worker solo vigila) no pueden destruirse en ejecucion: se despegan
+        # del arbol de widgets y Qt los libera al terminar el proceso.
+        workers = [self._manifest_worker, self._launch_worker,
+                   self._of_worker,
+                   getattr(getattr(self, "account_page", None),
+                           "_login_worker", None),
+                   getattr(getattr(self, "about_page", None),
+                           "_update_checker", None),
+                   forge_worker]
+        for worker in workers:
+            if worker is not None and worker.isRunning():
+                worker.setParent(None)
+                worker.finished.connect(worker.deleteLater)
         super().closeEvent(event)

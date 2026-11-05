@@ -32,12 +32,16 @@ py -3.15 main.py
   Usar siempre el Python normal (`py -3.15`, no `py -3.15t`).
 - Los datos del launcher viven en `data/` (o la carpeta elegida en el
   primer arranque / `AZEROCRAFT_DATA`). Nunca versionar `data/`.
+- `paths.MC_DIR` apunta SIEMPRE a la carpeta `.minecraft` oficial
+  (`%APPDATA%\.minecraft`) para compatibilidad con el launcher de Mojang:
+  versiones, mundos, options.txt, resourcepacks, shaderpacks y mods se
+  comparten. `DATA_DIR` solo guarda ajustes, cache, Java y logs propios.
 - `azero/paths.py` deriva todas las rutas de `DATA_DIR`; usar
   `paths.X` en tiempo de llamada, nunca importar constantes sueltas.
 - `Settings.load()` sanea tipos (`_sanitize`): los settings.json
   importados/editados a mano no deben romper el arranque.
-- Las opciones de vídeo del juego se escriben en `options.txt` antes de
-  cada lanzamiento (`launch.apply_video_options`) sin tocar otras claves.
+- El launcher NO escribe `options.txt`: los ajustes de video se
+  descontinuaron; las opciones del juego se gestionan dentro de Minecraft.
 - Los workers QThread se cancelan y esperan en `MainWindow.closeEvent`;
   cualquier QThread nuevo debe registrarse ahi para evitar crashes al
   cerrar.

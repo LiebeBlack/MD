@@ -117,8 +117,6 @@ def install_mod(source: Path) -> ModInfo:
     _validate_jar(source)
     folder = mods_dir()
     target = folder / source.name
-    if target.exists():
-        target.unlink()
     shutil.copy2(source, target)
     title, version = describe_mod(target)
     return ModInfo(name=target.name, path=target,

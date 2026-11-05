@@ -9,17 +9,17 @@ from .constants import DEFAULT_MEMORY_MB
 from .util import read_json, write_json
 
 _INT_FIELDS = {
-    "memory_mb", "cpu_cores", "resolution_width", "resolution_height",
-    "render_distance", "max_fps", "particles",
+    "memory_mb", "cpu_cores",
 }
 _BOOL_FIELDS = {
     "auto_close", "show_all_versions", "auto_download_java", "gpu_accel",
-    "vsync", "use_vbo", "fancy_graphics", "hw_defaults_applied",
+    "hw_defaults_applied",
 }
 _STR_FIELDS = {
     "username", "active_account", "version", "java_path",
     "extra_jvm_args", "server", "optifine_profile", "last_optifine",
     "game_priority", "gc_preset", "win_geometry", "ui_theme",
+    "extra_mc_dirs",
 }
 
 
@@ -62,22 +62,17 @@ class Settings:
     game_priority: str = "normal"   # idle|below_normal|normal|above_normal|high
     cpu_cores: int = 0              # 0 = todos los nucleos
     gc_preset: str = "auto"         # auto|g1|serial|parallel
-    # Aceleracion y video (Intel UHD / iGPU incluidos).
+    # Aceleracion del proceso del juego (Intel UHD / iGPU incluidos).
     gpu_accel: bool = True          # pipeline OpenGL para Java2D
-    resolution_width: int = 0       # 0 = automaticamente
-    resolution_height: int = 0
-    render_distance: int = 0        # 0 = automatico, si no 2-32 chunks
-    max_fps: int = 0                # 0 = auto, si no 30/60/120/144/240
-    vsync: bool = True              # enableVsync en options.txt
-    particles: int = -1             # -1 = auto, 0=todas 1=reducidas 2=minimas
-    use_vbo: bool = True            # useVbo: renderizado por lotes en GPU
-    fancy_graphics: bool = True     # fancyGraphics: sombras y detalles extra
     # True tras el ajuste unico de defaults segun el hardware detectado.
     hw_defaults_applied: bool = False
     # Geometria de la ventana (base64 de saveGeometry) para restaurarla.
     win_geometry: str = ""
     # Tema de la interfaz: "light" (Office claro) u "dark" (Office oscuro).
     ui_theme: str = "light"
+    # Raices .minecraft adicionales detectadas por el escaner (una por
+    # linea). Sus perfiles de version se reconocen junto a los oficiales.
+    extra_mc_dirs: str = ""
 
     @classmethod
     def load(cls) -> "Settings":

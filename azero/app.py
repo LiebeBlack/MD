@@ -35,13 +35,17 @@ def _ask_data_dir(parent: QWidget) -> Path | None:
     layout.setContentsMargins(22, 20, 22, 18)
     layout.setSpacing(12)
 
-    title = QLabel("¿Dónde quieres guardar Minecraft y los datos del launcher?")
+    title = QLabel("¿Dónde quieres guardar los datos del launcher?")
     title.setStyleSheet("font-size: 13pt; font-weight: 700;")
     layout.addWidget(title)
     layout.addWidget(QLabel(
-        "Por defecto se usa una carpeta 'data' junto al programa "
-        "(portable). Puedes elegir otra unidad o carpeta, por ejemplo "
-        "D:\\Games\\AZeroCraft."
+        "Por defecto los datos del launcher se guardan en la carpeta "
+        "'data' junto al programa (o en tu perfil de usuario si el "
+        "programa esta en Archivos de programa). Puedes elegir otra "
+        "unidad o carpeta, por ejemplo D:\\Games\\AZeroCraft.\n\n"
+        "El juego en si (versiones, mundos, mods) se guarda "
+        "siempre en tu carpeta .minecraft oficial para ser compatible "
+        "con el launcher de Mojang y otros launchers."
     ))
 
     default = paths.DATA_DIR

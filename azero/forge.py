@@ -16,7 +16,7 @@ from pathlib import Path
 from . import paths
 from .constants import USER_AGENT
 from .java import select_runtime
-from .manifest import write_version_profile
+from .manifest import load_version_profile, write_version_profile
 from .util import human_size
 
 _FORGE_MAVEN = "https://files.minecraftforge.net/net/minecraftforge/forge"
@@ -69,29 +69,45 @@ def _download(url: str, target: Path, log=print) -> Path:
 
 
 def installed_profiles() -> list[str]:
-    """Perfiles forge-* ya instalados en versions/."""
-    folder = paths.VERSIONS_DIR
-    if not folder.exists():
-        return []
+    """Perfiles forge-* ya instalados en cualquier raiz .minecraft."""
     found = []
-    for child in sorted(folder.iterdir()):
-        if (child.is_dir() and "forge" in child.name.lower()
-                and (child / f"{child.name}.json").exists()):
-            found.append(child.name)
+    for versions_dir in paths.versions_dirs():
+        try:
+            children = sorted(versions_dir.iterdir())
+        except OSError:
+            continue
+        for child in children:
+            if (child.is_dir() and "forge" in child.name.lower()
+                    and (child / f"{child.name}.json").exists()):
+                found.append(child.name)
     return found
 
 
 def _find_forge_profile(mc_version: str) -> str | None:
-    """Busca el perfil forge-* creado por el instalador en versions/."""
-    folder = paths.VERSIONS_DIR
-    if not folder.exists():
-        return None
-    for child in sorted(folder.iterdir()):
-        if not child.is_dir() or "forge" not in child.name.lower():
+    """Busca el perfil forge-* creado por el instalador en versions/.
+
+    Con varios Forge instalados (una por version de MC) se prefiere el que
+    declara ``inheritsFrom == mc_version``; si ninguno coincide, se usa el
+    primero como respaldo para no romper el flujo.
+    """
+    fallback = None
+    for versions_dir in paths.versions_dirs():
+        try:
+            children = sorted(versions_dir.iterdir())
+        except OSError:
             continue
-        if (child / f"{child.name}.json").exists():
-            return child.name
-    return None
+        for child in children:
+            if not child.is_dir() or "forge" not in child.name.lower():
+                continue
+            payload = load_version_profile(child.name)
+            if payload is None:
+                continue
+            if fallback is None:
+                fallback = child.name
+            if payload.get("inheritsFrom") == mc_version \
+                    or child.name.startswith(mc_version):
+                return child.name
+    return fallback
 
 
 def _profile_from_installer(installer: Path) -> str | None:
@@ -138,6 +154,31 @@ def _profile_from_installer(installer: Path) -> str | None:
     return target
 
 
+def _ensure_launcher_profiles(mc_version: str) -> None:
+    """Crea un launcher_profiles.json minimo si falta.
+
+    El instalador de Forge lo exige incluso en modo --installClient y
+    aborta con 'there is no minecraft launcher profile' cuando el usuario
+    nunca ha ejecutado el launcher oficial.
+    """
+    target = paths.MC_DIR / "launcher_profiles.json"
+    if target.exists():
+        return
+    import uuid as _uuid
+    payload = {"profiles": {
+        _uuid.uuid4().hex: {
+            "name": mc_version,
+            "type": "custom",
+            "lastVersionId": mc_version,
+            "icon": "Grass",
+        },
+    }}
+    try:
+        target.write_text(json.dumps(payload), encoding="utf-8")
+    except OSError:
+        pass
+
+
 def install_forge(mc_version: str, java_path: str = "", log=print) -> str:
     """Instala Forge en segundo plano y devuelve la version instalada.
 
@@ -146,8 +187,9 @@ def install_forge(mc_version: str, java_path: str = "", log=print) -> str:
     respaldo para que el usuario complete la instalacion.
     """
     # El instalador de Forge necesita el perfil vanilla de esa version
-    # como base; sin el falla con un error poco claro.
-    if not paths.version_json_path(mc_version).exists():
+    # como base; sin el falla con un error poco claro. Se acepta el json
+    # en cualquier raiz .minecraft registrada.
+    if paths.find_version_json(mc_version) is None:
         raise RuntimeError(
             f"Instala primero Minecraft {mc_version} desde la pestana "
             "Versiones: Forge necesita su perfil base.")
@@ -161,6 +203,7 @@ def install_forge(mc_version: str, java_path: str = "", log=print) -> str:
     installer = _download(url, paths.CACHE_DIR / "forge" / jar_name, log)
 
     log(f"Instalando Forge {forge_version} para Minecraft {mc_version}…")
+    _ensure_launcher_profiles(mc_version)
 
     # Via 1 (100% silenciosa): escribir el perfil desde install_profile.json.
     profile = _profile_from_installer(installer)
