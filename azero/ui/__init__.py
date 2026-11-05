@@ -1,0 +1,1 @@
+"""Interfaz grafica del launcher."""

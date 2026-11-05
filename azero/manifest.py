@@ -1,0 +1,198 @@
+"""Manifiestos oficiales de Minecraft: listado, version.json y herencia."""
+
+from __future__ import annotations
+
+import time
+from pathlib import Path
+
+from . import paths
+from .constants import (MAX_VERSION, MIN_VERSION, VERSION_MANIFEST_URL)
+from .util import fetch_json, read_json, write_json
+
+MANIFEST_TTL_SECONDS = 6 * 3600
+
+
+def _version_key(version_id: str) -> tuple[int, int, int] | None:
+    parts = version_id.split(".")
+    if not parts or not all(part.isdigit() for part in parts):
+        return None
+    numbers = [int(part) for part in parts]
+    while len(numbers) < 3:
+        numbers.append(0)
+    return tuple(numbers[:3])  # type: ignore[return-value]
+
+
+def in_supported_range(version_id: str) -> bool:
+    key = _version_key(version_id)
+    if key is None:
+        return False
+    return MIN_VERSION <= key <= MAX_VERSION
+
+
+def parse_version_key(version_id: str) -> tuple[int, int, int]:
+    return _version_key(version_id) or (0, 0, 0)
+
+
+def fetch_manifest(force: bool = False) -> dict:
+    """Descarga (con cache de 6 h) el version_manifest_v2 oficial."""
+    paths.ensure_dirs()
+    cache = paths.CACHE_DIR / "version_manifest_v2.json"
+    if not force and cache.exists():
+        age = time.time() - cache.stat().st_mtime
+        cached = read_json(cache)
+        if cached and age < MANIFEST_TTL_SECONDS:
+            return cached
+    try:
+        manifest = fetch_json(VERSION_MANIFEST_URL)
+    except Exception:
+        cached = read_json(cache)
+        if cached:
+            return cached
+        raise
+    write_json(cache, manifest)
+    return manifest
+
+
+def manifest_versions(manifest: dict, show_all: bool = False) -> list[dict]:
+    if show_all:
+        versions = list(manifest.get("versions", []))
+    else:
+        versions = [v for v in manifest.get("versions", [])
+                    if v.get("type") == "release"]
+        versions = [v for v in versions if in_supported_range(v["id"])]
+    return sorted(versions, key=lambda item: parse_version_key(item["id"]),
+                  reverse=True)
+
+
+def version_entry(manifest: dict, version_id: str) -> dict | None:
+    for entry in manifest.get("versions", []):
+        if entry.get("id") == version_id:
+            return entry
+    return None
+
+
+def fetch_version_json(version_id: str, url: str) -> dict:
+    """Descarga el <version>.json oficial y lo cachea en disco."""
+    paths.ensure_dirs()
+    cache = paths.CACHE_DIR / f"version-{version_id}.json"
+    data = None
+    if cache.exists():
+        data = read_json(cache)
+    if not data:
+        data = fetch_json(url)
+        write_json(cache, data)
+    return data
+
+
+def write_version_profile(version_id: str, payload: dict) -> Path:
+    path = paths.version_json_path(version_id)
+    write_json(path, payload)
+    return path
+
+
+def load_version_profile(version_id: str) -> dict | None:
+    return read_json(paths.version_json_path(version_id))
+
+
+def local_profiles() -> list[str]:
+    if not paths.VERSIONS_DIR.exists():
+        return []
+    profiles = []
+    for child in paths.VERSIONS_DIR.iterdir():
+        if child.is_dir() and (child / f"{child.name}.json").exists():
+            profiles.append(child.name)
+    return sorted(profiles)
+
+
+def resolve_version(version_id: str) -> dict:
+    """Carga una version y fusiona su cadena de herencia (OptiFine incluido)."""
+    chain: list[dict] = []
+    current = version_id
+    seen: set[str] = set()
+    while current and current not in seen:
+        seen.add(current)
+        payload = load_version_profile(current)
+        if payload is None:
+            raise FileNotFoundError(
+                f"Falta el perfil '{current}'. Descarga la version primero."
+            )
+        payload = dict(payload)
+        payload.setdefault("id", current)
+        chain.append(payload)
+        current = payload.get("inheritsFrom")
+
+    if not chain:
+        raise FileNotFoundError(f"Perfil desconocido: {version_id}")
+
+    base = chain[-1]
+    merged = {
+        "id": version_id,
+        "base_id": base.get("id"),
+        "type": chain[0].get("type") or base.get("type") or "release",
+        "mainClass": None,
+        "minecraftArguments": None,
+        "arguments": {"game": [], "jvm": []},
+        "libraries": [],
+        "assetIndex": None,
+        "assets": None,
+        "downloads": {},
+        "javaVersion": None,
+        "logging": {},
+        "releaseTime": chain[0].get("releaseTime") or base.get("releaseTime"),
+    }
+
+    # Padre -> hijo, para que el perfil hijo pueda sobreescribir valores.
+    for payload in reversed(chain):
+        if payload.get("mainClass"):
+            merged["mainClass"] = payload["mainClass"]
+        if payload.get("minecraftArguments"):
+            merged["minecraftArguments"] = payload["minecraftArguments"]
+        arguments = payload.get("arguments") or {}
+        merged["arguments"]["game"].extend(arguments.get("game") or [])
+        merged["arguments"]["jvm"].extend(arguments.get("jvm") or [])
+        merged["libraries"].extend(payload.get("libraries") or [])
+        for key in ("assetIndex", "assets", "logging", "javaVersion", "type"):
+            if payload.get(key):
+                merged[key] = payload[key]
+        downloads = payload.get("downloads") or {}
+        if downloads:
+            merged["downloads"].update(downloads)
+
+    if merged["base_id"] is None:
+        merged["base_id"] = version_id
+    if not merged["mainClass"]:
+        raise ValueError(f"El perfil '{version_id}' no define mainClass.")
+    if not merged["assetIndex"]:
+        raise ValueError(f"El perfil '{version_id}' no define assetIndex.")
+    return merged
+
+
+def required_java_major(version_json: dict) -> int:
+    java = version_json.get("javaVersion") or {}
+    major = java.get("majorVersion")
+    if isinstance(major, int) and major > 0:
+        return major
+    return 8
+
+
+def merge_local_and_manifest(manifest: dict, show_all: bool) -> list[dict]:
+    """Lista de versiones: oficiales + perfiles locales (OptiFine)."""
+    entries: list[dict] = []
+    seen = set()
+    for entry in manifest_versions(manifest, show_all=show_all):
+        entries.append({"id": entry["id"], "type": "release", "local": False})
+        seen.add(entry["id"])
+
+    for profile_id in local_profiles():
+        if profile_id in seen:
+            continue
+        payload = load_version_profile(profile_id) or {}
+        parent = payload.get("inheritsFrom", "")
+        if not show_all and parent and not in_supported_range(parent):
+            continue
+        entries.append({
+            "id": profile_id,
+            "type": "optifine" if "optifine" in profile_id.lower() else "local",
+            "local": True,
+        })
+    return entries

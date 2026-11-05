@@ -1,0 +1,2 @@
+# Dependencias de compilacion/paquetado (no necesarias en runtime).
+pyinstaller>=6.10,<7
