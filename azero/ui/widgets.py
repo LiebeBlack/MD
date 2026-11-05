@@ -9,8 +9,6 @@ from PyQt6.QtGui import QColor, QFont, QLinearGradient, QPainter, QPainterPath
 from PyQt6.QtWidgets import (QFrame, QLabel, QPlainTextEdit, QSizePolicy,
                              QVBoxLayout, QWidget)
 
-from .theme import COLORS
-
 
 class Card(QFrame):
     def __init__(self, parent: QWidget | None = None, margins: int = 13,
@@ -110,14 +108,3 @@ class ConsoleView(QPlainTextEdit):
 
     def append(self, text: str) -> None:
         self.appendPlainText(text)
-
-
-class Tag(QLabel):
-    """Etiqueta compacta con color de acento."""
-
-    def __init__(self, text: str, color: str | None = None,
-                 parent: QWidget | None = None):
-        super().__init__(text, parent)
-        self.setStyleSheet(
-            f"color: {color or COLORS['ACCENT']}; font-size: 8pt; font-weight: 700;"
-        )

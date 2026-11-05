@@ -23,7 +23,7 @@ from PyQt6.QtWidgets import (QCheckBox, QComboBox, QDialog, QFileDialog,
 from .. import (APP_NAME, APP_VERSION, database, hardware,
                 java as java_module, msauth, paths)
 from ..auth import offline_uuid, validate_username
-from ..constants import (MAX_MEMORY_MB, MEMORY_STEP_MB, MIN_MEMORY_MB)
+from ..constants import MEMORY_STEP_MB, MIN_MEMORY_MB
 from ..manifest import parse_version_key
 from ..util import human_size
 from ..workers import MSLoginWorker
@@ -87,7 +87,7 @@ class ScrollPage(QWidget):
 
 # ================================================================ JUGAR
 class PlayPage(ScrollPage):
-    def __init__(self, shell: "MainWindow") -> None:  # noqa: F821
+    def __init__(self, shell: "MainWindow") -> None:
         super().__init__()
         self.shell = shell
         self._build()
@@ -259,13 +259,20 @@ class PlayPage(ScrollPage):
         card.body.addLayout(head)
 
         self.ram_slider = QSlider(Qt.Orientation.Horizontal)
+        ram_max = hardware.memory_slider_max_mb()
         self.ram_slider.setMinimum(MIN_MEMORY_MB)
-        self.ram_slider.setMaximum(MAX_MEMORY_MB)
+        self.ram_slider.setMaximum(ram_max)
         self.ram_slider.setSingleStep(MEMORY_STEP_MB)
         self.ram_slider.setPageStep(1024)
+        self.ram_slider.setToolTip(
+            f"Maximo para tu equipo (~{_gb_text(ram_max)}): asignar mas RAM "
+            "de la disponible provoca cierres y lentitud en el sistema."
+        )
         self.ram_slider.valueChanged.connect(self.shell._on_ram_changed)
         self.ram_slider.sliderReleased.connect(self.shell._save_settings)
         card.body.addWidget(self.ram_slider)
+        card.body.addWidget(faint_label(
+            f"Detectado: {hardware.summary()} · max {_gb_text(ram_max)}"))
 
         self.server_edit = QLineEdit(self.shell.settings.server)
         self.server_edit.setPlaceholderText("Servidor opcional: play.ejemplo.net:25565")
@@ -307,7 +314,7 @@ class PlayPage(ScrollPage):
 
 # ============================================================= VERSIONES
 class VersionsPage(ScrollPage):
-    def __init__(self, shell: "MainWindow") -> None:  # noqa: F821
+    def __init__(self, shell: "MainWindow") -> None:
         super().__init__()
         self.shell = shell
         self._build()
@@ -597,7 +604,7 @@ class VersionsPage(ScrollPage):
 
 # ============================================================== CUENTA
 class AccountPage(ScrollPage):
-    def __init__(self, shell: "MainWindow") -> None:  # noqa: F821
+    def __init__(self, shell: "MainWindow") -> None:
         super().__init__()
         self.shell = shell
         self._login_worker = None
@@ -900,7 +907,7 @@ class MSLoginDialog(QDialog):
 
 # =============================================================== AJUSTES
 class SettingsPage(ScrollPage):
-    def __init__(self, shell: "MainWindow") -> None:  # noqa: F821
+    def __init__(self, shell: "MainWindow") -> None:
         super().__init__()
         self.shell = shell
         self._build()

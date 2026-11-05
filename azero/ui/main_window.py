@@ -273,9 +273,16 @@ class MainWindow(QMainWindow):
         page.set_busy_widgets(busy)
 
         if self._launch_running():
-            page.play_button.setText("CANCELAR")
-            page.play_button.setEnabled(True)
-            self.side_status.setText("JUGANDO")
+            if self._session_id is not None:
+                # El juego ya corre: el worker solo vigila el proceso, no
+                # hay nada que cancelar desde el boton.
+                page.play_button.setText("EN PARTIDA")
+                page.play_button.setEnabled(False)
+                self.side_status.setText("JUGANDO")
+            else:
+                page.play_button.setText("CANCELAR")
+                page.play_button.setEnabled(True)
+                self.side_status.setText("TRABAJANDO")
         elif self._of_running():
             page.play_button.setText("INSTALANDO…")
             page.play_button.setEnabled(False)
@@ -606,6 +613,7 @@ class MainWindow(QMainWindow):
         if auto_close:
             self.console.append("Autocierre activo: el launcher se cerrará ahora.")
             QTimer.singleShot(1200, self._quit_after_launch)
+        self._refresh_state()
 
     def _quit_after_launch(self) -> None:
         self._allow_close = True
@@ -696,6 +704,7 @@ class MainWindow(QMainWindow):
         worker.log.connect(self.console.append)
         worker.done.connect(self._on_optifine_done)
         worker.failed.connect(self._on_failed)
+        worker.cancelled.connect(self._on_cancelled)
         worker.finished.connect(self._on_optifine_finished)
         self._of_worker = worker
         worker.start()
@@ -756,4 +765,9 @@ class MainWindow(QMainWindow):
         if self._of_worker and self._of_worker.isRunning():
             self._of_worker.cancel()
             self._of_worker.wait(1500)
+        login_worker = getattr(
+            getattr(self, "account_page", None), "_login_worker", None)
+        if login_worker is not None and login_worker.isRunning():
+            login_worker.cancel()
+            login_worker.wait(1500)
         super().closeEvent(event)

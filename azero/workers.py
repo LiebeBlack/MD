@@ -114,6 +114,7 @@ class OptiFineWorker(QThread):
     log = pyqtSignal(str)
     done = pyqtSignal(str)
     failed = pyqtSignal(str)
+    cancelled = pyqtSignal()
 
     def __init__(self, installer: Path, base_version: str, settings, parent=None):
         super().__init__(parent)
@@ -140,6 +141,7 @@ class OptiFineWorker(QThread):
             )
         except CancelledError:
             self.log.emit("Instalacion de OptiFine cancelada.")
+            self.cancelled.emit()
             return
         except Exception as error:  # noqa: BLE001
             self.failed.emit(str(error))

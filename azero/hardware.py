@@ -144,6 +144,22 @@ def recommended_memory_mb(ram_total_mb: int | None = None) -> int:
     return max(2048, min(8192, int(total * 0.25 // 512) * 512))
 
 
+def memory_slider_max_mb(ram_total_mb: int | None = None) -> int:
+    """Maximo del selector de RAM segun la memoria instalada.
+
+    Reserva ~0.5 GB para el sistema y nunca supera el tope global. En un
+    equipo de 4 GB el selector llega a ~3.5 GB en lugar de los 16 GB
+    genericos, evitando configuraciones que harian fallar al juego.
+    """
+    from .constants import MAX_MEMORY_MB, MEMORY_STEP_MB
+    total = ram_total_mb or ram_mb()
+    if total <= 0:
+        return MAX_MEMORY_MB
+    usable = total - 512
+    cap = int(usable // MEMORY_STEP_MB) * MEMORY_STEP_MB
+    return max(2048, min(MAX_MEMORY_MB, cap))
+
+
 def summary() -> str:
     """Resumen legible del hardware para mostrar en Ajustes."""
     parts = [cpu_name(), f"{cpu_cores()} nucleos"]
