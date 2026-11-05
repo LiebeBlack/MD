@@ -8,13 +8,14 @@ import platform
 import shutil
 import sys
 import time
+import zipfile
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from .main_window import MainWindow
 
-from PyQt6.QtCore import Qt, QThread, QUrl, pyqtSignal
+from PyQt6.QtCore import Qt, QThread, QTimer, QUrl, pyqtSignal
 from PyQt6.QtGui import QColor, QDesktopServices
 from PyQt6.QtWidgets import (QCheckBox, QComboBox, QDialog, QFileDialog,
                              QFormLayout, QFrame, QHBoxLayout, QLabel,
@@ -22,17 +23,18 @@ from PyQt6.QtWidgets import (QCheckBox, QComboBox, QDialog, QFileDialog,
                              QMessageBox, QProgressBar, QPushButton,
                              QScrollArea, QSpinBox,
                              QSlider, QTableWidget, QTableWidgetItem,
+                             QTreeWidget, QTreeWidgetItem,
                              QVBoxLayout, QWidget)
 
-from .. import (APP_NAME, APP_VERSION, database, hardware,
-                java as java_module, msauth, paths)
+from .. import (APP_NAME, APP_VERSION, database, forge, hardware,
+                java as java_module, mods, msauth, paths)
 from ..auth import offline_uuid, validate_username
 from ..constants import (DOCS_URL, ISSUES_URL, MEMORY_STEP_MB,
                          MIN_MEMORY_MB, RELEASES_URL, REPO_URL,
                          SPONSORS_URL, USER_AGENT)
-from ..manifest import parse_version_key
+from ..manifest import load_version_profile, parse_version_key
 from ..util import human_size
-from ..workers import MSLoginWorker
+from ..workers import ForgeInstallWorker, MSLoginWorker
 from . import theme
 from .widgets import (Avatar, Card, ConsoleView, Divider, Pill, faint_label,
                       muted_label, section_label)
@@ -90,8 +92,8 @@ class ScrollPage(QWidget):
         self.content = QWidget()
         self.content.setObjectName("page")
         self.body = QVBoxLayout(self.content)
-        self.body.setContentsMargins(18, 14, 18, 14)
-        self.body.setSpacing(12)
+        self.body.setContentsMargins(20, 16, 20, 16)
+        self.body.setSpacing(14)
         self.scroll.setWidget(self.content)
         outer.addWidget(self.scroll)
 
@@ -399,11 +401,16 @@ class VersionsPage(ScrollPage):
         stats.addWidget(self.stat_sessions)
         self.body.addLayout(stats)
 
-        self.body.addWidget(section_label("Versiones instaladas"))
-        self.installed_list = QListWidget()
-        self.installed_list.setMinimumHeight(160)
-        self.installed_list.setMaximumHeight(230)
-        self.body.addWidget(self.installed_list)
+        installed_card = Card(margins=12, spacing=8)
+        installed_card.body.addWidget(section_label("Versiones instaladas"))
+        self.installed_list = QTreeWidget()
+        self.installed_list.setColumnCount(1)
+        self.installed_list.setHeaderHidden(True)
+        self.installed_list.setRootIsDecorated(True)
+        self.installed_list.setIndentation(14)
+        self.installed_list.setMinimumHeight(190)
+        self.installed_list.setMaximumHeight(320)
+        installed_card.body.addWidget(self.installed_list)
 
         row = QHBoxLayout()
         row.addWidget(faint_label("Las librerias y assets se comparten entre "
@@ -414,29 +421,39 @@ class VersionsPage(ScrollPage):
         open_mc.setCursor(Qt.CursorShape.PointingHandCursor)
         open_mc.clicked.connect(lambda: _open_path(paths.MC_DIR))
         row.addWidget(open_mc)
-        self.body.addLayout(row)
+        installed_card.body.addLayout(row)
+        self.body.addWidget(installed_card)
 
-        self.body.addWidget(Divider())
-        self.body.addWidget(section_label("Historial de descargas"))
+        downloads_card = Card(margins=12, spacing=8)
+        downloads_card.body.addWidget(
+            section_label("Historial de descargas"))
         self.downloads_table = self._make_table(
             ["Fecha", "Tipo", "Detalle", "Version", "Tamano", "Estado"])
-        self.body.addWidget(self.downloads_table)
+        self.downloads_table.setMinimumHeight(150)
+        self.downloads_table.setMaximumHeight(260)
+        downloads_card.body.addWidget(self.downloads_table)
+        self.body.addWidget(downloads_card)
 
-        self.body.addWidget(Divider())
-        self.body.addWidget(section_label("Sesiones recientes"))
+        sessions_card = Card(margins=12, spacing=8)
+        sessions_card.body.addWidget(
+            section_label("Sesiones recientes"))
         self.sessions_table = self._make_table(
             ["Inicio", "Jugador", "Version", "Cuenta", "Duracion", "Estado"])
-        self.body.addWidget(self.sessions_table)
+        self.sessions_table.setMinimumHeight(140)
+        self.sessions_table.setMaximumHeight(240)
+        sessions_card.body.addWidget(self.sessions_table)
+        self.body.addWidget(sessions_card)
 
-        self.body.addWidget(Divider())
-        self.body.addWidget(section_label("Registros del juego"))
+        logs_card = Card(margins=12, spacing=8)
+        logs_card.body.addWidget(section_label("Registros del juego"))
         self.logs_list = QListWidget()
-        self.logs_list.setMinimumHeight(110)
-        self.logs_list.setMaximumHeight(180)
+        self.logs_list.setMinimumHeight(120)
+        self.logs_list.setMaximumHeight(200)
         self.logs_list.itemDoubleClicked.connect(self._open_log)
-        self.body.addWidget(self.logs_list)
-        self.body.addWidget(faint_label(
+        logs_card.body.addWidget(self.logs_list)
+        logs_card.body.addWidget(faint_label(
             "Doble clic en un registro para abrirlo."))
+        self.body.addWidget(logs_card)
 
         self.body.addStretch(1)
 
@@ -501,9 +518,14 @@ class VersionsPage(ScrollPage):
             if not jar.exists() and not profile.exists():
                 continue
             size = jar.stat().st_size if jar.exists() else 0
-            is_of = "optifine" in child.name.lower()
-            kind = "OptiFine" if is_of else "Version"
-            installed = jar.exists()
+            lower = child.name.lower()
+            is_of = "optifine" in lower
+            is_forge = "forge" in lower
+            kind = ("OptiFine" if is_of else
+                    "Forge" if is_forge else "Version")
+            # Los perfiles con herencia (OptiFine/Forge) no tienen jar propio:
+            # prepare() descarga el cliente del padre al lanzar.
+            installed = jar.exists() or profile.exists()
             entries.append({
                 "id": child.name, "size": size, "kind": kind,
                 "installed": installed,
@@ -513,7 +535,22 @@ class VersionsPage(ScrollPage):
 
     def _refresh_installed(self) -> None:
         self.installed_list.clear()
+        groups: dict[str, QTreeWidgetItem] = {}
         for entry in self._scan_installed():
+            # Los perfiles con herencia (Forge/OptiFine) se agrupan bajo
+            # su version base, no bajo su nombre de perfil.
+            payload = load_version_profile(entry["id"]) or {}
+            base = payload.get("inheritsFrom") or entry["id"]
+            key = parse_version_key(base)
+            group_label = f"{key[0]}.{key[1]}.x"
+            group = groups.get(group_label)
+            if group is None:
+                group = QTreeWidgetItem([group_label])
+                group.setFlags(Qt.ItemFlag.ItemIsEnabled)
+                group.setForeground(
+                    0, QColor(theme.COLORS["TEXT_DIM"]))
+                self.installed_list.addTopLevelItem(group)
+                groups[group_label] = group
             row = QWidget()
             layout = QHBoxLayout(row)
             layout.setContentsMargins(6, 4, 6, 4)
@@ -526,6 +563,7 @@ class VersionsPage(ScrollPage):
             detail = QLabel(
                 f"{entry['kind']} · {human_size(entry['size'])}"
                 + ("" if entry["installed"] else " · solo perfil"))
+
             detail.setObjectName("faint")
             info.addWidget(name)
             info.addWidget(detail)
@@ -553,16 +591,21 @@ class VersionsPage(ScrollPage):
             layout.addWidget(delete)
 
             row.ensurePolished()
-            item = QListWidgetItem()
-            item.setSizeHint(row.sizeHint())
-            self.installed_list.addItem(item)
-            self.installed_list.setItemWidget(item, row)
+            item = QTreeWidgetItem()
+            item.setSizeHint(0, row.sizeHint())
+            group.addChild(item)
+            self.installed_list.setItemWidget(item, 0, row)
 
-        if self.installed_list.count() == 0:
-            item = QListWidgetItem("No hay versiones instaladas. "
-                                  "Pulsa JUGAR para descargar una.")
+        for group in groups.values():
+            group.setText(0, f"{group.text(0)}  ·  {group.childCount()}")
+            group.setExpanded(True)
+
+        if self.installed_list.topLevelItemCount() == 0:
+            item = QTreeWidgetItem(
+                ["No hay versiones instaladas. "
+                 "Pulsa JUGAR para descargar una."])
             item.setFlags(Qt.ItemFlag.NoItemFlags)
-            self.installed_list.addItem(item)
+            self.installed_list.addTopLevelItem(item)
 
     def _refresh_downloads(self) -> None:
         table = self.downloads_table
@@ -673,7 +716,6 @@ class AccountPage(ScrollPage):
         self.body.addLayout(head)
 
         self.body.addWidget(self._offline_card())
-        self.body.addWidget(Divider())
         self.body.addWidget(self._microsoft_card())
         self.body.addStretch(1)
 
@@ -1041,6 +1083,7 @@ class SettingsPage(ScrollPage):
 
         self.body.addWidget(self._performance_card())
         self.body.addWidget(self._video_card())
+        self.body.addWidget(self._mods_card())
         self.body.addWidget(self._data_card())
 
         save_row = QHBoxLayout()
@@ -1325,6 +1368,176 @@ class SettingsPage(ScrollPage):
         else:
             self._apply_video_preset("balanced")
             self.fancy_check.setChecked(True)
+
+    def _mods_card(self) -> Card:
+        card = Card(margins=12, spacing=8)
+        card.body.addWidget(section_label("Mods"))
+        card.body.addWidget(muted_label(
+            "Jars instalados en la carpeta mods del juego; se pueden "
+            "anadir varios a la vez. Los mods de Forge (la mayoria en "
+            "1.12.x) cargan solos una vez instalado Forge con el boton "
+            "de abajo — su perfil aparece en la pestana Versiones. "
+            "OptiFine se gestiona desde la pestana Jugar."))
+        self.mods_list = QListWidget()
+        self.mods_list.setMinimumHeight(110)
+        self.mods_list.setMaximumHeight(200)
+        card.body.addWidget(self.mods_list)
+        self.mods_loader_label = faint_label("")
+        card.body.addWidget(self.mods_loader_label)
+        row = QHBoxLayout()
+        row.setSpacing(8)
+        add = QPushButton("Anadir .jar…")
+        add.setObjectName("accentGhost")
+        add.setCursor(Qt.CursorShape.PointingHandCursor)
+        add.clicked.connect(self._add_mod)
+        remove = QPushButton("Quitar")
+        remove.setObjectName("dangerButton")
+        remove.setCursor(Qt.CursorShape.PointingHandCursor)
+        remove.clicked.connect(self._remove_mod)
+        open_mods = QPushButton("Abrir carpeta")
+        open_mods.setObjectName("ghostButton")
+        open_mods.setCursor(Qt.CursorShape.PointingHandCursor)
+        open_mods.clicked.connect(lambda: _open_path(mods.mods_dir()))
+        row.addWidget(add)
+        row.addWidget(remove)
+        row.addWidget(open_mods)
+        row.addStretch(1)
+        card.body.addLayout(row)
+        forge_row = QHBoxLayout()
+        forge_row.addWidget(faint_label("Loader:"))
+        forge = QPushButton("Instalar Forge…")
+        forge.setObjectName("accentGhost")
+        forge.setCursor(Qt.CursorShape.PointingHandCursor)
+        forge.setToolTip(
+            "Descarga el instalador oficial de Forge y lo abre para "
+            "completar la instalacion (necesario para la mayoria de mods)."
+        )
+        forge.clicked.connect(self._install_forge)
+        forge_row.addWidget(forge)
+        forge_row.addStretch(1)
+        card.body.addLayout(forge_row)
+        self._refresh_mods()
+        return card
+
+    def _refresh_mods(self) -> None:
+        self.mods_list.clear()
+        for mod in mods.list_mods():
+            label = mod.title if mod.title and mod.title != mod.name \
+                else mod.name
+            if mod.version:
+                label += f" {mod.version}"
+            item = QListWidgetItem(f"{label}  ·  {human_size(mod.size)}")
+            item.setData(Qt.ItemDataRole.UserRole, mod.name)
+            self.mods_list.addItem(item)
+        profiles = forge.installed_profiles()
+        if profiles:
+            shown = ", ".join(profiles[:2])
+            extra = f" (+{len(profiles) - 2})" if len(profiles) > 2 else ""
+            self.mods_loader_label.setText(
+                f"Loader: Forge instalado — {shown}{extra}. "
+                "Los mods de Forge cargan al jugar ese perfil.")
+        else:
+            self.mods_loader_label.setText(
+                "Loader: Forge no instalado — los mods de Forge no "
+                "cargaran hasta activarlo con el boton de abajo.")
+
+    def showEvent(self, event) -> None:  # noqa: N802 - API de Qt
+        super().showEvent(event)
+        self._refresh_mods()
+
+    def _add_mod(self) -> None:
+        selected, _ = QFileDialog.getOpenFileName(
+            self, "Anadir mod (.jar)", "",
+            "Mods de Minecraft (*.jar);;Todos los archivos (*)")
+        if not selected:
+            return
+        try:
+            info = mods.install_mod(Path(selected))
+        except (OSError, ValueError, zipfile.BadZipFile) as error:
+            QMessageBox.warning(self, "No se pudo instalar el mod",
+                                str(error))
+            return
+        self._refresh_mods()
+        self.shell._set_status(f"Mod instalado: {info.name}", "ok")
+        self._maybe_offer_forge(Path(selected))
+
+    def _maybe_offer_forge(self, jar: Path) -> None:
+        """Si el mod necesita Forge y no hay perfil Forge, lo ofrece."""
+        if forge.installed_profiles() or not mods.is_forge_mod(jar):
+            return
+        base = self.shell._selected_base() or self.shell._selected_version()
+        if not base:
+            return
+        answer = QMessageBox.question(
+            self, "Mod de Forge detectado",
+            f"'{jar.name}' es un mod de Forge. Forge no esta instalado.\n\n"
+            f"¿Instalar Forge para Minecraft {base} ahora?\n"
+            "Se descargara e instalara automaticamente.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.Yes)
+        if answer == QMessageBox.StandardButton.Yes:
+            self._install_forge()
+
+    def _remove_mod(self) -> None:
+        item = self.mods_list.currentItem()
+        if not item:
+            return
+        name = item.data(Qt.ItemDataRole.UserRole)
+        try:
+            mods.remove_mod(name)
+        except (OSError, ValueError) as error:
+            QMessageBox.warning(self, "No se pudo quitar el mod", str(error))
+            return
+        self._refresh_mods()
+        self.shell._set_status(f"Mod eliminado: {name}", "ok")
+
+    def _install_forge(self) -> None:
+        version_id = self.shell._selected_base() or ""
+        if not version_id:
+            QMessageBox.information(
+                self, "Forge", "Selecciona primero una version de "
+                "Minecraft en la pestana Jugar.")
+            return
+        self._forge_base = version_id
+        worker = ForgeInstallWorker(version_id, self.shell.settings, self)
+        worker.stage.connect(
+            lambda text: self.shell.stage_label.setText(text))
+        worker.progress.connect(self.shell._set_progress)
+        worker.log.connect(lambda text: self.shell.console.append(text))
+        worker.cancelled.connect(
+            lambda: self.shell._set_status(
+                "Instalacion de Forge cancelada.", "error"))
+        worker.done.connect(
+            lambda name: self._forge_done(name))
+        worker.failed.connect(
+            lambda msg: QMessageBox.warning(self, "Forge", msg))
+        worker.finished.connect(worker.deleteLater)
+        self._forge_worker = worker
+        worker.start()
+
+    def _forge_done(self, forge_version: str) -> None:
+        base = getattr(self, "_forge_base", "") or \
+            self.shell._selected_base()
+        profile = forge._find_forge_profile(base) if base else None
+        if profile:
+            self.shell._set_status(
+                f"Forge instalado: perfil '{profile}'.", "ok")
+            self.shell._reload_versions()
+            return
+        # Respaldo con instalador grafico: vigilar la aparicion del perfil.
+        self.shell._set_status(
+            "Instalador de Forge abierto — se detectara al terminar.",
+            "ok")
+        self._watch_forge(base, 60)
+
+    def _watch_forge(self, base: str, attempts: int) -> None:
+        if not base or attempts <= 0:
+            return
+        if forge._find_forge_profile(base):
+            self.shell._set_status("Perfil de Forge detectado.", "ok")
+            self.shell._reload_versions()
+            return
+        QTimer.singleShot(3000, lambda: self._watch_forge(base, attempts - 1))
 
     def _data_card(self) -> Card:
         card = Card(margins=12, spacing=8)

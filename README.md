@@ -16,6 +16,14 @@ OptiFine, modo offline, Java automático (Temurin) y ajustes de rendimiento.
 - Java automático: detecta JREs instalados y descarga Temurin (Adoptium) si falta
   la versión requerida.
 - OptiFine: instala el parche oficial sin GUI y crea un perfil propio.
+- Mods: gestor de `.jar` en Ajustes → Mods. Permite añadir varios mods a la
+  vez (p. ej. `VanillaFix-1.0.10-150.jar`), listar con nombre/versión
+  detectados (`mcmod.info`, `fabric.mod.json`), quitarlos y abrir la carpeta.
+  Si el mod es de Forge y no hay loader, el launcher ofrece instalarlo
+  automáticamente. Botón "Instalar Forge…": descarga el instalador oficial
+  y crea el perfil **sin abrir ventanas** (extrayendo `install_profile.json`);
+  su perfil aparece en Versiones agrupado por versión y carga los mods al
+  jugar.
 - Modo offline con UUID v3 determinista (compatible con `nameUUIDFromBytes`).
 - Control de recursos: memoria RAM, prioridad de proceso, afinidad de CPU y
   recolector de basura (GC).

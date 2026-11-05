@@ -156,7 +156,7 @@ class MainWindow(QMainWindow):
     def _build_sidebar(self) -> QWidget:
         sidebar = QWidget()
         sidebar.setObjectName("sidebar")
-        sidebar.setFixedWidth(196)
+        sidebar.setFixedWidth(204)
         layout = QVBoxLayout(sidebar)
         layout.setContentsMargins(10, 14, 10, 10)
         layout.setSpacing(3)
@@ -214,8 +214,7 @@ class MainWindow(QMainWindow):
 
     def _build_status_bar(self) -> QWidget:
         bar = QWidget()
-        bar.setObjectName("sidebar")
-        bar.setStyleSheet("border-right: none; border-top: 1px solid #1C2431;")
+        bar.setObjectName("statusBar")
         layout = QHBoxLayout(bar)
         layout.setContentsMargins(14, 6, 14, 6)
         layout.setSpacing(10)
@@ -810,4 +809,9 @@ class MainWindow(QMainWindow):
             getattr(self, "about_page", None), "_update_checker", None)
         if update_checker is not None and update_checker.isRunning():
             update_checker.wait(2000)
+        forge_worker = getattr(
+            getattr(self, "settings_page", None), "_forge_worker", None)
+        if forge_worker is not None and forge_worker.isRunning():
+            forge_worker.cancel()
+            forge_worker.wait(1500)
         super().closeEvent(event)

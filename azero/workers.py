@@ -8,8 +8,8 @@ from pathlib import Path
 
 from PyQt6.QtCore import QThread, pyqtSignal
 
-from . import launch, manifest, msauth, optifine
-from .install import TaskContext
+from . import forge, launch, manifest, msauth, optifine
+from .install import TaskContext, prepare
 from .util import CancelledError
 
 
@@ -147,6 +147,56 @@ class OptiFineWorker(QThread):
             self.failed.emit(str(error))
             return
         self.done.emit(info.profile_id)
+
+
+class ForgeInstallWorker(QThread):
+    """Instala Forge en segundo plano, sin intervencion del usuario.
+
+    Primero prepara el Minecraft base (cliente + librerias) si falta —
+    el instalador de Forge lo exige — y despues ejecuta el instalador
+    oficial en modo headless cuando la version lo soporta.
+    """
+
+    stage = pyqtSignal(str)
+    progress = pyqtSignal(int, int)
+    log = pyqtSignal(str)
+    done = pyqtSignal(str)
+    failed = pyqtSignal(str)
+    cancelled = pyqtSignal()
+
+    def __init__(self, version_id: str, settings, parent=None):
+        super().__init__(parent)
+        self.version_id = version_id
+        self.settings = settings
+        self._cancel = threading.Event()
+
+    def cancel(self) -> None:
+        self._cancel.set()
+
+    def _context(self) -> TaskContext:
+        return TaskContext(
+            stage=self.stage.emit,
+            progress=self.progress.emit,
+            log=self.log.emit,
+            cancel_event=self._cancel,
+        )
+
+    def run(self) -> None:
+        try:
+            self.stage.emit(f"Preparando Minecraft {self.version_id}")
+            prepare(self.version_id, self._context(), with_assets=False)
+            version = forge.install_forge(
+                self.version_id,
+                java_path=getattr(self.settings, "java_path", ""),
+                log=self.log.emit)
+        except CancelledError:
+            self.log.emit("Instalacion de Forge cancelada.")
+            self.cancelled.emit()
+            return
+        except Exception as error:  # noqa: BLE001
+            self.failed.emit(str(error))
+            return
+        self.done.emit(version)
 
 
 class MSLoginWorker(QThread):
