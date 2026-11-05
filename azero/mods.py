@@ -25,6 +25,7 @@ class ModInfo:
     size: int
     title: str = ""
     version: str = ""
+    forge: bool = False
 
 
 def mods_dir() -> Path:
@@ -97,7 +98,8 @@ def list_mods() -> list[ModInfo]:
             title, version = describe_mod(item)
             mods.append(ModInfo(name=item.name, path=item,
                                 size=item.stat().st_size,
-                                title=title, version=version))
+                                title=title, version=version,
+                                forge=is_forge_mod(item)))
     mods.sort(key=lambda mod: mod.name.lower())
     return mods
 

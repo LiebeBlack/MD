@@ -1426,7 +1426,9 @@ class SettingsPage(ScrollPage):
                 else mod.name
             if mod.version:
                 label += f" {mod.version}"
-            item = QListWidgetItem(f"{label}  ·  {human_size(mod.size)}")
+            badge = " · Forge" if mod.forge else ""
+            item = QListWidgetItem(
+                f"{label}{badge}  ·  {human_size(mod.size)}")
             item.setData(Qt.ItemDataRole.UserRole, mod.name)
             self.mods_list.addItem(item)
         profiles = forge.installed_profiles()

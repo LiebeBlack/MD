@@ -42,6 +42,19 @@ def _java_major_for(version_id: str) -> int:
     return 8
 
 
+def _version_entry_sort(entry: dict) -> tuple:
+    """Ordena perfiles: version base descendente, luego Vanilla/Forge/
+    OptiFine y parche descendente."""
+    payload = load_version_profile(entry["id"]) or {}
+    base = payload.get("inheritsFrom") or entry["id"]
+    key = tuple(parse_version_key(base)) + (0,) * 3
+    key = key[:3]
+    lower = entry["id"].lower()
+    kind = 2 if "optifine" in lower else 1 if "forge" in lower else 0
+    patch = tuple(parse_version_key(entry["id"])) + (0,) * 3
+    return (-key[0], -key[1], kind, -patch[2], entry["id"])
+
+
 def _java_major_display(version_id: str) -> int:
     """Java real que usara el launcher, leido del perfil si existe."""
     payload = load_version_profile(version_id) or {}
@@ -433,11 +446,25 @@ class MainWindow(QMainWindow):
         combo = self.play_page.version_combo
         combo.blockSignals(True)
         combo.clear()
-        for entry in entries:
+        last_group = None
+        for entry in sorted(entries, key=_version_entry_sort):
+            payload = load_version_profile(entry["id"]) or {}
+            base = payload.get("inheritsFrom") or entry["id"]
+            bkey = tuple(parse_version_key(base)) + (0,) * 3
+            group = f"{bkey[0]}.{bkey[1]}.x"
+            if group != last_group:
+                combo.addItem(f"── {group} ──")
+                combo.model().item(combo.count() - 1).setEnabled(False)
+                last_group = group
             label = entry["id"]
             if entry.get("local"):
-                label += "  · OptiFine" if "optifine" in label.lower() \
-                    else "  · local"
+                lower = label.lower()
+                if "optifine" in lower:
+                    label += "  · OptiFine"
+                elif "forge" in lower:
+                    label += "  · Forge"
+                else:
+                    label += "  · local"
             combo.addItem(label, entry["id"])
         index = combo.findData(current)
         if index < 0:
@@ -497,8 +524,11 @@ class MainWindow(QMainWindow):
             return
         base = self._selected_base()
         payload = load_version_profile(version_id) or {}
-        is_optifine = "optifine" in version_id.lower()
+        lower_id = version_id.lower()
+        is_optifine = "optifine" in lower_id
+        is_forge = "forge" in lower_id
         kind = ("OptiFine" if is_optifine
+                else "Forge" if is_forge
                 else ("Perfil local" if payload.get("inheritsFrom")
                       else "Vanilla"))
         if paths.version_jar_path(base).exists():
