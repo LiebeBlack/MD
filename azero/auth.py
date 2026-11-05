@@ -26,6 +26,26 @@ class OfflineProfile:
         return self.name[:2].upper() if self.name else "?"
 
 
+@dataclass(frozen=True)
+class OnlineProfile:
+    """Sesion oficial de Minecraft (cuenta Microsoft canjeada)."""
+    name: str
+    uuid: str          # sin guiones
+    access_token: str
+    user_type: str = "msa"
+
+    @property
+    def uuid_dashed(self) -> str:
+        if len(self.uuid) == 32:
+            return (f"{self.uuid[:8]}-{self.uuid[8:12]}-{self.uuid[12:16]}-"
+                    f"{self.uuid[16:20]}-{self.uuid[20:]}")
+        return self.uuid
+
+    @property
+    def initials(self) -> str:
+        return self.name[:2].upper() if self.name else "?"
+
+
 def offline_uuid(name: str) -> str:
     """Reproduce UUID.nameUUIDFromBytes("OfflinePlayer:" + nombre) de Java."""
     digest = bytearray(hashlib.md5(f"OfflinePlayer:{name}".encode("utf-8")).digest())

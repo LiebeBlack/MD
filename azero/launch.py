@@ -13,7 +13,8 @@ from pathlib import Path
 
 from . import java as java_module
 from . import hardware, paths
-from .auth import OfflineProfile, create_profile, validate_username
+from .auth import OfflineProfile, OnlineProfile
+from . import msauth
 from .constants import APP_NAME, APP_VERSION
 from .install import PreparedGame, TaskContext, prepare
 from .rules import default_features, expand_arguments
@@ -62,7 +63,8 @@ class LaunchOutcome:
     auto_close: bool
 
 
-def _context(prepared: PreparedGame, profile: OfflineProfile) -> dict[str, str]:
+def _context(prepared: PreparedGame,
+             profile: OfflineProfile | OnlineProfile) -> dict[str, str]:
     classpath = os.pathsep.join(str(item) for item in prepared.classpath)
     version_json = prepared.version_json
     index_name = version_json["assetIndex"]["id"]
@@ -117,7 +119,8 @@ def _quick_connect(settings) -> list[str]:
     return ["--server", host, "--port", port]
 
 
-def build_command(prepared: PreparedGame, profile: OfflineProfile, settings,
+def build_command(prepared: PreparedGame,
+                  profile: OfflineProfile | OnlineProfile, settings,
                   runtime: java_module.JavaRuntime) -> list[str]:
     context = _context(prepared, profile)
     version_json = prepared.version_json
@@ -314,10 +317,7 @@ def spawn(command: list[str], cwd: Path, auto_close: bool,
 def install_and_launch(version_id: str, settings, ctx: TaskContext,
                        with_assets: bool = True,
                        on_spawned=None) -> LaunchOutcome:
-    error = validate_username(settings.username)
-    if error:
-        raise LaunchError(error)
-    profile = create_profile(settings.username)
+    profile = msauth.resolve_profile(settings)
 
     prepared = prepare(version_id, ctx, with_assets=with_assets)
     ctx.stage(f"Preparando Java {prepared.java_major}")

@@ -8,7 +8,7 @@ from pathlib import Path
 
 from PyQt6.QtCore import QThread, pyqtSignal
 
-from . import launch, manifest, optifine
+from . import launch, manifest, msauth, optifine
 from .install import TaskContext
 from .util import CancelledError
 
@@ -145,3 +145,31 @@ class OptiFineWorker(QThread):
             self.failed.emit(str(error))
             return
         self.done.emit(info.profile_id)
+
+
+class MSLoginWorker(QThread):
+    """Inicio de sesion Microsoft por codigo de dispositivo."""
+
+    code_ready = pyqtSignal(object)   # msauth.DeviceCode
+    done = pyqtSignal(object, str)    # msauth.McSession, refresh_token
+    failed = pyqtSignal(str)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._cancel = threading.Event()
+
+    def cancel(self) -> None:
+        self._cancel.set()
+
+    def run(self) -> None:
+        try:
+            session, refresh = msauth.login_with_device_code(
+                on_code=self.code_ready.emit,
+                cancel=self._cancel.is_set,
+            )
+        except msauth.MsaCancelled:
+            return
+        except Exception as error:  # noqa: BLE001 - se muestra al usuario
+            self.failed.emit(str(error))
+            return
+        self.done.emit(session, refresh)

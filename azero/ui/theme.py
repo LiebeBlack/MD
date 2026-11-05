@@ -463,6 +463,139 @@ QFrame#divider {
     max-height: 1px;
     border: none;
 }
+
+/* ---- navegacion lateral (estilo navegador) ---- */
+QWidget#sidebar {
+    background-color: #0D1119;
+    border-right: 1px solid $BORDER_SOFT;
+}
+QLabel#navTitle {
+    color: $TEXT_FAINT;
+    font-size: 8pt;
+    font-weight: 700;
+    letter-spacing: 1.6px;
+    padding: 4px 10px;
+}
+QPushButton#navButton {
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 10px;
+    color: $TEXT_DIM;
+    text-align: left;
+    padding: 10px 12px;
+    font-size: 10pt;
+    font-weight: 600;
+    min-height: 20px;
+}
+QPushButton#navButton:hover {
+    background-color: $SURFACE_HOVER;
+    color: $TEXT;
+}
+QPushButton#navButton[active="true"] {
+    background-color: rgba(61, 224, 160, 0.12);
+    border-color: rgba(61, 224, 160, 0.30);
+    color: $ACCENT;
+}
+QLabel#navBadge {
+    color: $TEXT_FAINT;
+    font-size: 8pt;
+}
+
+/* ---- paginas y tablas ---- */
+QWidget#page {
+    background: transparent;
+}
+QLabel#pageTitle {
+    color: $TEXT;
+    font-size: 16pt;
+    font-weight: 800;
+}
+QLabel#pageSubtitle {
+    color: $TEXT_DIM;
+    font-size: 9pt;
+}
+QTableWidget, QListWidget {
+    background-color: $SURFACE;
+    border: 1px solid $BORDER_SOFT;
+    border-radius: 10px;
+    gridline-color: $BORDER_SOFT;
+    color: $TEXT;
+    font-size: 9pt;
+    selection-background-color: rgba(61, 224, 160, 0.16);
+    selection-color: $TEXT;
+    outline: none;
+}
+QTableWidget::item, QListWidget::item {
+    padding: 4px 8px;
+    border: none;
+}
+QTableWidget::item:hover, QListWidget::item:hover {
+    background-color: $SURFACE_HOVER;
+}
+QHeaderView::section {
+    background-color: $SURFACE_ALT;
+    color: $TEXT_FAINT;
+    border: none;
+    border-bottom: 1px solid $BORDER;
+    padding: 7px 10px;
+    font-size: 8pt;
+    font-weight: 700;
+    letter-spacing: 0.8px;
+}
+QTableCornerButton::section {
+    background-color: $SURFACE_ALT;
+    border: none;
+}
+QListWidget::item:selected {
+    background-color: rgba(61, 224, 160, 0.16);
+    color: $TEXT;
+}
+QPushButton#dangerButton {
+    background: transparent;
+    border: 1px solid rgba(255, 107, 107, 0.4);
+    color: $DANGER;
+    padding: 6px 12px;
+}
+QPushButton#dangerButton:hover {
+    background-color: rgba(255, 107, 107, 0.10);
+}
+QPushButton#primaryButton {
+    background-color: $ACCENT;
+    border: none;
+    border-radius: 8px;
+    color: $ACCENT_TEXT;
+    font-weight: 700;
+    padding: 8px 16px;
+}
+QPushButton#primaryButton:hover {
+    background-color: #58F0B6;
+}
+QPushButton#primaryButton:disabled {
+    background-color: #1C2A2A;
+    color: #4C6B60;
+}
+QFrame#statCard {
+    background-color: $SURFACE_ALT;
+    border: 1px solid $BORDER_SOFT;
+    border-radius: 10px;
+}
+QLabel#statValue {
+    color: $TEXT;
+    font-size: 14pt;
+    font-weight: 800;
+}
+QLabel#statCaption {
+    color: $TEXT_FAINT;
+    font-size: 8pt;
+    letter-spacing: 0.6px;
+}
+QScrollArea {
+    background: transparent;
+    border: none;
+}
+QScrollArea > QWidget > QWidget {
+    background: transparent;
+}
 """)
 
 
