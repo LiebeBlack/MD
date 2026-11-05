@@ -6,13 +6,13 @@ import shutil
 import sys
 from pathlib import Path
 
-from PyQt6.QtCore import Qt, QTimer, QUrl
+from PyQt6.QtCore import QByteArray, Qt, QTimer, QUrl
 from PyQt6.QtGui import QDesktopServices, QKeySequence, QShortcut
 from PyQt6.QtWidgets import (QApplication, QFileDialog, QHBoxLayout, QLabel,
                              QMainWindow, QMessageBox, QPushButton,
                              QStackedWidget, QVBoxLayout, QWidget)
 
-from .. import (APP_NAME, APP_VERSION, database, paths)
+from .. import (APP_NAME, APP_VERSION, database, hardware, paths)
 from ..auth import offline_uuid, validate_username
 from ..constants import MEMORY_STEP_MB
 from ..manifest import load_version_profile, local_profiles, parse_version_key
@@ -20,7 +20,8 @@ from ..optifine import inspect_installer
 from ..settings import Settings
 from ..workers import LaunchWorker, ManifestWorker, OptiFineWorker
 from . import theme
-from .pages import AccountPage, PlayPage, SettingsPage, VersionsPage
+from .pages import (AboutPage, AccountPage, PlayPage, SettingsPage,
+                    VersionsPage)
 from .widgets import Pill, faint_label
 
 
@@ -91,6 +92,13 @@ class MainWindow(QMainWindow):
         self.setWindowTitle(f"{APP_NAME} Launcher")
         self.resize(1160, 760)
         self.setMinimumSize(1000, 680)
+        if self.settings.win_geometry:
+            try:
+                self.restoreGeometry(
+                    QByteArray.fromBase64(
+                        self.settings.win_geometry.encode("ascii")))
+            except Exception:  # noqa: BLE001 - geometria corrupta: ignorar
+                pass
 
         self._build_ui()
         self._apply_settings()
@@ -99,6 +107,12 @@ class MainWindow(QMainWindow):
 
         shortcut = QShortcut(QKeySequence("Ctrl+,"), self)
         shortcut.activated.connect(self._go_settings)
+        play_shortcut = QShortcut(QKeySequence("Ctrl+Return"), self)
+        play_shortcut.activated.connect(self._on_play_clicked)
+        refresh_shortcut = QShortcut(QKeySequence("F5"), self)
+        refresh_shortcut.activated.connect(self._reload_versions)
+        clear_shortcut = QShortcut(QKeySequence("Ctrl+L"), self)
+        clear_shortcut.activated.connect(lambda: self.console.clear())
 
     # ------------------------------------------------------------------ UI
     def _build_ui(self) -> None:
@@ -121,10 +135,12 @@ class MainWindow(QMainWindow):
         self.versions_page = VersionsPage(self)
         self.account_page = AccountPage(self)
         self.settings_page = SettingsPage(self)
+        self.about_page = AboutPage(self)
         self.stack.addWidget(self.play_page)
         self.stack.addWidget(self.versions_page)
         self.stack.addWidget(self.account_page)
         self.stack.addWidget(self.settings_page)
+        self.stack.addWidget(self.about_page)
         right_layout.addWidget(self.stack, 1)
         right_layout.addWidget(self._build_status_bar())
 
@@ -170,6 +186,7 @@ class MainWindow(QMainWindow):
                 ("▦", "Versiones"),
                 ("◉", "Cuenta"),
                 ("⚙", "Ajustes"),
+                ("i", "Acerca de"),
         )):
             button = QPushButton(f"  {icon_text}   {label}")
             button.setObjectName("navButton")
@@ -205,8 +222,20 @@ class MainWindow(QMainWindow):
         self.status_label = QLabel("Listo para jugar.")
         self.status_label.setObjectName("statusLabel")
         layout.addWidget(self.status_label, 1)
-        layout.addWidget(faint_label("Ctrl+, para abrir Ajustes"))
+        self.ram_label = faint_label("")
+        layout.addWidget(self.ram_label)
+        layout.addWidget(faint_label("Ctrl+, ajustes · Ctrl+Enter jugar"))
+        self._ram_timer = QTimer(self)
+        self._ram_timer.setInterval(5000)
+        self._ram_timer.timeout.connect(self._update_ram_label)
+        self._ram_timer.start()
+        self._update_ram_label()
         return bar
+
+    def _update_ram_label(self) -> None:
+        avail = hardware.ram_avail_mb()
+        if avail:
+            self.ram_label.setText(f"RAM libre: {avail / 1024:.1f} GB")
 
     # ------------------------------------------------------------ navegacion
     def _go_page(self, index: int) -> None:
@@ -219,6 +248,8 @@ class MainWindow(QMainWindow):
             self.versions_page.refresh_all()
         elif index == 2:
             self.account_page.refresh_accounts()
+        elif index == 4:
+            self.about_page.ensure_update_check()
 
     def _go_settings(self) -> None:
         if not self._is_busy():
@@ -735,7 +766,7 @@ class MainWindow(QMainWindow):
             self.play_page.ram_slider.setValue(rounded)
             return
         gb = f"{value / 1024:.1f}".rstrip("0").rstrip(".")
-        self.play_page.ram_value.setText(f"{gb} GB")
+        self.play_page.ram_value.setText(f"{value} MB · {gb} GB")
         self.settings.memory_mb = value
 
     def _on_auto_close_changed(self, checked: bool) -> None:
@@ -758,6 +789,11 @@ class MainWindow(QMainWindow):
             _enable_dark_titlebar(self)
 
     def closeEvent(self, event) -> None:  # noqa: N802 - API de Qt
+        try:
+            self.settings.win_geometry = bytes(
+                self.saveGeometry().toBase64()).decode("ascii")
+        except Exception:  # noqa: BLE001
+            pass
         self._save_settings()
         if self._launch_worker and self._launch_worker.isRunning():
             self._launch_worker.cancel()
@@ -770,4 +806,8 @@ class MainWindow(QMainWindow):
         if login_worker is not None and login_worker.isRunning():
             login_worker.cancel()
             login_worker.wait(1500)
+        update_checker = getattr(
+            getattr(self, "about_page", None), "_update_checker", None)
+        if update_checker is not None and update_checker.isRunning():
+            update_checker.wait(2000)
         super().closeEvent(event)

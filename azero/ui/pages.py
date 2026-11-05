@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+import json
 import os
+import platform
+import shutil
+import sys
 import time
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -10,7 +14,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from .main_window import MainWindow
 
-from PyQt6.QtCore import Qt, QUrl, pyqtSignal
+from PyQt6.QtCore import Qt, QThread, QUrl, pyqtSignal
 from PyQt6.QtGui import QColor, QDesktopServices
 from PyQt6.QtWidgets import (QCheckBox, QComboBox, QDialog, QFileDialog,
                              QFormLayout, QFrame, QHBoxLayout, QLabel,
@@ -23,7 +27,9 @@ from PyQt6.QtWidgets import (QCheckBox, QComboBox, QDialog, QFileDialog,
 from .. import (APP_NAME, APP_VERSION, database, hardware,
                 java as java_module, msauth, paths)
 from ..auth import offline_uuid, validate_username
-from ..constants import MEMORY_STEP_MB, MIN_MEMORY_MB
+from ..constants import (DOCS_URL, ISSUES_URL, MEMORY_STEP_MB,
+                         MIN_MEMORY_MB, RELEASES_URL, REPO_URL,
+                         SPONSORS_URL, USER_AGENT)
 from ..manifest import parse_version_key
 from ..util import human_size
 from ..workers import MSLoginWorker
@@ -36,6 +42,11 @@ def _gb_text(memory_mb: int) -> str:
     value = memory_mb / 1024
     text = f"{value:.1f}".rstrip("0").rstrip(".")
     return f"{text} GB"
+
+
+def _ram_text(memory_mb: int) -> str:
+    """Etiqueta precisa de RAM: MB exactos + equivalente en GB."""
+    return f"{memory_mb} MB · {_gb_text(memory_mb)}"
 
 
 def _fmt_time(ts: float | None) -> str:
@@ -148,7 +159,13 @@ class PlayPage(ScrollPage):
         clear.setObjectName("ghostButton")
         clear.setCursor(Qt.CursorShape.PointingHandCursor)
         clear.clicked.connect(lambda: self.console.clear())
+        copy_log = QPushButton("Copiar")
+        copy_log.setObjectName("ghostButton")
+        copy_log.setCursor(Qt.CursorShape.PointingHandCursor)
+        copy_log.setToolTip("Copia todo el registro al portapapeles")
+        copy_log.clicked.connect(self._copy_console)
         console_head.addWidget(open_folder)
+        console_head.addWidget(copy_log)
         console_head.addWidget(clear)
         console_card.body.addLayout(console_head)
 
@@ -172,6 +189,14 @@ class PlayPage(ScrollPage):
 
         columns.addWidget(console_card, 1)
         self.body.addLayout(columns, 1)
+
+    def _copy_console(self) -> None:
+        """Copia el contenido completo del registro al portapapeles."""
+        from PyQt6.QtWidgets import QApplication
+        text = self.console.toPlainText()
+        if text.strip():
+            QApplication.clipboard().setText(text)
+            self.shell._set_status("Registro copiado al portapapeles.", "ok")
 
     def _account_card(self) -> Card:
         card = Card(margins=12, spacing=8)
@@ -253,7 +278,7 @@ class PlayPage(ScrollPage):
         head = QHBoxLayout()
         head.addWidget(section_label("Memoria RAM"))
         head.addStretch(1)
-        self.ram_value = QLabel(_gb_text(self.shell.settings.memory_mb))
+        self.ram_value = QLabel(_ram_text(self.shell.settings.memory_mb))
         self.ram_value.setObjectName("valueLabel")
         head.addWidget(self.ram_value)
         card.body.addLayout(head)
@@ -271,6 +296,22 @@ class PlayPage(ScrollPage):
         self.ram_slider.valueChanged.connect(self.shell._on_ram_changed)
         self.ram_slider.sliderReleased.connect(self.shell._save_settings)
         card.body.addWidget(self.ram_slider)
+
+        presets = QHBoxLayout()
+        presets.setSpacing(6)
+        presets.addWidget(faint_label("Preset"))
+        for label, mb in (("2 GB", 2048), ("4 GB", 4096),
+                          ("Recomendado", hardware.recommended_memory_mb()),
+                          ("Max", ram_max)):
+            button = QPushButton(label)
+            button.setObjectName("ghostButton")
+            button.setCursor(Qt.CursorShape.PointingHandCursor)
+            button.setToolTip(f"Asignar {mb} MB de RAM al juego")
+            button.clicked.connect(
+                lambda _c=False, value=mb: self._apply_ram_preset(value))
+            presets.addWidget(button)
+        presets.addStretch(1)
+        card.body.addLayout(presets)
         card.body.addWidget(faint_label(
             f"Detectado: {hardware.summary()} · max {_gb_text(ram_max)}"))
 
@@ -288,6 +329,11 @@ class PlayPage(ScrollPage):
         self.auto_close_check.toggled.connect(self.shell._on_auto_close_changed)
         card.body.addWidget(self.auto_close_check)
         return card
+
+    def _apply_ram_preset(self, mb: int) -> None:
+        """Preset de RAM: mueve el slider y guarda el ajuste."""
+        self.ram_slider.setValue(mb)
+        self.shell._save_settings()
 
     # ------------------------------------------------------------ estado
     def refresh_account(self, name: str, uuid_: str, kind: str,
@@ -657,12 +703,29 @@ class AccountPage(ScrollPage):
         row.addLayout(column, 1)
         card.body.addLayout(row)
 
+        use_row = QHBoxLayout()
         use = QPushButton("Usar perfil offline")
         use.setObjectName("primaryButton")
         use.setCursor(Qt.CursorShape.PointingHandCursor)
         use.clicked.connect(self._use_offline)
-        card.body.addWidget(use)
+        use_row.addWidget(use, 1)
+        copy_uuid = QPushButton("Copiar UUID")
+        copy_uuid.setObjectName("ghostButton")
+        copy_uuid.setCursor(Qt.CursorShape.PointingHandCursor)
+        copy_uuid.setToolTip("Copia el UUID offline al portapapeles")
+        copy_uuid.clicked.connect(self._copy_offline_uuid)
+        use_row.addWidget(copy_uuid)
+        card.body.addLayout(use_row)
         return card
+
+    def _copy_offline_uuid(self) -> None:
+        from PyQt6.QtWidgets import QApplication
+        text = self.off_uuid.text().strip()
+        if text.lower().startswith("uuid "):
+            text = text[5:].strip()
+        if text and "pendiente" not in text.lower():
+            QApplication.clipboard().setText(text)
+            self.shell._set_status("UUID copiado.", "ok")
 
     def _microsoft_card(self) -> Card:
         card = Card(margins=12, spacing=8)
@@ -1087,6 +1150,68 @@ class SettingsPage(ScrollPage):
         dist_row.addStretch(1)
         card.body.addLayout(dist_row)
 
+        fps_row = QHBoxLayout()
+        fps_row.setSpacing(8)
+        fps_row.addWidget(faint_label("FPS maximo"))
+        self.fps_combo = QComboBox()
+        for label, value in (("Auto", 0), ("30", 30), ("60", 60),
+                             ("120", 120), ("144", 144), ("240", 240)):
+            self.fps_combo.addItem(label, value)
+        self.fps_combo.setCurrentIndex(
+            max(0, self.fps_combo.findData(settings.max_fps)))
+        self.fps_combo.setToolTip(
+            "Limita los FPS del juego. Auto = sin limite. En Intel UHD "
+            "conviene 60-120 para menos consumo."
+        )
+        fps_row.addWidget(self.fps_combo, 1)
+        card.body.addLayout(fps_row)
+
+        particles_row = QHBoxLayout()
+        particles_row.setSpacing(8)
+        particles_row.addWidget(faint_label("Particulas"))
+        self.particles_combo = QComboBox()
+        for label, value in (("Auto", -1), ("Todas", 0),
+                             ("Reducidas", 1), ("Minimas", 2)):
+            self.particles_combo.addItem(label, value)
+        self.particles_combo.setCurrentIndex(
+            max(0, self.particles_combo.findData(settings.particles)))
+        self.particles_combo.setToolTip(
+            "Densidad de particulas. Minimas = mas FPS en GPUs integradas."
+        )
+        particles_row.addWidget(self.particles_combo, 1)
+        card.body.addLayout(particles_row)
+
+        toggles = QHBoxLayout()
+        toggles.setSpacing(16)
+        self.vsync_check = QCheckBox("VSync")
+        self.vsync_check.setChecked(settings.vsync)
+        self.vsync_check.setToolTip(
+            "Sincroniza los FPS con la frecuencia del monitor "
+            "(evita tearing; consume un poco mas)."
+        )
+        self.vbo_check = QCheckBox("VBO")
+        self.vbo_check.setChecked(settings.use_vbo)
+        self.vbo_check.setToolTip(
+            "Vertex Buffer Objects: renderizado por lotes en la GPU. "
+            "Mas rapido en casi todo el hardware."
+        )
+        toggles.addWidget(self.vsync_check)
+        toggles.addWidget(self.vbo_check)
+        toggles.addStretch(1)
+        card.body.addLayout(toggles)
+
+        toggles2 = QHBoxLayout()
+        toggles2.setSpacing(16)
+        self.fancy_check = QCheckBox("Graficos avanzados (Fancy)")
+        self.fancy_check.setChecked(settings.fancy_graphics)
+        self.fancy_check.setToolTip(
+            "Sombras, animaciones y detalles visuales extra. "
+            "Desactivalo para mas FPS en Intel UHD."
+        )
+        toggles2.addWidget(self.fancy_check)
+        toggles2.addStretch(1)
+        card.body.addLayout(toggles2)
+
         self.gpu_check = QCheckBox("Aceleracion GPU (OpenGL)")
         self.gpu_check.setChecked(settings.gpu_accel)
         self.gpu_check.setToolTip(
@@ -1094,7 +1219,112 @@ class SettingsPage(ScrollPage):
             "desactivalo solo si el juego no arranca o falla el render."
         )
         card.body.addWidget(self.gpu_check)
+
+        presets = QHBoxLayout()
+        presets.setSpacing(8)
+        presets.addWidget(faint_label("Preset"))
+        for label, kind in (("Rendimiento", "performance"),
+                            ("Equilibrado", "balanced"),
+                            ("Calidad", "quality")):
+            button = QPushButton(label)
+            button.setObjectName("ghostButton")
+            button.setCursor(Qt.CursorShape.PointingHandCursor)
+            button.setToolTip(f"Aplicar preset '{label}' a los ajustes de video")
+            button.clicked.connect(
+                lambda _checked=False, k=kind: self._apply_video_preset(k))
+            presets.addWidget(button)
+        presets.addStretch(1)
+        card.body.addLayout(presets)
+
+        optimize = QPushButton("Optimizar para este equipo")
+        optimize.setObjectName("accentGhost")
+        optimize.setCursor(Qt.CursorShape.PointingHandCursor)
+        optimize.setToolTip(
+            "Detecta tu hardware y aplica los ajustes recomendados: "
+            "RAM sugerida, GC, distancia de renderizado y FPS."
+        )
+        optimize.clicked.connect(self._optimize_for_hardware)
+        card.body.addWidget(optimize)
+
+        options_row = QHBoxLayout()
+        options_row.addStretch(1)
+        edit_options = QPushButton("Editar options.txt del juego")
+        edit_options.setObjectName("ghostButton")
+        edit_options.setCursor(Qt.CursorShape.PointingHandCursor)
+        edit_options.setToolTip(
+            "Abre el options.txt de Minecraft para ajustes manuales "
+            "(se respeta al lanzar; el launcher solo escribe las claves "
+            "configuradas aqui)."
+        )
+        edit_options.clicked.connect(self._open_options_txt)
+        options_row.addWidget(edit_options)
+        card.body.addLayout(options_row)
         return card
+
+    def _open_options_txt(self) -> None:
+        """Abre (o crea) el options.txt del juego en el editor del sistema."""
+        paths.ensure_dirs()
+        options = paths.MC_DIR / "options.txt"
+        if not options.exists():
+            options.write_text("", encoding="utf-8")
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(options)))
+
+    _VIDEO_PRESETS = {
+        # Distancia, FPS, particulas, vsync, vbo (None = dejar como esta).
+        "performance": dict(render_distance=6, max_fps=120, particles=2,
+                            vsync=False, use_vbo=True),
+        "balanced": dict(render_distance=10, max_fps=144, particles=1,
+                         vsync=True, use_vbo=True),
+        "quality": dict(render_distance=16, max_fps=0, particles=0,
+                        vsync=True, use_vbo=True),
+    }
+
+    def _apply_video_preset(self, kind: str) -> None:
+        preset = self._VIDEO_PRESETS[kind]
+        self.dist_spin.setValue(preset["render_distance"])
+        index = self.fps_combo.findData(preset["max_fps"])
+        if index >= 0:
+            self.fps_combo.setCurrentIndex(index)
+        index = self.particles_combo.findData(preset["particles"])
+        if index >= 0:
+            self.particles_combo.setCurrentIndex(index)
+        self.vsync_check.setChecked(preset["vsync"])
+        self.vbo_check.setChecked(preset["use_vbo"])
+        self.gpu_check.setChecked(True)
+
+    def _optimize_for_hardware(self) -> None:
+        """Aplica ajustes recomendados segun el hardware detectado.
+
+        Equipo modesto (<=4 nucleos o <=6 GB RAM o sin AVX2): prioriza
+        FPS — menos distancia de render, particulas minimas, GC Serial.
+        Equipo potente: equilibrio con mejores ajustes visuales.
+        """
+        cores = hardware.cpu_cores()
+        total_ram = hardware.ram_mb()
+        flags = hardware.cpu_flags()
+        modest = (cores <= 4 or total_ram <= 6144
+                  or not flags.get("avx2")
+                  or (hardware.has_integrated_gpu() and total_ram <= 8192))
+
+        # RAM: la sugerida por hardware, dentro del rango del slider.
+        recommended = min(hardware.recommended_memory_mb(),
+                          self.shell.play_page.ram_slider.maximum())
+        recommended = max(self.shell.play_page.ram_slider.minimum(),
+                          recommended)
+        self.shell.play_page.ram_slider.setValue(recommended)
+
+        # GC: Serial en equipos modestos, automatico en el resto.
+        gc_target = "serial" if modest else "auto"
+        index = self.gc_combo.findData(gc_target)
+        if index >= 0:
+            self.gc_combo.setCurrentIndex(index)
+
+        if modest:
+            self._apply_video_preset("performance")
+            self.fancy_check.setChecked(False)
+        else:
+            self._apply_video_preset("balanced")
+            self.fancy_check.setChecked(True)
 
     def _data_card(self) -> Card:
         card = Card(margins=12, spacing=8)
@@ -1111,12 +1341,140 @@ class SettingsPage(ScrollPage):
         open_data.setCursor(Qt.CursorShape.PointingHandCursor)
         open_data.clicked.connect(lambda: _open_path(paths.DATA_DIR))
         row.addWidget(open_data)
+        clear_cache = QPushButton("Limpiar cache")
+        clear_cache.setObjectName("ghostButton")
+        clear_cache.setCursor(Qt.CursorShape.PointingHandCursor)
+        clear_cache.setToolTip(
+            "Borra la cache de manifiestos y descargas temporales. "
+            "No afecta a versiones ni mundos ya instalados."
+        )
+        clear_cache.clicked.connect(self._clear_cache)
+        row.addWidget(clear_cache)
+        export = QPushButton("Exportar ajustes")
+        export.setObjectName("ghostButton")
+        export.setCursor(Qt.CursorShape.PointingHandCursor)
+        export.setToolTip(
+            "Guarda una copia de la configuracion del launcher "
+            "(settings.json) en la ubicacion que elijas."
+        )
+        export.clicked.connect(self._export_settings)
+        row.addWidget(export)
+        import_btn = QPushButton("Importar ajustes")
+        import_btn.setObjectName("ghostButton")
+        import_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        import_btn.setToolTip(
+            "Restaura una configuracion exportada anteriormente "
+            "(settings.json). Se aplica al reiniciar el launcher."
+        )
+        import_btn.clicked.connect(self._import_settings)
+        row.addWidget(import_btn)
+        reset = QPushButton("Restablecer")
+        reset.setObjectName("dangerButton")
+        reset.setCursor(Qt.CursorShape.PointingHandCursor)
+        reset.setToolTip(
+            "Vuelve todos los ajustes a sus valores de fabrica."
+        )
+        reset.clicked.connect(self._reset_settings)
+        row.addWidget(reset)
         row.addStretch(1)
         card.body.addLayout(row)
         card.body.addWidget(faint_label(
             f"{APP_NAME} {APP_VERSION} · portable · assets y manifiestos "
             "oficiales de Mojang"))
         return card
+
+    def _clear_cache(self) -> None:
+        """Elimina el contenido de CACHE_DIR (seguro: se regenera solo)."""
+        cache = paths.CACHE_DIR
+        if not cache.exists():
+            self.shell._set_status("La cache ya esta vacia.", "ok")
+            return
+        answer = QMessageBox.question(
+            self, "Limpiar cache",
+            f"Se borrara el contenido de:\n{cache}\n\n"
+            "Las versiones y mundos instalados no se ven afectados.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+        freed = 0
+        try:
+            for item in cache.iterdir():
+                if item.is_dir():
+                    size = sum(f.stat().st_size for f in item.rglob("*")
+                               if f.is_file())
+                    shutil.rmtree(item, ignore_errors=True)
+                else:
+                    size = item.stat().st_size
+                    item.unlink(missing_ok=True)
+                freed += size
+        except OSError as error:
+            self.shell._set_status(f"No se pudo limpiar la cache: {error}",
+                                   "error")
+            return
+        cache.mkdir(parents=True, exist_ok=True)
+        self.shell._set_status(
+            f"Cache limpiada ({human_size(freed)} liberados).", "ok")
+
+    def _export_settings(self) -> None:
+        """Exporta settings.json a una ubicacion elegida por el usuario."""
+        source = paths.SETTINGS_FILE
+        target, _ = QFileDialog.getSaveFileName(
+            self, "Exportar ajustes", "azero-settings.json",
+            "Configuracion JSON (*.json)")
+        if not target:
+            return
+        try:
+            shutil.copy2(source, target)
+        except OSError as error:
+            self.shell._set_status(f"No se pudo exportar: {error}", "error")
+            return
+        self.shell._set_status(f"Ajustes exportados a {target}", "ok")
+
+    def _import_settings(self) -> None:
+        """Restaura un settings.json exportado previamente."""
+        source, _ = QFileDialog.getOpenFileName(
+            self, "Importar ajustes", "",
+            "Configuracion JSON (*.json)")
+        if not source:
+            return
+        try:
+            raw = json.loads(Path(source).read_text(encoding="utf-8"))
+            if not isinstance(raw, dict):
+                raise ValueError("formato invalido")
+        except (OSError, ValueError) as error:
+            self.shell._set_status(f"Archivo de ajustes invalido: {error}",
+                                   "error")
+            return
+        try:
+            shutil.copy2(source, paths.SETTINGS_FILE)
+        except OSError as error:
+            self.shell._set_status(f"No se pudo importar: {error}", "error")
+            return
+        self.shell._set_status(
+            "Ajustes importados. Reinicia el launcher para aplicarlos.", "ok")
+
+    def _reset_settings(self) -> None:
+        """Restablece settings.json a los valores por defecto."""
+        answer = QMessageBox.question(
+            self, "Restablecer ajustes",
+            "Se borrara toda la configuracion actual y se volvera a los "
+            "valores de fabrica.\n\nContinuar?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+        try:
+            paths.SETTINGS_FILE.unlink(missing_ok=True)
+        except OSError as error:
+            self.shell._set_status(f"No se pudo restablecer: {error}",
+                                   "error")
+            return
+        self.shell._set_status(
+            "Ajustes restablecidos. Reinicia el launcher para aplicarlos.",
+            "ok")
 
     # ------------------------------------------------------------ acciones
     def _browse_java(self) -> None:
@@ -1141,9 +1499,238 @@ class SettingsPage(ScrollPage):
         settings.resolution_width = self.res_width.value()
         settings.resolution_height = self.res_height.value()
         settings.render_distance = self.dist_spin.value()
+        settings.max_fps = self.fps_combo.currentData()
+        settings.particles = self.particles_combo.currentData()
+        settings.vsync = self.vsync_check.isChecked()
+        settings.use_vbo = self.vbo_check.isChecked()
+        settings.fancy_graphics = self.fancy_check.isChecked()
         settings.gpu_accel = self.gpu_check.isChecked()
         self.shell._save_settings()
         if reload_needed:
             self.shell._reload_versions()
         self.shell.console.append("Ajustes guardados.")
         self.shell._set_status("Ajustes guardados.", "ok")
+
+
+# ============================================================= ACERCA DE
+class _UpdateChecker(QThread):
+    """Consulta el ultimo release de GitHub sin bloquear la UI."""
+
+    checked = pyqtSignal(str)   # tag_name o "" si no hay release/acceso
+
+    def run(self) -> None:
+        import urllib.request
+        try:
+            api_url = ("https://api.github.com/repos/LiebeBlack/MD"
+                       "/releases/latest")
+            request = urllib.request.Request(
+                api_url, headers={"User-Agent": USER_AGENT,
+                                  "Accept": "application/vnd.github+json"})
+            with urllib.request.urlopen(request, timeout=8) as response:
+                data = json.loads(response.read().decode("utf-8"))
+            self.checked.emit(str(data.get("tag_name", "")))
+        except Exception:  # noqa: BLE001 - sin red o repo sin releases
+            self.checked.emit("")
+
+
+class AboutPage(ScrollPage):
+    """Pantalla 'Acerca de': informacion del software, enlaces utiles,
+    donaciones y diagnostico del sistema."""
+
+    def __init__(self, shell: "MainWindow") -> None:
+        super().__init__()
+        self.shell = shell
+        self._build()
+
+    # ------------------------------------------------------------- build
+    def _build(self) -> None:
+        head = QHBoxLayout()
+        titles = QVBoxLayout()
+        titles.setSpacing(2)
+        title = QLabel("Acerca de")
+        title.setObjectName("pageTitle")
+        sub = QLabel("Informacion del launcher, proyecto y sistema.")
+        sub.setObjectName("pageSubtitle")
+        titles.addWidget(title)
+        titles.addWidget(sub)
+        head.addLayout(titles)
+        head.addStretch(1)
+        self.body.addLayout(head)
+
+        self._app_card()
+        self._project_card()
+        self._support_card()
+        self._update_card()
+        self._system_card()
+        self._update_started = False
+
+    def _app_card(self) -> None:
+        card = Card(margins=14, spacing=8)
+        card.body.addWidget(section_label("APLICACION"))
+        name = QLabel(f"{APP_NAME} Launcher")
+        name.setStyleSheet("font-size: 15pt; font-weight: 800;")
+        card.body.addWidget(name)
+        card.body.addWidget(QLabel(
+            f"Version {APP_VERSION} · desarrollado por Liebe Black · "
+            "launcher de Minecraft Java Edition para Windows."
+        ))
+        card.body.addWidget(muted_label(
+            "Instala versiones, librerias, assets y Java de forma "
+            "automatica desde los servidores oficiales de Mojang. "
+            "Soporta modo offline y cuentas Microsoft."))
+        self.body.addWidget(card)
+
+    def _project_card(self) -> None:
+        card = Card(margins=14, spacing=8)
+        card.body.addWidget(section_label("PROYECTO"))
+        card.body.addWidget(QLabel(f"Repositorio: {REPO_URL}"))
+        row = QHBoxLayout()
+        row.setSpacing(8)
+        row.addWidget(self._link_button("GitHub", REPO_URL))
+        row.addWidget(self._link_button("Ultima version", RELEASES_URL))
+        row.addWidget(self._link_button("Reportar un error", ISSUES_URL))
+        row.addWidget(self._link_button("Documentacion", DOCS_URL))
+        row.addStretch(1)
+        card.body.addLayout(row)
+        card.body.addWidget(faint_label(
+            "Codigo abierto para la comunidad. Minecraft es marca de "
+            "Mojang Synergies AB; este proyecto no esta afiliado."))
+        self.body.addWidget(card)
+
+    def _support_card(self) -> None:
+        card = Card(margins=14, spacing=8)
+        card.body.addWidget(section_label("APOYA EL PROYECTO"))
+        card.body.addWidget(QLabel(
+            "AZeroCraft es gratuito y de codigo abierto. Si te es util, "
+            "considera apoyar su desarrollo."))
+        row = QHBoxLayout()
+        row.setSpacing(8)
+        donate = self._link_button("Donar", SPONSORS_URL, "primaryButton")
+        row.addWidget(donate)
+        row.addWidget(self._link_button("Ver en GitHub", REPO_URL))
+        copy_diag = QPushButton("Copiar diagnostico")
+        copy_diag.setObjectName("ghostButton")
+        copy_diag.setCursor(Qt.CursorShape.PointingHandCursor)
+        copy_diag.setToolTip(
+            "Copia la informacion del sistema al portapapeles para "
+            "pegarla al reportar un problema."
+        )
+        copy_diag.clicked.connect(self._copy_diagnostics)
+        row.addWidget(copy_diag)
+        row.addStretch(1)
+        card.body.addLayout(row)
+        card.body.addWidget(faint_label(
+            "Las donaciones son voluntarias y no desbloquean funciones."))
+        self.body.addWidget(card)
+
+    def _update_card(self) -> None:
+        card = Card(margins=14, spacing=8)
+        card.body.addWidget(section_label("ACTUALIZACIONES"))
+        self.update_label = QLabel(f"Version instalada: {APP_VERSION}")
+        self.update_label.setObjectName("muted")
+        card.body.addWidget(self.update_label)
+        self.update_button = self._link_button("Ver releases", RELEASES_URL)
+        self.update_button.setVisible(False)
+        card.body.addWidget(self.update_button)
+        self.body.addWidget(card)
+
+    def ensure_update_check(self) -> None:
+        """Inicia el chequeo de version solo la primera vez que se
+        muestra la pagina (no gasta red si el usuario no la abre)."""
+        if self._update_started:
+            return
+        self._update_started = True
+        self.update_label.setText("Comprobando ultima version…")
+        self._update_checker = _UpdateChecker(self)
+        self._update_checker.checked.connect(self._on_update_checked)
+        self._update_checker.start()
+
+    def _on_update_checked(self, tag: str) -> None:
+        current = f"v{APP_VERSION}"
+        if not tag:
+            self.update_label.setText(
+                "No se pudo comprobar (sin conexion o sin releases).")
+            return
+        if tag.lstrip("vV") == APP_VERSION or tag == current:
+            self.update_label.setText(
+                f"Estas al dia — {APP_NAME} {APP_VERSION} es la ultima version.")
+        else:
+            self.update_label.setText(
+                f"Hay una version nueva disponible: {tag} "
+                f"(instalada: {APP_VERSION}).")
+            self.update_button.setVisible(True)
+
+    def _system_card(self) -> None:
+        card = Card(margins=14, spacing=8)
+        card.body.addWidget(section_label("SISTEMA"))
+        gpu = hardware.gpu_name()
+        info = [
+            ("Hardware", hardware.summary()),
+            ("GPU", gpu or "No detectada"),
+            ("RAM sugerida para MC", f"{hardware.recommended_memory_mb()} MB"),
+            ("Carpeta de datos", str(paths.DATA_DIR)),
+            ("Version de Python",
+             f"{sys.version_info.major}.{sys.version_info.minor}."
+             f"{sys.version_info.micro}"),
+            ("Plataforma", f"{sys.platform} · {platform.machine()}"),
+        ]
+        for label, value in info:
+            line = QHBoxLayout()
+            line.setSpacing(10)
+            line.addWidget(faint_label(label))
+            value_label = QLabel(str(value))
+            value_label.setObjectName("mono")
+            value_label.setTextInteractionFlags(
+                Qt.TextInteractionFlag.TextSelectableByMouse)
+            line.addWidget(value_label, 1)
+            card.body.addLayout(line)
+        self.body.addWidget(card)
+
+        legal = QLabel(
+            "Aviso: uso justo (fair use). El launcher no redistribuye "
+            "archivos de Minecraft; los descarga de los servidores "
+            "oficiales. Sin garantias. Ver docs/index.html para la "
+            "politica completa."
+        )
+        legal.setObjectName("faint")
+        legal.setWordWrap(True)
+        self.body.addWidget(legal)
+        legal_row = QHBoxLayout()
+        legal_row.addWidget(self._link_button(
+            "Aviso legal y licencia completa",
+            f"{REPO_URL}/blob/main/installer/license.txt"))
+        legal_row.addStretch(1)
+        self.body.addLayout(legal_row)
+        self.body.addStretch(1)
+
+    # ------------------------------------------------------------ helpers
+    @staticmethod
+    def _link_button(text: str, url: str,
+                    object_name: str = "accentGhost") -> QPushButton:
+        button = QPushButton(text)
+        button.setObjectName(object_name)
+        button.setCursor(Qt.CursorShape.PointingHandCursor)
+        button.clicked.connect(
+            lambda _=False, u=url: QDesktopServices.openUrl(QUrl(u)))
+        return button
+
+    def _copy_diagnostics(self) -> None:
+        """Copia un informe del sistema al portapapeles."""
+        from PyQt6.QtWidgets import QApplication
+        settings = self.shell.settings
+        lines = [
+            f"{APP_NAME} {APP_VERSION}",
+            f"Repo: {REPO_URL}",
+            f"GPU: {hardware.gpu_name() or 'no detectada'}",
+            f"Hardware: {hardware.summary()}",
+            f"RAM sugerida: {hardware.recommended_memory_mb()} MB",
+            f"Flags CPU: {hardware.supported_flags_text()}",
+            f"Datos: {paths.DATA_DIR}",
+            f"Java path: {settings.java_path or 'automatico'}",
+            f"Version MC: {settings.version}",
+            f"RAM asignada: {settings.memory_mb} MB",
+            f"Plataforma: {sys.platform} {platform.machine()} "
+            f"Python {sys.version_info.major}.{sys.version_info.minor}.",
+        ]
+        QApplication.clipboard().setText("\n".join(lines))
+        self.shell._set_status("Diagnostico copiado al portapapeles.", "ok")

@@ -198,6 +198,20 @@ def apply_video_options(game_dir: Path, settings) -> None:
     distance = int(getattr(settings, "render_distance", 0) or 0)
     if 2 <= distance <= 32:
         updates["renderDistance"] = str(distance)
+    max_fps = int(getattr(settings, "max_fps", 0) or 0)
+    if max_fps > 0:
+        updates["maxFps"] = str(max_fps)
+    particles = int(getattr(settings, "particles", -1))
+    if particles in (0, 1, 2):
+        updates["particles"] = str(particles)
+    # VSync y VBO siempre se escriben: son toggles del launcher y sus
+    # defaults coinciden con los del juego, asi que no hay sorpresa.
+    updates["enableVsync"] = (
+        "true" if getattr(settings, "vsync", True) else "false")
+    updates["useVbo"] = (
+        "true" if getattr(settings, "use_vbo", True) else "false")
+    updates["fancyGraphics"] = (
+        "true" if getattr(settings, "fancy_graphics", True) else "false")
     if not updates:
         return
 

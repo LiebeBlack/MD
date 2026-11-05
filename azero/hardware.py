@@ -49,6 +49,43 @@ def cpu_name() -> str:
     return name.strip() or platform.machine()
 
 
+def gpu_name() -> str:
+    """Nombre del adaptador grafico principal (p. ej. 'Intel(R) UHD 600')."""
+    if sys.platform.startswith("win"):
+        try:
+            import winreg
+            class_key = winreg.OpenKey(
+                winreg.HKEY_LOCAL_MACHINE,
+                r"SYSTEM\CurrentControlSet\Control\Class"
+                r"\{4d36e968-e325-11ce-bfc1-08002be10318}")
+            try:
+                for index in range(20):
+                    try:
+                        with winreg.OpenKey(class_key, f"{index:04d}") as sub:
+                            desc, _ = winreg.QueryValueEx(sub, "DriverDesc")
+                    except OSError:
+                        continue
+                    desc = str(desc).strip()
+                    lowered = desc.lower()
+                    if desc and "microsoft" not in lowered \
+                            and "basic display" not in lowered:
+                        return desc
+            finally:
+                winreg.CloseKey(class_key)
+        except OSError:
+            pass
+    return ""
+
+
+def has_integrated_gpu() -> bool:
+    """True si el adaptador principal parece una GPU integrada (Intel UHD/HD)."""
+    name = gpu_name().lower()
+    if not name:
+        return False
+    return (("intel" in name and "arc" not in name)
+            or "uhd" in name or "hd graphics" in name)
+
+
 def cpu_cores() -> int:
     """Nucleos logicos disponibles para el proceso."""
     try:
@@ -72,6 +109,19 @@ def ram_mb() -> int:
                    // (1024 * 1024))
     except (ValueError, OSError, AttributeError):
         return 0
+
+
+def ram_avail_mb() -> int:
+    """RAM fisica disponible ahora mismo en MiB."""
+    if windll is not None:
+        try:
+            status = _MemoryStatus()
+            status.dwLength = sizeof(status)
+            if windll.kernel32.GlobalMemoryStatusEx(byref(status)):
+                return int(status.ullAvailPhys // (1024 * 1024))
+        except (OSError, AttributeError):
+            pass
+    return 0
 
 
 def cpu_flags() -> dict[str, bool]:
@@ -166,5 +216,8 @@ def summary() -> str:
     total = ram_mb()
     if total:
         parts.append(f"{total / 1024:.0f} GB RAM")
+    gpu = gpu_name()
+    if gpu:
+        parts.append(gpu)
     parts.append(supported_flags_text())
     return " · ".join(parts)

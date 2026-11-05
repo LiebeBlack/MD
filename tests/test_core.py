@@ -243,6 +243,71 @@ class TestBuildCommand(unittest.TestCase):
                          "net.minecraft.client.main.Main")
 
 
+class TestVideoOptions(unittest.TestCase):
+    def _settings(self, **overrides) -> SimpleNamespace:
+        base = dict(resolution_width=0, resolution_height=0,
+                    render_distance=0, max_fps=0, particles=-1,
+                    vsync=True, use_vbo=True, fancy_graphics=True)
+        base.update(overrides)
+        return SimpleNamespace(**base)
+
+    def test_writes_only_configured_keys(self) -> None:
+        from azero.launch import apply_video_options
+        with tempfile.TemporaryDirectory() as tmp:
+            game_dir = Path(tmp)
+            (game_dir / "options.txt").write_text(
+                "fancyGraphics:false\nrenderDistance:12\nmaxFps:260\n",
+                encoding="utf-8")
+            apply_video_options(game_dir, self._settings(
+                resolution_width=1600, resolution_height=900,
+                render_distance=8, max_fps=120, particles=1,
+                vsync=False, use_vbo=True, fancy_graphics=False))
+            text = (game_dir / "options.txt").read_text(encoding="utf-8")
+        self.assertIn("overrideWidth:1600", text)
+        self.assertIn("overrideHeight:900", text)
+        self.assertIn("renderDistance:8", text)   # actualizado, no duplicado
+        self.assertIn("maxFps:120", text)
+        self.assertIn("particles:1", text)
+        self.assertIn("enableVsync:false", text)
+        self.assertIn("useVbo:true", text)
+        self.assertIn("fancyGraphics:false", text)
+        self.assertNotIn("renderDistance:12", text)
+
+    def test_defaults_write_sane_values(self) -> None:
+        from azero.launch import apply_video_options
+        with tempfile.TemporaryDirectory() as tmp:
+            game_dir = Path(tmp)
+            apply_video_options(game_dir, self._settings())
+            text = (game_dir / "options.txt").read_text(encoding="utf-8")
+        self.assertIn("enableVsync:true", text)
+        self.assertIn("useVbo:true", text)
+        self.assertIn("fancyGraphics:true", text)
+        # Opcionales en auto no se escriben.
+        self.assertNotIn("maxFps", text)
+        self.assertNotIn("particles", text)
+        self.assertNotIn("renderDistance", text)
+        self.assertNotIn("overrideWidth", text)
+
+
+class TestSettingsSanitize(unittest.TestCase):
+    def test_invalid_types_are_dropped(self) -> None:
+        from azero.settings import _sanitize
+        clean = _sanitize({
+            "memory_mb": "4096",          # str numerica -> int
+            "cpu_cores": "abc",           # no numerica -> fuera
+            "gpu_accel": "false",         # str bool -> False
+            "vsync": True,
+            "username": 123,              # tipo erroneo -> fuera
+            "unknown_key": "x",           # ya filtrado antes, por si acaso
+        })
+        self.assertEqual(clean["memory_mb"], 4096)
+        self.assertNotIn("cpu_cores", clean)
+        self.assertIs(clean["gpu_accel"], False)
+        self.assertIs(clean["vsync"], True)
+        self.assertNotIn("username", clean)
+        self.assertNotIn("unknown_key", clean)
+
+
 class TestJavaCompatibility(unittest.TestCase):
     def test_major_compatible(self) -> None:
         from azero.java import _major_compatible

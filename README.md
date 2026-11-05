@@ -20,7 +20,15 @@ OptiFine, modo offline, Java automático (Temurin) y ajustes de rendimiento.
 - Control de recursos: memoria RAM, prioridad de proceso, afinidad de CPU y
   recolector de basura (GC).
 - Interfaz con navegación lateral y páginas: Jugar, Versiones (gestor de
-  archivos instalados), Cuenta e Historial, y Ajustes.
+  archivos instalados), Cuenta e Historial, Ajustes y Acerca de.
+- Ajustes de vídeo completos (se escriben en `options.txt` antes de cada
+  lanzamiento): resolución personalizada, distancia de renderizado, FPS
+  máximo, VSync, partículas, VBO, gráficos Fancy y aceleración GPU OpenGL,
+  además de presets de un clic (Rendimiento/Equilibrado/Calidad) y un
+  botón "Optimizar para este equipo" que adapta los ajustes al hardware
+  detectado (CPU, núcleos, RAM, flags SSE4.2/AVX).
+- RAM previsualizada en MB exactos con presets rápidos (2/4 GB,
+  recomendado, máximo según el equipo).
 - Cuentas: perfil offline con nombre personalizado o cuenta Microsoft
   (device code) para servidores oficiales online-mode. Todo el contenido
   es gratuito y funciona sin cuenta.

@@ -21,7 +21,14 @@ MAX_VERSION = (1, 15, 999)
 DEFAULT_MEMORY_MB = 2048
 MIN_MEMORY_MB = 1024
 MAX_MEMORY_MB = 16384
-MEMORY_STEP_MB = 512
+MEMORY_STEP_MB = 256
 
 # Versiones de Minecraft que se ejecutan correctamente con Java 8.
 LEGACY_JAVA_MAX_VERSION = (1, 16, 5)
+
+# Repositorio y enlaces del proyecto.
+REPO_URL = "https://github.com/LiebeBlack/MD"
+RELEASES_URL = f"{REPO_URL}/releases"
+ISSUES_URL = f"{REPO_URL}/issues"
+SPONSORS_URL = "https://github.com/sponsors/LiebeBlack"
+DOCS_URL = f"{REPO_URL}/blob/main/docs/index.html"

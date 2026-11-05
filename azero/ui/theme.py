@@ -13,18 +13,19 @@ from PyQt6.QtWidgets import QApplication
 from .. import paths
 
 COLORS = {
-    "BG": "#0B0E14",
-    "SURFACE": "#11161F",
-    "SURFACE_ALT": "#171E2A",
-    "SURFACE_HOVER": "#1D2634",
-    "BORDER": "#26303F",
-    "BORDER_SOFT": "#1C2431",
-    "TEXT": "#E8EEF7",
-    "TEXT_DIM": "#94A2B8",
-    "TEXT_FAINT": "#5E6B80",
+    "BG": "#080B11",
+    "SURFACE": "#0F141E",
+    "SURFACE_ALT": "#151C29",
+    "SURFACE_HOVER": "#1B2434",
+    "BORDER": "#2A3648",
+    "BORDER_SOFT": "#1A2230",
+    "TEXT": "#EDF2FA",
+    "TEXT_DIM": "#9AABBF",
+    "TEXT_FAINT": "#66748C",
     "ACCENT": "#3DDC97",
     "ACCENT_DIM": "#2BAE77",
     "ACCENT_TEXT": "#052015",
+    "ACCENT2": "#7AA2FF",
     "DANGER": "#FF7070",
     "WARN": "#F2C14E",
 }
@@ -117,7 +118,7 @@ QStackedWidget, QScrollArea {
 QFrame#card {
     background-color: $SURFACE;
     border: 1px solid $BORDER_SOFT;
-    border-radius: 9px;
+    border-radius: 11px;
 }
 QFrame#softPanel {
     background-color: $SURFACE_ALT;
@@ -220,9 +221,9 @@ QLineEdit#nameEdit:hover, QLineEdit#nameEdit:focus {
 QComboBox {
     background-color: $SURFACE_ALT;
     border: 1px solid $BORDER;
-    border-radius: 7px;
-    padding: 4px 9px;
-    min-height: 16px;
+    border-radius: 8px;
+    padding: 5px 32px 5px 10px;
+    min-height: 18px;
 }
 QComboBox:hover {
     border-color: #2C3A50;
@@ -274,20 +275,23 @@ QPushButton:disabled {
     border-color: #1A2230;
 }
 QPushButton#playButton {
-    background-color: $ACCENT;
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                                stop:0 #4BF0B2, stop:1 #25B57F);
     border: none;
-    border-radius: 8px;
+    border-radius: 10px;
     color: $ACCENT_TEXT;
-    font-size: 12pt;
+    font-size: 13pt;
     font-weight: 800;
-    letter-spacing: 1.0px;
-    padding: 9px 14px;
+    letter-spacing: 1.2px;
+    padding: 11px 18px;
 }
 QPushButton#playButton:hover {
-    background-color: #6FE7B8;
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                                stop:0 #6FF2C4, stop:1 #35D493);
 }
 QPushButton#playButton:pressed {
-    background-color: $ACCENT_DIM;
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                                stop:0 #2BBE8F, stop:1 #1E9A70);
 }
 QPushButton#playButton:disabled {
     background-color: #1C2A2A;
@@ -383,15 +387,26 @@ QCheckBox::indicator:checked {
     border-color: $ACCENT;
     image: url("$CHECK");
 }
+QCheckBox::indicator:disabled {
+    background-color: #141B26;
+    border-color: #1D2634;
+}
+QCheckBox:disabled {
+    color: $TEXT_FAINT;
+}
 
 QSlider::groove:horizontal {
-    height: 4px;
+    height: 5px;
     background: #1D2636;
-    border-radius: 2px;
+    border-radius: 3px;
 }
 QSlider::sub-page:horizontal {
     background: $ACCENT;
-    border-radius: 2px;
+    border-radius: 3px;
+}
+QSlider::add-page:horizontal {
+    background: #161E2B;
+    border-radius: 3px;
 }
 QSlider::handle:horizontal {
     background: #E9FFF7;
@@ -424,7 +439,8 @@ QProgressBar {
     color: transparent;
 }
 QProgressBar::chunk {
-    background-color: $ACCENT;
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                                stop:0 $ACCENT_DIM, stop:1 $ACCENT);
     border-radius: 3px;
 }
 
@@ -495,8 +511,9 @@ QPushButton#navButton:hover {
     color: $TEXT;
 }
 QPushButton#navButton[active="true"] {
-    background-color: rgba(61, 220, 151, 0.10);
-    border-color: rgba(61, 220, 151, 0.26);
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                                stop:0 rgba(61,220,151,0.16), stop:1 rgba(61,220,151,0.06));
+    border-color: rgba(61, 220, 151, 0.30);
     color: $ACCENT;
 }
 QLabel#navBadge {
@@ -510,12 +527,14 @@ QWidget#page {
 }
 QLabel#pageTitle {
     color: $TEXT;
-    font-size: 15pt;
+    font-size: 16pt;
     font-weight: 800;
+    letter-spacing: 0.3px;
 }
 QLabel#pageSubtitle {
     color: $TEXT_DIM;
-    font-size: 8.5pt;
+    font-size: 9pt;
+    letter-spacing: 0.2px;
 }
 QTableWidget, QListWidget {
     background-color: $SURFACE;
@@ -580,7 +599,7 @@ QPushButton#primaryButton:disabled {
 QFrame#statCard {
     background-color: $SURFACE_ALT;
     border: 1px solid $BORDER_SOFT;
-    border-radius: 8px;
+    border-radius: 10px;
 }
 QLabel#statValue {
     color: $TEXT;
