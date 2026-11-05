@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass, fields
 
-from . import paths
+from . import hardware, paths
 from .constants import DEFAULT_MEMORY_MB
 from .util import read_json, write_json
 
@@ -33,6 +33,8 @@ class Settings:
     resolution_width: int = 0       # 0 = automaticamente
     resolution_height: int = 0
     render_distance: int = 0        # 0 = automatico, si no 2-32 chunks
+    # True tras el ajuste unico de defaults segun el hardware detectado.
+    hw_defaults_applied: bool = False
 
     @classmethod
     def load(cls) -> "Settings":
@@ -40,7 +42,20 @@ class Settings:
         raw = read_json(paths.SETTINGS_FILE, {}) or {}
         valid = {item.name for item in fields(cls)}
         data = {key: value for key, value in raw.items() if key in valid}
-        return cls(**data)
+        settings = cls(**data)
+        # Ajuste unico al hardware real en el primer arranque (equipo modesto:
+        # menos RAM para el juego y GC de un solo hilo). Solo toca valores que
+        # siguen en su default antiguo; una eleccion manual posterior se respeta.
+        if not settings.hw_defaults_applied:
+            recommended = hardware.recommended_memory_mb()
+            if (settings.memory_mb == DEFAULT_MEMORY_MB
+                    and recommended < settings.memory_mb):
+                settings.memory_mb = recommended
+            if settings.gc_preset == "auto" and hardware.cpu_cores() <= 4:
+                settings.gc_preset = "serial"
+            settings.hw_defaults_applied = True
+            settings.save()
+        return settings
 
     def save(self) -> None:
         paths.ensure_dirs()

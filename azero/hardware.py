@@ -130,10 +130,17 @@ def supported_flags_text() -> str:
 
 
 def recommended_memory_mb(ram_total_mb: int | None = None) -> int:
-    """Memoria sugerida para Minecraft: ~25% de la RAM, entre 2 y 8 GB."""
+    """Memoria sugerida para Minecraft.
+
+    En equipos con poca RAM (<= 5 GB, p. ej. Intel N4120 + 4 GB) se
+    recomienda 1.5 GB para no ahogar al sistema; en el resto, ~25% de la
+    RAM fisica, entre 2 y 8 GB.
+    """
     total = ram_total_mb or ram_mb()
     if total <= 0:
         return 2048
+    if total <= 5120:
+        return 1536
     return max(2048, min(8192, int(total * 0.25 // 512) * 512))
 
 

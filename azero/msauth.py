@@ -20,8 +20,7 @@ import urllib.request
 from dataclasses import dataclass
 from typing import Callable
 
-from .auth import (OfflineProfile, OnlineProfile, create_profile,
-                   validate_username)
+from .auth import OnlineProfile, create_profile, validate_username
 from .constants import USER_AGENT
 from . import database
 

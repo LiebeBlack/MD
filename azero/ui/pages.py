@@ -5,6 +5,10 @@ from __future__ import annotations
 import os
 import time
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .main_window import MainWindow
 
 from PyQt6.QtCore import Qt, QUrl, pyqtSignal
 from PyQt6.QtGui import QColor, QDesktopServices
@@ -22,6 +26,7 @@ from ..auth import offline_uuid, validate_username
 from ..constants import (MAX_MEMORY_MB, MEMORY_STEP_MB, MIN_MEMORY_MB)
 from ..manifest import parse_version_key
 from ..util import human_size
+from ..workers import MSLoginWorker
 from . import theme
 from .widgets import (Avatar, Card, ConsoleView, Divider, Pill, faint_label,
                       muted_label, section_label)
