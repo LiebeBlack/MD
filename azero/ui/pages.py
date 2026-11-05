@@ -408,6 +408,9 @@ class VersionsPage(ScrollPage):
         self.installed_list.setHeaderHidden(True)
         self.installed_list.setRootIsDecorated(True)
         self.installed_list.setIndentation(14)
+        self.installed_list.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.installed_list.setUniformRowHeights(False)
         self.installed_list.setMinimumHeight(190)
         self.installed_list.setMaximumHeight(320)
         installed_card.body.addWidget(self.installed_list)
