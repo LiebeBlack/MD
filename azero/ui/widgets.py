@@ -11,8 +11,8 @@ from PyQt6.QtWidgets import (QFrame, QLabel, QPlainTextEdit, QSizePolicy,
 
 
 class Card(QFrame):
-    def __init__(self, parent: QWidget | None = None, margins: int = 13,
-                 spacing: int = 10):
+    def __init__(self, parent: QWidget | None = None, margins: int = 11,
+                 spacing: int = 8):
         super().__init__(parent)
         self.setObjectName("card")
         self.body = QVBoxLayout(self)
@@ -103,7 +103,7 @@ class ConsoleView(QPlainTextEdit):
         self.setMaximumBlockCount(2500)
         self.setLineWrapMode(QPlainTextEdit.LineWrapMode.WidgetWidth)
         self.setPlaceholderText("El registro de descargas y del juego aparecera aqui.")
-        self.setMinimumHeight(180)
+        self.setMinimumHeight(150)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
     def append(self, text: str) -> None:

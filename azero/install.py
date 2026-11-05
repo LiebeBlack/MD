@@ -140,6 +140,30 @@ def prepare(version_id: str, ctx: TaskContext, with_assets: bool = True) -> Prep
         ctx.log("No hay descargas pendientes.")
     ctx.check()
 
+    # Verificacion SHA-1 pre-lanzamiento: detecta jars corruptos a medias
+    # y los repara re-descargandolos (rapido, ~1 MB por lectura).
+    ctx.stage("Verificando integridad de archivos")
+    client_sha1 = ((version_json.get("downloads") or {})
+                   .get("client") or {}).get("sha1")
+    extra = ([(client_jar, client_sha1)] if client_sha1 else [])
+    corrupt = libraries.verify_checksums(version_json, extra=extra)
+    if corrupt:
+        ctx.log(f"{len(corrupt)} archivo(s) corrupto(s); reparando…")
+        for target in corrupt:
+            target.unlink(missing_ok=True)
+        repair = [task for task in tasks if not task_satisfied(task)]
+        if repair:
+            download_many(repair, on_progress=ctx.progress, workers=8,
+                          cancel=ctx.cancel_event.is_set, log=ctx.log)
+        ctx.check()
+        remaining = libraries.verify_checksums(version_json, extra=extra)
+        if remaining:
+            raise RuntimeError(
+                f"No se pudieron reparar {len(remaining)} archivo(s). "
+                "Revisa tu conexion e intentalo de nuevo.")
+        ctx.log("Archivos reparados correctamente.")
+    ctx.check()
+
     ctx.stage("Extrayendo librerias nativas")
     natives_target = paths.natives_dir(version_id)
     if natives_target.exists():

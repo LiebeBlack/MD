@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -46,6 +47,45 @@ def _synthesized_download(library: dict) -> DownloadTask | None:
         base_url += "/"
     dest = paths.LIBRARIES_DIR / relative
     return DownloadTask(url=base_url + relative, dest=dest, label=name)
+
+
+def _sha1_file(path: Path) -> str:
+    digest = hashlib.sha1()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1 << 20), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def verify_checksums(version_json: dict,
+                     extra: list[tuple[Path, str]] | None = None
+                     ) -> list[Path]:
+    """Devuelve las rutas de los archivos cuyo SHA-1 no coincide.
+
+    Solo verifica artefactos con checksum conocido (cliente vanilla y
+    librerias con bloque downloads). Los jars sintetizados de Forge/
+    OptiFine no publican hash: se omiten. Rapido: ~1 MB por lectura.
+    """
+    bad: list[Path] = []
+    pairs: list[tuple[Path, str]] = list(extra or [])
+    for library in version_json.get("libraries", []):
+        artifact = (library.get("downloads") or {}).get("artifact") or {}
+        sha1 = artifact.get("sha1")
+        rel = artifact.get("path")
+        if sha1 and rel:
+            pairs.append((paths.LIBRARIES_DIR / rel, sha1))
+    for target, expected in pairs:
+        # Los archivos ausentes no son corrupcion: las librerias excluidas
+        # por reglas de SO (p. ej. java-objc-bridge en Windows) nunca se
+        # descargan y la descarga normal ya gestiona las que faltan.
+        if not target.is_file():
+            continue
+        try:
+            if _sha1_file(target).lower() != str(expected).lower():
+                bad.append(target)
+        except OSError:
+            bad.append(target)
+    return bad
 
 
 def build_library_plan(version_json: dict, features: dict[str, bool] | None = None,

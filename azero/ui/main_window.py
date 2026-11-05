@@ -103,8 +103,8 @@ class MainWindow(QMainWindow):
         database.init_db()
 
         self.setWindowTitle(f"{APP_NAME} Launcher")
-        self.resize(1160, 760)
-        self.setMinimumSize(1000, 680)
+        self.resize(1120, 720)
+        self.setMinimumSize(960, 640)
         if self.settings.win_geometry:
             try:
                 self.restoreGeometry(
@@ -169,7 +169,7 @@ class MainWindow(QMainWindow):
     def _build_sidebar(self) -> QWidget:
         sidebar = QWidget()
         sidebar.setObjectName("sidebar")
-        sidebar.setFixedWidth(204)
+        sidebar.setFixedWidth(188)
         layout = QVBoxLayout(sidebar)
         layout.setContentsMargins(10, 14, 10, 10)
         layout.setSpacing(3)

@@ -92,8 +92,8 @@ class ScrollPage(QWidget):
         self.content = QWidget()
         self.content.setObjectName("page")
         self.body = QVBoxLayout(self.content)
-        self.body.setContentsMargins(20, 16, 20, 16)
-        self.body.setSpacing(14)
+        self.body.setContentsMargins(14, 12, 14, 12)
+        self.body.setSpacing(10)
         self.scroll.setWidget(self.content)
         outer.addWidget(self.scroll)
 
@@ -124,13 +124,13 @@ class PlayPage(ScrollPage):
         self.body.addLayout(head)
 
         columns = QHBoxLayout()
-        columns.setSpacing(14)
+        columns.setSpacing(10)
 
         left = QWidget()
-        left.setFixedWidth(384)
+        left.setFixedWidth(340)
         left_layout = QVBoxLayout(left)
         left_layout.setContentsMargins(0, 0, 0, 0)
-        left_layout.setSpacing(10)
+        left_layout.setSpacing(8)
 
         left_layout.addWidget(self._account_card())
         left_layout.addWidget(self._version_card())
@@ -149,7 +149,7 @@ class PlayPage(ScrollPage):
         left_layout.addStretch(1)
         columns.addWidget(left)
 
-        console_card = Card(margins=12, spacing=8)
+        console_card = Card(margins=10, spacing=6)
         console_head = QHBoxLayout()
         console_head.addWidget(section_label("Registro"))
         console_head.addStretch(1)
@@ -201,7 +201,7 @@ class PlayPage(ScrollPage):
             self.shell._set_status("Registro copiado al portapapeles.", "ok")
 
     def _account_card(self) -> Card:
-        card = Card(margins=12, spacing=8)
+        card = Card(margins=10, spacing=6)
         card.body.addWidget(section_label("Jugador"))
 
         row = QHBoxLayout()
@@ -240,7 +240,7 @@ class PlayPage(ScrollPage):
         return card
 
     def _version_card(self) -> Card:
-        card = Card(margins=12, spacing=8)
+        card = Card(margins=10, spacing=6)
         card.body.addWidget(section_label("Version"))
 
         self.version_combo = QComboBox()
@@ -271,10 +271,49 @@ class PlayPage(ScrollPage):
         row.addLayout(column, 1)
         row.addWidget(self.optifine_button)
         card.body.addLayout(row)
+        card.body.addWidget(Divider())
+
+        mods_row = QHBoxLayout()
+        mods_row.setSpacing(10)
+        mods_col = QVBoxLayout()
+        mods_col.setSpacing(2)
+        mods_title = QLabel("Mods")
+        mods_title.setObjectName("valueLabel")
+        self.mods_status = faint_label("")
+        mods_col.addWidget(mods_title)
+        mods_col.addWidget(self.mods_status)
+        mods_row.addLayout(mods_col, 1)
+        add_mod = QPushButton("Añadir .jar…")
+        add_mod.setObjectName("accentGhost")
+        add_mod.setCursor(Qt.CursorShape.PointingHandCursor)
+        add_mod.setToolTip(
+            "Instala uno o varios mods (.jar) en la carpeta mods del "
+            "juego. Si son mods de Forge, el launcher ofrece activarlo.")
+        add_mod.clicked.connect(
+            lambda: self.shell.settings_page._add_mod())
+        manage_mods = QPushButton("Gestionar")
+        manage_mods.setObjectName("ghostButton")
+        manage_mods.setCursor(Qt.CursorShape.PointingHandCursor)
+        manage_mods.setToolTip("Abrir la pestana Ajustes, seccion Mods")
+        manage_mods.clicked.connect(lambda: self.shell._go_page(3))
+        mods_row.addWidget(add_mod)
+        mods_row.addWidget(manage_mods)
+        card.body.addLayout(mods_row)
+        self._refresh_mods_status()
         return card
 
+    def _refresh_mods_status(self) -> None:
+        installed = mods.list_mods()
+        if not installed:
+            self.mods_status.setText("Sin mods instalados.")
+            return
+        forge_count = sum(1 for mod in installed if mod.forge)
+        self.mods_status.setText(
+            f"{len(installed)} mod(s) instalado(s)"
+            + (f" · {forge_count} de Forge" if forge_count else ""))
+
     def _quick_card(self) -> Card:
-        card = Card(margins=12, spacing=8)
+        card = Card(margins=10, spacing=6)
         card.body.addWidget(section_label("Ajustes rapidos"))
 
         head = QHBoxLayout()
@@ -353,6 +392,10 @@ class PlayPage(ScrollPage):
             else "UUID offline v3 (Java nameUUIDFromBytes)"
         )
 
+    def showEvent(self, event) -> None:  # noqa: N802 - API de Qt
+        super().showEvent(event)
+        self._refresh_mods_status()
+
     def set_busy_widgets(self, busy: bool) -> None:
         for widget in (self.name_edit, self.version_combo, self.ram_slider,
                        self.auto_close_check, self.server_edit,
@@ -401,7 +444,7 @@ class VersionsPage(ScrollPage):
         stats.addWidget(self.stat_sessions)
         self.body.addLayout(stats)
 
-        installed_card = Card(margins=12, spacing=8)
+        installed_card = Card(margins=10, spacing=6)
         installed_card.body.addWidget(section_label("Versiones instaladas"))
         self.installed_list = QTreeWidget()
         self.installed_list.setColumnCount(1)
@@ -427,7 +470,7 @@ class VersionsPage(ScrollPage):
         installed_card.body.addLayout(row)
         self.body.addWidget(installed_card)
 
-        downloads_card = Card(margins=12, spacing=8)
+        downloads_card = Card(margins=10, spacing=6)
         downloads_card.body.addWidget(
             section_label("Historial de descargas"))
         self.downloads_table = self._make_table(
@@ -437,7 +480,7 @@ class VersionsPage(ScrollPage):
         downloads_card.body.addWidget(self.downloads_table)
         self.body.addWidget(downloads_card)
 
-        sessions_card = Card(margins=12, spacing=8)
+        sessions_card = Card(margins=10, spacing=6)
         sessions_card.body.addWidget(
             section_label("Sesiones recientes"))
         self.sessions_table = self._make_table(
@@ -447,7 +490,7 @@ class VersionsPage(ScrollPage):
         sessions_card.body.addWidget(self.sessions_table)
         self.body.addWidget(sessions_card)
 
-        logs_card = Card(margins=12, spacing=8)
+        logs_card = Card(margins=10, spacing=6)
         logs_card.body.addWidget(section_label("Registros del juego"))
         self.logs_list = QListWidget()
         self.logs_list.setMinimumHeight(120)
@@ -723,7 +766,7 @@ class AccountPage(ScrollPage):
         self.body.addStretch(1)
 
     def _offline_card(self) -> Card:
-        card = Card(margins=12, spacing=8)
+        card = Card(margins=10, spacing=6)
         card.body.addWidget(section_label("Perfil offline"))
         card.body.addWidget(muted_label(
             "Nombre libre para servidores sin verificacion. "
@@ -773,7 +816,7 @@ class AccountPage(ScrollPage):
             self.shell._set_status("UUID copiado.", "ok")
 
     def _microsoft_card(self) -> Card:
-        card = Card(margins=12, spacing=8)
+        card = Card(margins=10, spacing=6)
         head = QHBoxLayout()
         head.addWidget(section_label("Cuenta Microsoft"))
         head.addStretch(1)
@@ -1067,7 +1110,7 @@ class SettingsPage(ScrollPage):
         self.show_all.setChecked(settings.show_all_versions)
         form.addRow("", self.show_all)
 
-        card = Card(margins=12, spacing=8)
+        card = Card(margins=10, spacing=6)
         card.body.addWidget(section_label("Java y arranque"))
         card.body.addLayout(form)
 
@@ -1101,7 +1144,7 @@ class SettingsPage(ScrollPage):
 
     def _performance_card(self) -> Card:
         settings = self.shell.settings
-        card = Card(margins=12, spacing=8)
+        card = Card(margins=10, spacing=6)
         card.body.addWidget(section_label("Rendimiento"))
 
         perf_row = QHBoxLayout()
@@ -1158,7 +1201,7 @@ class SettingsPage(ScrollPage):
 
     def _video_card(self) -> Card:
         settings = self.shell.settings
-        card = Card(margins=12, spacing=8)
+        card = Card(margins=10, spacing=6)
         card.body.addWidget(section_label("Video"))
 
         res_row = QHBoxLayout()
@@ -1373,7 +1416,7 @@ class SettingsPage(ScrollPage):
             self.fancy_check.setChecked(True)
 
     def _mods_card(self) -> Card:
-        card = Card(margins=12, spacing=8)
+        card = Card(margins=10, spacing=6)
         card.body.addWidget(section_label("Mods"))
         card.body.addWidget(muted_label(
             "Jars instalados en la carpeta mods del juego; se pueden "
@@ -1545,7 +1588,7 @@ class SettingsPage(ScrollPage):
         QTimer.singleShot(3000, lambda: self._watch_forge(base, attempts - 1))
 
     def _data_card(self) -> Card:
-        card = Card(margins=12, spacing=8)
+        card = Card(margins=10, spacing=6)
         card.body.addWidget(section_label("Datos"))
         data = QLabel(str(paths.DATA_DIR))
         data.setObjectName("mono")
