@@ -210,14 +210,15 @@ def memory_slider_max_mb(ram_total_mb: int | None = None) -> int:
     return max(2048, min(MAX_MEMORY_MB, cap))
 
 
-def summary() -> str:
-    """Resumen legible del hardware para mostrar en Ajustes."""
-    parts = [cpu_name(), f"{cpu_cores()} nucleos"]
+def summary(include_flags: bool = True) -> str:
+    """Resumen legible del hardware (CPU, RAM, GPU y flags)."""
+    parts = [cpu_name(), f"{cpu_cores()} núcleos"]
     total = ram_mb()
     if total:
         parts.append(f"{total / 1024:.0f} GB RAM")
     gpu = gpu_name()
     if gpu:
         parts.append(gpu)
-    parts.append(supported_flags_text())
+    if include_flags:
+        parts.append(supported_flags_text())
     return " · ".join(parts)

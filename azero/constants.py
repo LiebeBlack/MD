@@ -29,6 +29,8 @@ LEGACY_JAVA_MAX_VERSION = (1, 16, 5)
 # Repositorio y enlaces del proyecto.
 REPO_URL = "https://github.com/LiebeBlack/MD"
 RELEASES_URL = f"{REPO_URL}/releases"
+LATEST_RELEASE_API = ("https://api.github.com/repos/LiebeBlack/MD"
+                      "/releases/latest")
 ISSUES_URL = f"{REPO_URL}/issues"
 SPONSORS_URL = "https://github.com/sponsors/LiebeBlack"
 DOCS_URL = f"{REPO_URL}/blob/main/docs/index.html"

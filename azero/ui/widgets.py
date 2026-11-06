@@ -183,7 +183,7 @@ def list_row() -> tuple[QWidget, QHBoxLayout]:
     """Fila estandar para listas con widgets (versiones, cuentas)."""
     row = QWidget()
     layout = QHBoxLayout(row)
-    layout.setContentsMargins(4, 5, 4, 5)
+    layout.setContentsMargins(6, 4, 6, 4)
     layout.setSpacing(10)
     return row, layout
 
@@ -219,12 +219,8 @@ class ScrollPage(QWidget):
         self.scroll.setFrameShape(QFrame.Shape.NoFrame)
         self.scroll.setHorizontalScrollBarPolicy(
             Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-
-        self._holder = QWidget()
-        self._holder.setObjectName("page")
-        holder_layout = QHBoxLayout(self._holder)
-        holder_layout.setContentsMargins(0, 0, 0, 0)
-        holder_layout.setSpacing(0)
+        self.scroll.setAlignment(Qt.AlignmentFlag.AlignHCenter
+                                 | Qt.AlignmentFlag.AlignTop)
 
         self.content = QWidget()
         self.content.setObjectName("page")
@@ -233,11 +229,7 @@ class ScrollPage(QWidget):
         self.body.setContentsMargins(theme.PAGE_MARGIN, theme.PAGE_MARGIN,
                                      theme.PAGE_MARGIN, theme.PAGE_MARGIN)
         self.body.setSpacing(theme.PAGE_SPACING)
-
-        holder_layout.addStretch(1)
-        holder_layout.addWidget(self.content, 1)
-        holder_layout.addStretch(1)
-        self.scroll.setWidget(self._holder)
+        self.scroll.setWidget(self.content)
         outer.addWidget(self.scroll)
 
 
@@ -343,7 +335,7 @@ class ConsoleView(QPlainTextEdit):
         self.setMaximumBlockCount(2500)
         self.setLineWrapMode(QPlainTextEdit.LineWrapMode.WidgetWidth)
         self.setPlaceholderText(
-            "El registro de descargas y del juego aparecera aqui.")
+            "El registro de descargas y del juego aparecerá aquí.")
         self.setMinimumHeight(150)
         self.setSizePolicy(QSizePolicy.Policy.Expanding,
                            QSizePolicy.Policy.Expanding)

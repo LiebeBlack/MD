@@ -18,38 +18,37 @@ from .. import paths
 # --------------------------------------------------------------------------
 PAGE_MARGIN = 16
 PAGE_SPACING = 12
-CARD_MARGIN = 12
+CARD_MARGIN = 14
 CARD_SPACING = 8
-COLUMN_GAP = 12
-CONTENT_MAX_WIDTH = 1280
-SIDEBAR_WIDTH = 200
+COLUMN_GAP = 14
+CONTENT_MAX_WIDTH = 1200
 
 # Paletas Office 365 / Fluent. Cada tema define todos los tokens del QSS,
 # incluidos los colores "sueltos" (consola, foco de campos, gradientes).
 LIGHT = {
-    "BG": "#F5F5F5",
-    "BG_ALT": "#FFFFFF",
+    "BG": "#F3F2F1",
+    "BG_ALT": "#FAF9F8",
     "SURFACE": "#FFFFFF",
-    "SURFACE_ALT": "#F5F5F5",
-    "SURFACE_HOVER": "#EBEBEB",
-    "SURFACE_PRESSED": "#E1E1E1",
+    "SURFACE_ALT": "#F3F2F1",
+    "SURFACE_HOVER": "#EDEBE9",
+    "SURFACE_PRESSED": "#E1DFDD",
     "BORDER": "#D2D0CE",
-    "BORDER_SOFT": "#E6E4E2",
+    "BORDER_SOFT": "#E1DFDD",
     "BORDER_STRONG": "#A19F9D",
-    "TEXT": "#252423",
-    "TEXT_DIM": "#545250",
-    "TEXT_FAINT": "#737170",
-    "ACCENT": "#185ABD",
-    "ACCENT_HI": "#0F6CBD",
-    "ACCENT_DIM": "#124A9E",
-    "ACCENT_DEEP": "#0B3D77",
+    "TEXT": "#201F1E",
+    "TEXT_DIM": "#605E5C",
+    "TEXT_FAINT": "#8A8886",
+    "ACCENT": "#0F6CBD",
+    "ACCENT_HI": "#106EBE",
+    "ACCENT_DIM": "#0C518A",
+    "ACCENT_DEEP": "#0A3D66",
     "ACCENT_TEXT": "#FFFFFF",
     "ACCENT2": "#881798",
     "INFO": "#0F6CBD",
     "DANGER": "#C50F1F",
     "WARN": "#CA5010",
     # Tokens extra para el QSS (rgb suelto para rgba(), fondos, degradados)
-    "ACCENT_RGB": "24, 90, 189",
+    "ACCENT_RGB": "15, 108, 189",
     "DANGER_RGB": "197, 15, 31",
     "FIELD_FOCUS": "#FBFCFE",
     "CONSOLE_BG": "#FAF9F8",
@@ -57,13 +56,13 @@ LIGHT = {
     "CONSOLE_SEL": "#D6E4F7",
     "OK_COLOR": "#107C10",
     "CARD_A": "#FFFFFF",
-    "CARD_B": "#FBFBFB",
+    "CARD_B": "#FFFFFF",
     "PANEL_A": "#FFFFFF",
-    "PANEL_B": "#F7F7F7",
-    "PLAY_A": "#3E8BDD",
-    "PLAY_B": "#185ABD",
-    "PLAY_A_HI": "#5592E4",
-    "PLAY_B_HI": "#0F6CBD",
+    "PANEL_B": "#FFFFFF",
+    "PLAY_A": "#0F6CBD",
+    "PLAY_B": "#0F6CBD",
+    "PLAY_A_HI": "#106EBE",
+    "PLAY_B_HI": "#106EBE",
 }
 
 DARK = {
@@ -163,6 +162,54 @@ def _draw_clear(path: Path, color: str) -> None:
     painter.drawLine(QPointF(16, 8), QPointF(8, 16))
     painter.end()
     pixmap.save(str(path))
+
+
+def nav_icon(kind: str, color: str, size: int = 32) -> QIcon:
+    """Iconos de linea para las pestanas, sin recursos externos."""
+    pixmap = QPixmap(size, size)
+    pixmap.fill(Qt.GlobalColor.transparent)
+    painter = QPainter(pixmap)
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+    painter.scale(size / 32.0, size / 32.0)
+    pen = QPen(QColor(color), 2.2)
+    pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+    pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+    painter.setPen(pen)
+    painter.setBrush(Qt.BrushStyle.NoBrush)
+
+    if kind == "play":
+        path = QPainterPath()
+        path.moveTo(10, 7)
+        path.lineTo(25, 16)
+        path.lineTo(10, 25)
+        path.closeSubpath()
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QColor(color))
+        painter.drawPath(path)
+    elif kind == "versions":
+        painter.drawRoundedRect(QRectF(8, 10, 16, 14), 2.5, 2.5)
+        painter.drawLine(QPointF(9, 14), QPointF(23, 14))
+        painter.drawLine(QPointF(13, 7), QPointF(19, 7))
+    elif kind == "account":
+        painter.drawEllipse(QRectF(11, 6, 10, 10))
+        path = QPainterPath()
+        path.moveTo(7, 26)
+        path.cubicTo(7.5, 19, 24.5, 19, 25, 26)
+        painter.drawPath(path)
+    elif kind == "settings":
+        for y, knob in ((10, 13), (16, 20), (22, 11)):
+            painter.drawLine(QPointF(7, y), QPointF(25, y))
+            painter.setBrush(QColor(color))
+            painter.drawEllipse(QPointF(knob, y), 2.6, 2.6)
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+    else:  # about
+        painter.drawEllipse(QRectF(6, 6, 20, 20))
+        painter.setBrush(QColor(color))
+        painter.drawEllipse(QPointF(16, 11), 1.3, 1.3)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.drawLine(QPointF(16, 15), QPointF(16, 23))
+    painter.end()
+    return QIcon(pixmap)
 
 
 def generate_assets(palette: dict | None = None) -> dict[str, str]:
@@ -278,22 +325,14 @@ QStackedWidget, QScrollArea {
 
 /* ---- tarjetas y paneles (degradado sutil tipo Fluent/Mica) ---- */
 QFrame#card {
-    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                                stop:0 $CARD_A, stop:1 $CARD_B);
+    background-color: $SURFACE;
     border: 1px solid $BORDER_SOFT;
     border-radius: 8px;
-}
-QFrame#card:hover {
-    border-color: $BORDER;
 }
 QFrame#softPanel {
-    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                                stop:0 $CARD_A, stop:1 $CARD_B);
+    background-color: $SURFACE;
     border: 1px solid $BORDER_SOFT;
     border-radius: 8px;
-}
-QFrame#softPanel:hover {
-    border-color: $BORDER;
 }
 
 /* ---- etiquetas ---- */
@@ -322,12 +361,12 @@ QLabel#muted {
 }
 QLabel#faint {
     color: $TEXT_FAINT;
-    font-size: 8pt;
+    font-size: 8.5pt;
 }
 QLabel#mono {
     color: $TEXT_FAINT;
     font-family: "Cascadia Mono", "Consolas", monospace;
-    font-size: 8pt;
+    font-size: 8.5pt;
 }
 QLabel#valueLabel {
     color: $TEXT;
@@ -337,6 +376,19 @@ QLabel#appTitle {
     color: $TEXT;
     font-size: 18pt;
     font-weight: 800;
+}
+QLabel#accountName {
+    color: $TEXT;
+    font-size: 13pt;
+    font-weight: 700;
+}
+QLabel#codeLabel {
+    color: $ACCENT;
+    font-family: "Cascadia Mono", "Consolas", monospace;
+    font-size: 22pt;
+    font-weight: 800;
+    letter-spacing: 2px;
+    padding: 4px 0;
 }
 QLabel#emptyState {
     color: $TEXT_FAINT;
@@ -401,6 +453,7 @@ QLineEdit {
     border: 1px solid $BORDER;
     border-radius: 6px;
     padding: 6px 10px;
+    min-height: 18px;
     selection-background-color: rgba($ACCENT_RGB, 0.22);
     selection-color: $TEXT;
 }
@@ -440,7 +493,7 @@ QComboBox {
     border: 1px solid $BORDER;
     border-radius: 6px;
     padding: 6px 30px 6px 10px;
-    min-height: 17px;
+    min-height: 18px;
 }
 QComboBox:hover {
     border-color: $BORDER_STRONG;
@@ -493,6 +546,7 @@ QPushButton {
     border: 1px solid $BORDER;
     border-radius: 6px;
     padding: 6px 12px;
+    min-height: 18px;
     color: $TEXT;
     font-weight: 600;
 }
@@ -510,28 +564,25 @@ QPushButton:disabled {
     border-color: $BORDER_SOFT;
 }
 QPushButton#playButton {
-    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                                stop:0 $PLAY_A, stop:1 $PLAY_B);
-    border: 1px solid rgba(255, 255, 255, 0.18);
+    background-color: $ACCENT;
+    border: 1px solid $ACCENT_DEEP;
     border-radius: 8px;
     color: $ACCENT_TEXT;
     font-size: 12pt;
     font-weight: 700;
     letter-spacing: 1.2px;
-    padding: 13px 18px;
+    padding: 11px 18px;
 }
 QPushButton#playButton:hover {
-    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                                stop:0 $PLAY_A_HI, stop:1 $PLAY_B_HI);
-    border-color: rgba(255, 255, 255, 0.28);
+    background-color: $ACCENT_HI;
+    border-color: $ACCENT_DIM;
 }
 QPushButton#playButton:pressed {
-    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                                stop:0 $PLAY_B, stop:1 $ACCENT_DIM);
+    background-color: $ACCENT_DIM;
 }
 QPushButton#playButton:focus {
     border: 2px solid $TEXT;
-    padding: 12px 17px;
+    padding: 10px 17px;
 }
 QPushButton#playButton:disabled {
     background: $SURFACE_ALT;
@@ -552,7 +603,7 @@ QPushButton#ghostButton {
     border: 1px solid transparent;
     border-radius: 6px;
     color: $TEXT_DIM;
-    padding: 5px 9px;
+    padding: 6px 10px;
     font-weight: 600;
 }
 QPushButton#ghostButton:hover {
@@ -578,7 +629,7 @@ QPushButton#accentGhost {
     border: 1px solid rgba($ACCENT_RGB, 0.30);
     border-radius: 6px;
     color: $ACCENT;
-    padding: 5px 11px;
+    padding: 6px 12px;
     font-size: 9pt;
     font-weight: 600;
 }
@@ -591,7 +642,7 @@ QPushButton#accentGhost:pressed {
 }
 QPushButton#accentGhost:focus {
     border: 2px solid $ACCENT;
-    padding: 4px 10px;
+    padding: 5px 11px;
 }
 QPushButton#accentGhost:disabled {
     color: $TEXT_FAINT;
@@ -603,7 +654,7 @@ QPushButton#iconButton {
     border: 1px solid transparent;
     border-radius: 6px;
     padding: 5px;
-    font-size: 10pt;
+    font-size: 12pt;
     color: $TEXT_DIM;
 }
 QPushButton#iconButton:hover {
@@ -626,7 +677,7 @@ QPushButton#dangerButton {
     border: 1px solid rgba($DANGER_RGB, 0.35);
     border-radius: 6px;
     color: $DANGER;
-    padding: 5px 11px;
+    padding: 6px 12px;
     font-weight: 600;
 }
 QPushButton#dangerButton:hover {
@@ -638,7 +689,7 @@ QPushButton#dangerButton:pressed {
 }
 QPushButton#dangerButton:focus {
     border: 2px solid $DANGER;
-    padding: 4px 10px;
+    padding: 5px 11px;
 }
 QPushButton#dangerButton:disabled {
     color: $TEXT_FAINT;
@@ -646,11 +697,11 @@ QPushButton#dangerButton:disabled {
 }
 QPushButton#primaryButton {
     background-color: $ACCENT;
-    border: 1px solid rgba(255, 255, 255, 0.15);
+    border: 1px solid $ACCENT_DEEP;
     border-radius: 6px;
     color: $ACCENT_TEXT;
     font-weight: 600;
-    padding: 6px 13px;
+    padding: 6px 14px;
 }
 QPushButton#primaryButton:hover {
     background-color: $ACCENT_HI;
@@ -661,7 +712,7 @@ QPushButton#primaryButton:pressed {
 }
 QPushButton#primaryButton:focus {
     border: 2px solid $ACCENT_TEXT;
-    padding: 5px 12px;
+    padding: 5px 13px;
 }
 QPushButton#primaryButton:disabled {
     background-color: $SURFACE_ALT;
@@ -673,7 +724,7 @@ QPushButton#segButton {
     border: 1px solid transparent;
     border-radius: 6px;
     color: $TEXT_DIM;
-    padding: 5px 16px;
+    padding: 6px 16px;
     font-weight: 600;
 }
 QPushButton#segButton:hover {
@@ -727,7 +778,7 @@ QSpinBox {
     border: 1px solid $BORDER;
     border-radius: 6px;
     padding: 6px 8px;
-    min-height: 17px;
+    min-height: 18px;
     color: $TEXT;
 }
 QSpinBox:hover {
@@ -824,8 +875,7 @@ QSlider::groove:horizontal {
     border-radius: 3px;
 }
 QSlider::sub-page:horizontal {
-    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                                stop:0 $ACCENT_DIM, stop:1 $ACCENT);
+    background-color: $ACCENT;
     border-radius: 3px;
 }
 QSlider::add-page:horizontal {
@@ -879,8 +929,7 @@ QProgressBar {
     color: transparent;
 }
 QProgressBar::chunk {
-    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                                stop:0 $ACCENT_DIM, stop:1 $ACCENT);
+    background-color: $ACCENT;
     border-radius: 3px;
 }
 
@@ -891,14 +940,14 @@ QScrollBar:vertical {
     margin: 2px;
 }
 QScrollBar::handle:vertical {
-    background: $BORDER;
+    background: $BORDER_STRONG;
     border-radius: 5px;
     min-height: 30px;
     border: 2px solid transparent;
     background-clip: padding;
 }
 QScrollBar::handle:vertical:hover {
-    background: $BORDER_STRONG;
+    background: $TEXT_FAINT;
     background-clip: padding;
 }
 QScrollBar::handle:vertical:pressed {
@@ -917,14 +966,14 @@ QScrollBar:horizontal {
     margin: 2px;
 }
 QScrollBar::handle:horizontal {
-    background: $BORDER;
+    background: $BORDER_STRONG;
     border-radius: 5px;
     min-width: 30px;
     border: 2px solid transparent;
     background-clip: padding;
 }
 QScrollBar::handle:horizontal:hover {
-    background: $BORDER_STRONG;
+    background: $TEXT_FAINT;
     background-clip: padding;
 }
 QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
@@ -992,57 +1041,51 @@ QFrame#divider {
     border: none;
 }
 
-/* ---- barra lateral y barra de estado (degradado sutil) ---- */
-QWidget#sidebar {
-    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                                stop:0 $PANEL_A, stop:1 $PANEL_B);
-    border-right: 1px solid $BORDER_SOFT;
+/* ---- barra superior, pestanas estilo navegador y barra de estado ---- */
+QWidget#appBar {
+    background-color: $SURFACE;
+    border-bottom: 1px solid $BORDER_SOFT;
+}
+QWidget#tabStrip {
+    background-color: $SURFACE_ALT;
+    border-bottom: 1px solid $BORDER_SOFT;
+}
+QTabBar#browserTabs {
+    background: transparent;
+    qproperty-drawBase: 0;
+}
+QTabBar#browserTabs::tab {
+    background: transparent;
+    color: $TEXT_DIM;
+    border: 1px solid transparent;
+    border-top: 2px solid transparent;
+    border-top-left-radius: 8px;
+    border-top-right-radius: 8px;
+    padding: 5px 12px;
+    margin: 3px 2px 0 0;
+    min-width: 80px;
+}
+QTabBar#browserTabs::tab:hover {
+    background-color: $SURFACE_HOVER;
+    color: $TEXT;
+}
+QTabBar#browserTabs::tab:selected {
+    background-color: $SURFACE;
+    color: $TEXT;
+    border-color: $BORDER_SOFT;
+    border-top: 2px solid $ACCENT;
+    border-bottom-color: $SURFACE;
+    font-weight: 600;
+}
+QTabBar#browserTabs::tab:selected:hover {
+    background-color: $SURFACE;
+}
+QTabBar#browserTabs::tab:disabled {
+    color: $TEXT_FAINT;
 }
 QWidget#statusBar {
-    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                                stop:0 $PANEL_A, stop:1 $PANEL_B);
+    background-color: $SURFACE;
     border-top: 1px solid $BORDER_SOFT;
-}
-QLabel#navTitle {
-    color: $TEXT_FAINT;
-    font-size: 7.5pt;
-    font-weight: 700;
-    letter-spacing: 1.3px;
-    padding: 8px 12px 2px 12px;
-}
-QPushButton#navButton {
-    background: transparent;
-    border: 1px solid transparent;
-    border-left: 3px solid transparent;
-    border-radius: 6px;
-    color: $TEXT_DIM;
-    text-align: left;
-    padding: 7px 10px 7px 8px;
-    font-size: 9pt;
-    font-weight: 600;
-    min-height: 20px;
-}
-QPushButton#navButton:hover {
-    background-color: rgba($ACCENT_RGB, 0.06);
-    color: $TEXT;
-}
-QPushButton#navButton:pressed {
-    background-color: rgba($ACCENT_RGB, 0.12);
-}
-QPushButton#navButton:focus {
-    border-color: $ACCENT;
-    color: $TEXT;
-}
-QPushButton#navButton[active="true"] {
-    background-color: rgba($ACCENT_RGB, 0.12);
-    border-color: rgba($ACCENT_RGB, 0.20);
-    border-left: 3px solid $ACCENT;
-    color: $ACCENT;
-    font-weight: 700;
-}
-QLabel#navBadge {
-    color: $TEXT_FAINT;
-    font-size: 7.5pt;
 }
 
 /* ---- paginas ---- */
@@ -1051,13 +1094,13 @@ QWidget#page {
 }
 QLabel#pageTitle {
     color: $TEXT;
-    font-size: 16pt;
-    font-weight: 800;
+    font-size: 15pt;
+    font-weight: 700;
     letter-spacing: 0.1px;
 }
 QLabel#pageSubtitle {
     color: $TEXT_DIM;
-    font-size: 9pt;
+    font-size: 8.5pt;
 }
 QFrame#pageHeader {
     background: transparent;
@@ -1121,13 +1164,9 @@ QTreeWidget::branch {
 
 /* ---- tarjetas de estadistica ---- */
 QFrame#statCard {
-    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                                stop:0 $CARD_A, stop:1 $CARD_B);
+    background-color: $SURFACE;
     border: 1px solid $BORDER_SOFT;
     border-radius: 8px;
-}
-QFrame#statCard:hover {
-    border-color: $BORDER;
 }
 QLabel#statValue {
     color: $TEXT;

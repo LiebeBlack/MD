@@ -1,4 +1,4 @@
-"""Ventana principal del launcher: barra lateral + paginas."""
+"""Ventana principal del launcher: barra superior + pestanas + paginas."""
 
 from __future__ import annotations
 
@@ -6,16 +6,15 @@ import shutil
 import sys
 from pathlib import Path
 
-from PyQt6.QtCore import QByteArray, Qt, QTimer, QUrl
+from PyQt6.QtCore import QByteArray, QSize, Qt, QTimer, QUrl
 from PyQt6.QtGui import QDesktopServices, QKeySequence, QShortcut
 from PyQt6.QtWidgets import (QApplication, QFileDialog, QHBoxLayout, QLabel,
-                             QMainWindow, QMessageBox, QPushButton,
-                             QSizePolicy, QStackedWidget, QVBoxLayout,
-                             QWidget)
+                             QMainWindow, QMessageBox, QSizePolicy,
+                             QStackedWidget, QTabBar, QVBoxLayout, QWidget)
 
-from .. import (APP_NAME, APP_VERSION, database, hardware, paths)
+from .. import APP_NAME, APP_VERSION, database, paths
 from ..auth import offline_uuid, validate_username
-from ..constants import MEMORY_STEP_MB
+from ..constants import MEMORY_STEP_MB, SPONSORS_URL
 from ..manifest import load_version_profile, local_profiles, parse_version_key
 from ..optifine import inspect_installer
 from ..settings import Settings
@@ -23,14 +22,17 @@ from ..workers import LaunchWorker, ManifestWorker, OptiFineWorker
 from . import theme
 from .pages import (AboutPage, AccountPage, PlayPage, SettingsPage,
                     VersionsPage)
-from .widgets import Pill, faint_label
+from .widgets import Pill, faint_label, make_button, repolish
 
 
-def _repolish(widget: QWidget) -> None:
-    style = widget.style()
-    style.unpolish(widget)
-    style.polish(widget)
-    widget.update()
+def _center_window(window: QWidget) -> None:
+    """Centra la ventana en la pantalla disponible (primer arranque)."""
+    screen = window.screen() or QApplication.primaryScreen()
+    if screen is None:
+        return
+    frame = window.frameGeometry()
+    frame.moveCenter(screen.availableGeometry().center())
+    window.move(frame.topLeft())
 
 
 def _java_major_for(version_id: str) -> int:
@@ -100,6 +102,13 @@ class MainWindow(QMainWindow):
         self._session_account = "offline"
         self._titlebar_done = False
         self._allow_close = False
+        self._page_specs = (
+            ("Jugar", "play"),
+            ("Versiones", "versions"),
+            ("Cuenta", "account"),
+            ("Ajustes", "settings"),
+            ("Acerca de", "about"),
+        )
 
         database.init_db()
         paths.set_extra_mc_dirs(
@@ -117,6 +126,8 @@ class MainWindow(QMainWindow):
                         self.settings.win_geometry.encode("ascii")))
             except Exception:  # noqa: BLE001 - geometria corrupta: ignorar
                 pass
+        else:
+            _center_window(self)
 
         self._build_ui()
         self._apply_settings()
@@ -131,6 +142,18 @@ class MainWindow(QMainWindow):
         refresh_shortcut.activated.connect(self._reload_versions)
         clear_shortcut = QShortcut(QKeySequence("Ctrl+L"), self)
         clear_shortcut.activated.connect(lambda: self.console.clear())
+        for index in range(5):
+            nav_shortcut = QShortcut(QKeySequence(f"Ctrl+{index + 1}"), self)
+            nav_shortcut.activated.connect(
+                lambda idx=index: self._go_page(idx))
+        next_shortcut = QShortcut(QKeySequence("Ctrl+Tab"), self)
+        next_shortcut.activated.connect(lambda: self._cycle_tabs(1))
+        prev_shortcut = QShortcut(QKeySequence("Ctrl+Shift+Tab"), self)
+        prev_shortcut.activated.connect(lambda: self._cycle_tabs(-1))
+        page_down = QShortcut(QKeySequence("Ctrl+PageDown"), self)
+        page_down.activated.connect(lambda: self._cycle_tabs(1))
+        page_up = QShortcut(QKeySequence("Ctrl+PageUp"), self)
+        page_up.activated.connect(lambda: self._cycle_tabs(-1))
 
     # ------------------------------------------------------------------ UI
     def _build_ui(self) -> None:
@@ -138,15 +161,10 @@ class MainWindow(QMainWindow):
         root.setObjectName("root")
         self.setCentralWidget(root)
 
-        columns = QHBoxLayout(root)
-        columns.setContentsMargins(0, 0, 0, 0)
-        columns.setSpacing(0)
-        columns.addWidget(self._build_sidebar(), 0)
-
-        right = QWidget()
-        right_layout = QVBoxLayout(right)
-        right_layout.setContentsMargins(0, 0, 0, 0)
-        right_layout.setSpacing(0)
+        layout = QVBoxLayout(root)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+        layout.addWidget(self._build_app_bar())
 
         self.stack = QStackedWidget()
         self.play_page = PlayPage(self)
@@ -159,8 +177,10 @@ class MainWindow(QMainWindow):
         self.stack.addWidget(self.account_page)
         self.stack.addWidget(self.settings_page)
         self.stack.addWidget(self.about_page)
-        right_layout.addWidget(self.stack, 1)
-        right_layout.addWidget(self._build_status_bar())
+
+        layout.addWidget(self._build_tab_strip())
+        layout.addWidget(self.stack, 1)
+        layout.addWidget(self._build_status_bar())
 
         # Atajos para compatibilidad con la logica de trabajadores.
         self.console = self.play_page.console
@@ -168,72 +188,126 @@ class MainWindow(QMainWindow):
         self.percent_label = self.play_page.percent_label
         self.stage_label = self.play_page.stage_label
 
-        columns.addWidget(right, 1)
         self._go_page(0)
 
-    def _build_sidebar(self) -> QWidget:
-        sidebar = QWidget()
-        sidebar.setObjectName("sidebar")
-        sidebar.setFixedWidth(188)
-        layout = QVBoxLayout(sidebar)
-        layout.setContentsMargins(10, 14, 10, 10)
-        layout.setSpacing(3)
+    def _build_app_bar(self) -> QWidget:
+        bar = QWidget()
+        bar.setObjectName("appBar")
+        bar.setFixedHeight(50)
+        layout = QHBoxLayout(bar)
+        layout.setContentsMargins(16, 6, 16, 6)
+        layout.setSpacing(12)
 
-        brand_row = QHBoxLayout()
-        brand_row.setSpacing(9)
         icon = QLabel()
-        icon.setPixmap(theme.app_icon().pixmap(30, 30))
-        icon.setFixedSize(30, 30)
-        brand_row.addWidget(icon)
+        icon.setPixmap(theme.app_icon().pixmap(32, 32))
+        icon.setFixedSize(32, 32)
+        layout.addWidget(icon)
+
+        titles = QVBoxLayout()
+        titles.setContentsMargins(0, 0, 0, 0)
+        titles.setSpacing(0)
         self.brand_title = QLabel()
         self.brand_title.setObjectName("brandTitle")
         self.brand_title.setTextFormat(Qt.TextFormat.RichText)
-        self.brand_title.setStyleSheet("font-size: 14pt;")
         self._refresh_brand()
-        brand_row.addWidget(self.brand_title)
-        brand_row.addStretch(1)
-        layout.addLayout(brand_row)
-        layout.addSpacing(8)
-
-        self.nav_buttons: list[QPushButton] = []
-        sections = (
-            ("JUEGO", (("▶", "Jugar"), ("▦", "Versiones"))),
-            ("CUENTA", (("◉", "Cuenta"),)),
-            ("SISTEMA", (("⚙", "Ajustes"), ("i", "Acerca de"))),
-        )
-        for section, items in sections:
-            layout.addWidget(self._nav_label(section))
-            for icon_text, label in items:
-                index = len(self.nav_buttons)
-                button = QPushButton(f"  {icon_text}   {label}")
-                button.setObjectName("navButton")
-                button.setCursor(Qt.CursorShape.PointingHandCursor)
-                button.setCheckable(True)
-                button.setSizePolicy(QSizePolicy.Policy.Expanding,
-                                     QSizePolicy.Policy.Fixed)
-                button.clicked.connect(
-                    lambda _=False, i=index: self._go_page(i))
-                self.nav_buttons.append(button)
-                layout.addWidget(button)
-
+        titles.addWidget(self.brand_title)
+        tagline = QLabel("Launcher 1.8–1.15.2")
+        tagline.setObjectName("faint")
+        titles.addWidget(tagline)
+        layout.addLayout(titles)
         layout.addStretch(1)
 
-        layout.addWidget(self._nav_label("ESTADO"))
-        self.side_status = Pill("LISTO", dim=True)
-        self.side_status.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(self.side_status)
-        layout.addSpacing(6)
+        self.header_status = Pill("LISTO", dim=True)
+        self.header_status.setToolTip("Estado del launcher")
+        layout.addWidget(self.header_status, 0, Qt.AlignmentFlag.AlignVCenter)
 
-        self.theme_button = QPushButton()
-        self.theme_button.setObjectName("ghostButton")
-        self.theme_button.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.theme_button.setToolTip("Cambiar entre tema claro y oscuro")
-        self.theme_button.clicked.connect(self._toggle_theme)
+        self.support_button = make_button(
+            "Apoyar", "accent",
+            "Donar al proyecto en GitHub Sponsors",
+            lambda: QDesktopServices.openUrl(QUrl(SPONSORS_URL)))
+        layout.addWidget(self.support_button, 0,
+                         Qt.AlignmentFlag.AlignVCenter)
+
+        self.theme_button = make_button(
+            "", "icon", "Cambiar entre tema claro y oscuro",
+            self._toggle_theme)
+        self.theme_button.setFixedSize(32, 32)
         self._refresh_theme_button()
-        layout.addWidget(self.theme_button)
-        layout.addSpacing(4)
-        layout.addWidget(faint_label(f"{APP_NAME} {APP_VERSION} · portable"))
-        return sidebar
+        layout.addWidget(self.theme_button, 0, Qt.AlignmentFlag.AlignVCenter)
+        return bar
+
+    def _build_tab_strip(self) -> QWidget:
+        strip = QWidget()
+        strip.setObjectName("tabStrip")
+        strip.setFixedHeight(38)
+        row = QHBoxLayout(strip)
+        row.setContentsMargins(16, 0, 16, 0)
+        row.setSpacing(0)
+
+        self.tabs = QTabBar()
+        self.tabs.setObjectName("browserTabs")
+        self.tabs.setExpanding(True)
+        self.tabs.setMovable(False)
+        self.tabs.setTabsClosable(False)
+        self.tabs.setElideMode(Qt.TextElideMode.ElideRight)
+        self.tabs.setUsesScrollButtons(False)
+        self.tabs.setDrawBase(False)
+        self.tabs.setIconSize(QSize(16, 16))
+        self.tabs.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.tabs.setSizePolicy(QSizePolicy.Policy.Expanding,
+                                QSizePolicy.Policy.Fixed)
+        self.tabs.setAccessibleName("Pestañas")
+        self.tabs.setToolTip(
+            "Pestañas · Ctrl+Tab cambia · Ctrl+1–5 salta a una página")
+        for index in range(len(self._page_specs)):
+            self._add_page_tab(index)
+        self.tabs.currentChanged.connect(self._on_tab_changed)
+        self.tabs.setCurrentIndex(0)
+        row.addWidget(self.tabs, 1, Qt.AlignmentFlag.AlignVCenter)
+        return strip
+
+    def _add_page_tab(self, page_index: int) -> int:
+        label, kind = self._page_specs[page_index]
+        index = self.tabs.addTab(
+            theme.nav_icon(kind, theme.COLORS["TEXT_DIM"]), label)
+        self.tabs.setTabData(index, page_index)
+        self.tabs.setTabToolTip(
+            index, f"{label} · Ctrl+{page_index + 1}")
+        return index
+
+    def _tab_index_for_page(self, page_index: int) -> int:
+        for index in range(self.tabs.count()):
+            if self.tabs.tabData(index) == page_index:
+                return index
+        return -1
+
+    def _refresh_tab_icons(self) -> None:
+        current = self.tabs.currentIndex()
+        for index in range(self.tabs.count()):
+            page = self.tabs.tabData(index)
+            if page is None:
+                continue
+            _, kind = self._page_specs[page]
+            color = (theme.COLORS["ACCENT"] if index == current
+                     else theme.COLORS["TEXT_DIM"])
+            self.tabs.setTabIcon(index, theme.nav_icon(kind, color))
+
+    def _on_tab_changed(self, index: int) -> None:
+        if index < 0:
+            return
+        page = self.tabs.tabData(index)
+        if page is None:
+            return
+        self.stack.setCurrentIndex(page)
+        self._refresh_page(page)
+        self._refresh_tab_icons()
+
+    def _cycle_tabs(self, delta: int) -> None:
+        count = self.tabs.count()
+        if count < 2:
+            return
+        self.tabs.setCurrentIndex(
+            (self.tabs.currentIndex() + delta) % count)
 
     def _refresh_brand(self) -> None:
         text = theme.COLORS["TEXT"]
@@ -245,8 +319,11 @@ class MainWindow(QMainWindow):
 
     def _refresh_theme_button(self) -> None:
         dark = theme.current_theme_name() == "dark"
-        self.theme_button.setText("  ☀   Tema: Claro" if dark
-                                  else "  ☾   Tema: Oscuro")
+        self.theme_button.setText("☀" if dark else "☾")
+        self.theme_button.setToolTip(
+            "Cambiar al tema claro" if dark else "Cambiar al tema oscuro")
+        self.theme_button.setAccessibleName(
+            "Cambiar al tema claro" if dark else "Cambiar al tema oscuro")
 
     def _toggle_theme(self) -> None:
         name = ("light" if theme.current_theme_name() == "dark"
@@ -267,49 +344,70 @@ class MainWindow(QMainWindow):
         _apply_titlebar_theme(self, name == "dark")
         self._refresh_brand()
         self._refresh_theme_button()
-
-    def _nav_label(self, text: str) -> QLabel:
-        label = QLabel(text)
-        label.setObjectName("navTitle")
-        return label
+        # Las vistas que fijan QColor en tiempo de construccion (arbol de
+        # versiones, fechas) deben reconstruirse con la nueva paleta.
+        if hasattr(self, "versions_page"):
+            self.versions_page.refresh_all()
+        settings_page = getattr(self, "settings_page", None)
+        if settings_page is not None:
+            settings_page.refresh_theme_segment()
+        if hasattr(self, "tabs"):
+            repolish(self.tabs)
+            self._refresh_tab_icons()
+        if hasattr(self, "header_status"):
+            repolish(self.header_status)
+        self._refresh_state()
 
     def _build_status_bar(self) -> QWidget:
         bar = QWidget()
         bar.setObjectName("statusBar")
         layout = QHBoxLayout(bar)
-        layout.setContentsMargins(14, 6, 14, 6)
-        layout.setSpacing(10)
+        layout.setContentsMargins(12, 6, 12, 6)
+        layout.setSpacing(8)
+        self.status_dot = QLabel()
+        self.status_dot.setObjectName("statusDot")
+        self.status_dot.setProperty("kind", "normal")
+        self.status_dot.setFixedSize(8, 8)
+        layout.addWidget(self.status_dot)
         self.status_label = QLabel("Listo para jugar.")
         self.status_label.setObjectName("statusLabel")
         layout.addWidget(self.status_label, 1)
-        self.ram_label = faint_label("")
-        layout.addWidget(self.ram_label)
-        layout.addWidget(faint_label("Ctrl+, ajustes · Ctrl+Enter jugar"))
-        self._ram_timer = QTimer(self)
-        self._ram_timer.setInterval(5000)
-        self._ram_timer.timeout.connect(self._update_ram_label)
-        self._ram_timer.start()
-        self._update_ram_label()
+        self.version_label = faint_label(f"v{APP_VERSION}")
+        self.version_label.setWordWrap(False)
+        layout.addWidget(self.version_label)
+        layout.addWidget(faint_label("·"))
+        self.hint_label = faint_label("Ctrl+Tab · Ctrl+Enter")
+        self.hint_label.setWordWrap(False)
+        self.hint_label.setToolTip(
+            "Ctrl+Tab cambia de pestaña · Ctrl+1–5 abre una página")
+        layout.addWidget(self.hint_label)
         return bar
 
-    def _update_ram_label(self) -> None:
-        avail = hardware.ram_avail_mb()
-        if avail:
-            self.ram_label.setText(f"RAM libre: {avail / 1024:.1f} GB")
-
     # ------------------------------------------------------------ navegacion
-    def _go_page(self, index: int) -> None:
-        self.stack.setCurrentIndex(index)
-        for i, button in enumerate(self.nav_buttons):
-            if button.property("active") != (i == index):
-                button.setProperty("active", i == index)
-                _repolish(button)
-        if index == 1:
+    def _refresh_page(self, index: int) -> None:
+        if index == 0:
+            self._refresh_state()
+        elif index == 1:
             self.versions_page.refresh_all()
         elif index == 2:
             self.account_page.refresh_accounts()
         elif index == 4:
             self.about_page.ensure_update_check()
+
+    def _go_page(self, index: int) -> None:
+        """Abre o enfoca la pestaña de una pagina (como un navegador)."""
+        if not 0 <= index < len(self._page_specs):
+            return
+        tab_index = self._tab_index_for_page(index)
+        if tab_index < 0:
+            return
+        if self.tabs.currentIndex() != tab_index:
+            self.tabs.blockSignals(True)
+            self.tabs.setCurrentIndex(tab_index)
+            self.tabs.blockSignals(False)
+        self.stack.setCurrentIndex(index)
+        self._refresh_page(index)
+        self._refresh_tab_icons()
 
     def _go_settings(self) -> None:
         if not self._is_busy():
@@ -367,7 +465,6 @@ class MainWindow(QMainWindow):
         has_version = self.play_page.version_combo.count() > 0
         page = self.play_page
         page.set_busy_widgets(busy)
-        page.refresh_system_info()
 
         if self._launch_running():
             if self._session_id is not None:
@@ -375,25 +472,29 @@ class MainWindow(QMainWindow):
                 # hay nada que cancelar desde el boton.
                 page.play_button.setText("EN PARTIDA")
                 page.play_button.setEnabled(False)
-                self.side_status.setText("JUGANDO")
+                self.header_status.setText("JUGANDO")
+                self.header_status.set_dim(False)
             else:
                 page.play_button.setText("CANCELAR")
                 page.play_button.setEnabled(True)
-                self.side_status.setText("TRABAJANDO")
+                self.header_status.setText("TRABAJANDO")
+                self.header_status.set_dim(False)
         elif self._of_running():
             page.play_button.setText("INSTALANDO…")
             page.play_button.setEnabled(False)
-            self.side_status.setText("OPTIFINE")
+            self.header_status.setText("OPTIFINE")
+            self.header_status.set_dim(False)
         else:
             page.play_button.setText("JUGAR")
             page.play_button.setEnabled(
                 self._identity_valid() and has_version)
-            self.side_status.setText("LISTO")
+            self.header_status.setText("LISTO")
+            self.header_status.set_dim(True)
 
         busy_property = busy
         if bool(page.play_button.property("busy")) != busy_property:
             page.play_button.setProperty("busy", busy_property)
-            _repolish(page.play_button)
+            repolish(page.play_button)
 
     def _set_status(self, text: str, kind: str = "normal") -> None:
         # La barra de estado se construye despues de las paginas; una
@@ -404,7 +505,12 @@ class MainWindow(QMainWindow):
                    "ok": "statusOk"}
         self.status_label.setText(text)
         self.status_label.setObjectName(mapping.get(kind, "statusLabel"))
-        _repolish(self.status_label)
+        repolish(self.status_label)
+        if hasattr(self, "status_dot"):
+            dot_kind = kind if kind in ("ok", "error") else "normal"
+            if self.status_dot.property("kind") != dot_kind:
+                self.status_dot.setProperty("kind", dot_kind)
+                repolish(self.status_dot)
 
     def _set_progress(self, done: int, total: int) -> None:
         if not hasattr(self, "progress"):
@@ -595,7 +701,7 @@ class MainWindow(QMainWindow):
         if paths.find_version_jar(base) is not None:
             state = "instalada"
         else:
-            state = "se descargara al jugar"
+            state = "se descargará al jugar"
         self.play_page.version_meta.setText(
             f"{base} · Java {_java_major_display(version_id)} · {kind} · {state}"
         )
@@ -609,7 +715,8 @@ class MainWindow(QMainWindow):
             self.play_page.optifine_status.setText(f"Instalado · {edition}")
             self.play_page.optifine_button.setText("Reinstalar…")
         else:
-            self.play_page.optifine_status.setText("No instalado · mas FPS y shaders")
+            self.play_page.optifine_status.setText(
+                "No instalado · más FPS y shaders")
             self.play_page.optifine_button.setText("Instalar…")
 
     # --------------------------------------------------------------- juego
@@ -635,10 +742,10 @@ class MainWindow(QMainWindow):
         if not target.exists():
             return
         answer = QMessageBox.question(
-            self, "Eliminar version",
-            f"Se eliminara '{version_id}' y todos sus archivos "
+            self, "Eliminar versión",
+            f"Se eliminará '{version_id}' y todos sus archivos "
             "(cliente, perfil y nativos).\n\n"
-            "Las librerias y assets compartidos se conservan.\n\n"
+            "Las librerías y assets compartidos se conservan.\n\n"
             "¿Continuar?",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No,
@@ -885,6 +992,12 @@ class MainWindow(QMainWindow):
                 self.saveGeometry().toBase64()).decode("ascii")
         except Exception:  # noqa: BLE001
             pass
+        settings_page = getattr(self, "settings_page", None)
+        if settings_page is not None:
+            try:
+                settings_page.save_if_dirty()
+            except Exception:  # noqa: BLE001 - nunca impedir el cierre
+                pass
         self._save_settings()
         if self._launch_worker and self._launch_worker.isRunning():
             self._launch_worker.cancel()

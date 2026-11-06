@@ -5,28 +5,45 @@
 #define AppVersion "1.0.0"
 #define AppPublisher "Liebe Black"
 #define AppExeName "AZeroCraft.exe"
+#define AppURL "https://github.com/LiebeBlack/MD"
 
 [Setup]
 AppId={{8F3E2A1C-4B5D-4E6F-9A0B-1C2D3E4F5A6B}
-LicenseFile=license.txt
 AppName={#AppName}
 AppVersion={#AppVersion}
 AppVerName={#AppName} {#AppVersion}
 AppPublisher={#AppPublisher}
+AppPublisherURL={#AppURL}
+AppSupportURL={#AppURL}/issues
+AppUpdatesURL={#AppURL}/releases
+AppCopyright=Copyright (C) 2026 {#AppPublisher}
+AppComments=Launcher de Minecraft Java Edition para Windows.
+VersionInfoVersion={#AppVersion}.0
+VersionInfoCompany={#AppPublisher}
+VersionInfoDescription={#AppName} Launcher Setup
+VersionInfoProductName={#AppName}
+VersionInfoProductVersion={#AppVersion}
+LicenseFile=license.txt
 MinVersion=10.0
-DefaultDirName={localappdata}\Programs\{#AppName}
+DefaultDirName={autopf}\{#AppName}
 DefaultGroupName={#AppName}
 DisableProgramGroupPage=yes
+DisableDirPage=auto
+UsePreviousAppDir=yes
+AllowNoIcons=yes
 PrivilegesRequired=lowest
+PrivilegesRequiredOverridesAllowed=dialog
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 OutputDir=..\dist
 OutputBaseFilename=AZeroCraft-Setup-{#AppVersion}
 SetupIconFile=..\assets\azero.ico
 UninstallDisplayIcon={app}\{#AppExeName}
+UninstallDisplayName={#AppName} {#AppVersion}
 Compression=lzma2/ultra64
 SolidCompression=yes
 WizardStyle=modern
+SetupLogging=yes
 CloseApplications=yes
 RestartApplications=no
 
@@ -46,4 +63,4 @@ Name: "{group}\Desinstalar {#AppName}"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExeName}"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\{#AppExeName}"; Description: "{cm:LaunchProgram,{#AppName}}"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\{#AppExeName}"; Description: "{cm:LaunchProgram,{#AppName}}"; Flags: nowait postinstall skipifsilent runasoriginaluser
