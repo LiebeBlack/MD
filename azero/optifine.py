@@ -212,8 +212,12 @@ def install_optifine(installer: Path, base_version: str, settings,
     dest = (paths.LIBRARIES_DIR / "optifine" / "Optifine"
             / f"{info.mc_version}_{info.edition_release}"
             / f"Optifine-{info.mc_version}_{info.edition_release}.jar")
-    _run_patcher(runtime, installer, paths.version_jar_path(base_version), dest,
-                 ctx.log)
+    # El cliente puede vivir en otra raiz .minecraft registrada; prepare()
+    # lo reutiliza sin descargarlo a la oficial, asi que hay que apuntar
+    # al jar real o el parcheador fallaria con "file not found".
+    client_jar = (paths.find_version_jar(base_version)
+                  or paths.version_jar_path(base_version))
+    _run_patcher(runtime, installer, client_jar, dest, ctx.log)
     ctx.check()
 
     if info.launchwrapper:
