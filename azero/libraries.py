@@ -14,6 +14,37 @@ from .util import DownloadTask, extract_zip
 
 _NATIVE_CLASSIFIER = re.compile(r":natives-[A-Za-z0-9_-]+$")
 
+# Clasificadores de los manifiestos modernos codifican SO/arquitectura
+# ("natives-windows-arm64", "linux-x86_64", "osx-aarch_64") y sus reglas
+# no siempre distinguen la arquitectura: hay que filtrarlos aqui.
+_CLASSIFIER_OS_RE = re.compile(r"windows|linux|macos|osx|mac", re.IGNORECASE)
+_CLASSIFIER_ARCH_RE = re.compile(
+    r"aarch_64|aarch64|x86_64|amd64|arm64|x64|x86|i386|i686", re.IGNORECASE)
+_CLASSIFIER_OS = {"windows": "windows", "linux": "linux",
+                  "macos": "osx", "osx": "osx", "mac": "osx"}
+_CLASSIFIER_ARCH = {
+    "aarch_64": "arm64", "aarch64": "arm64", "arm64": "arm64",
+    "x86_64": "x86_64", "amd64": "x86_64", "x64": "x86_64",
+    "x86": "x86", "i386": "x86", "i686": "x86",
+}
+
+
+def _classifier_platform_ok(name: str) -> bool:
+    """True si el clasificador maven (4a parte) aplica a este SO/arch."""
+    parts = name.split(":")
+    if len(parts) < 4:
+        return True
+    classifier = parts[3]
+    os_match = _CLASSIFIER_OS_RE.search(classifier)
+    if os_match and _CLASSIFIER_OS[os_match.group(0).lower()] != os_name():
+        return False
+    arch_match = _CLASSIFIER_ARCH_RE.search(classifier)
+    if arch_match:
+        arch = _CLASSIFIER_ARCH[arch_match.group(0).lower()]
+        if arch != os_arch():
+            return False
+    return True
+
 
 @dataclass
 class LibraryPlan:
@@ -97,6 +128,8 @@ def build_library_plan(version_json: dict, features: dict[str, bool] | None = No
     for library in version_json.get("libraries", []):
         if not rules_allow(library.get("rules"), features):
             continue
+        if not _classifier_platform_ok(library.get("name", "")):
+            continue
 
         name = library.get("name", "")
         downloads = library.get("downloads") or {}
@@ -127,7 +160,10 @@ def build_library_plan(version_json: dict, features: dict[str, bool] | None = No
                         and not name.startswith("optifine:")):
                     plan.downloads.append(task)
 
-        if artifact_path and not is_native_classifier:
+        # Las librerias con clasificador de nativos (LWJGL3, 1.16+) van al
+        # classpath: el propio LWJGL las desempaqueta en tiempo de ejecucion
+        # via SharedLibraryExtractPath. No hace falta extraerlas a mano.
+        if artifact_path:
             key = str(artifact_path).lower()
             if key not in seen_classpath:
                 seen_classpath.add(key)
@@ -150,11 +186,6 @@ def build_library_plan(version_json: dict, features: dict[str, bool] | None = No
                     (library.get("extract") or {}).get("exclude") or ("META-INF/",)
                 )
                 plan.natives.append((dest, excludes))
-
-        # Nativos empaquetados como libreria con clasificador (1.13+)
-        if is_native_classifier and include_natives and artifact_path:
-            excludes = tuple((library.get("extract") or {}).get("exclude") or ("META-INF/",))
-            plan.natives.append((artifact_path, excludes))
 
     return plan
 

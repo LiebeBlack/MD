@@ -48,7 +48,7 @@ class Settings:
     username: str = "Player"
     # "" / "offline" = perfil local; "ms:<uuid>" = cuenta Microsoft guardada.
     active_account: str = ""
-    version: str = "1.15.2"
+    version: str = ""
     memory_mb: int = DEFAULT_MEMORY_MB
     java_path: str = ""
     auto_close: bool = True

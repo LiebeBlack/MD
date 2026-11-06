@@ -18,7 +18,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from azero import manifest, paths
 from azero.assets import asset_tasks, ensure_asset_index
-from azero.install import TaskContext, ensure_profile
+from azero.install import TaskContext, ensure_profile_chain
 from azero.launch import build_command
 from azero.libraries import build_library_plan
 from azero.settings import Settings
@@ -44,9 +44,10 @@ def main() -> int:
     print(f"versiones en manifiesto: {len(data.get('versions', []))}")
 
     print(f"\n== Perfil {version_id} ==")
-    payload = ensure_profile(version_id, data)
-    print(f"mainClass: {payload.get('mainClass')}")
-    print(f"inheritsFrom: {payload.get('inheritsFrom')}")
+    ensure_profile_chain(version_id, data)
+    cached = manifest.load_version_profile(version_id) or {}
+    print(f"mainClass: {cached.get('mainClass')}")
+    print(f"inheritsFrom: {cached.get('inheritsFrom')}")
 
     print(f"\n== Resolucion con herencia ==")
     resolved = manifest.resolve_version(version_id)

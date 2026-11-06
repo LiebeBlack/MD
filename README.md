@@ -10,7 +10,8 @@ Repositorio: [github.com/LiebeBlack/MD](https://github.com/LiebeBlack/MD)
 > Documentación web del proyecto en [`docs/index.html`](docs/index.html)
 > (publicable gratis en GitHub Pages desde la carpeta `/docs`).
 
-Launcher ligero para Minecraft Java Edition (1.8 – 1.15.2) con soporte de
+Launcher ligero para Minecraft Java Edition (1.7 – la versión más reciente,
+incluido el versionado de calendario 26.x) con soporte de
 OptiFine, modo offline, Java automático (Temurin) y ajustes de rendimiento.
 
 ## Características
@@ -153,8 +154,9 @@ sin garantías. Consulta los términos completos en
 
 ## Notas
 
-- Las versiones 1.8–1.12 usan el formato `minecraftArguments`; 1.13+ usa
-  `arguments` con reglas. Ambos formatos (y sus combinaciones, p. ej.
+- Las versiones hasta 1.12 usan el formato `minecraftArguments`; 1.13+ usa
+  `arguments` con reglas (y 26.x añade `default-user-jvm` y `versionRange`).
+  Todos los formatos (y sus combinaciones, p. ej.
   OptiFine sobre 1.12.x) están soportados.
 - El juego se lanza como proceso independiente: el launcher puede cerrarse
   tras el arranque y liberarse por completo de memoria.

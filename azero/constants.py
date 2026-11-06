@@ -14,9 +14,10 @@ ADOPTIUM_ASSET_URL = (
     "?architecture={arch}&image_type=jre&os={os}&vendor=eclipse"
 )
 
-# Rango objetivo del launcher (1.8 -> 1.15.2).
-MIN_VERSION = (1, 8, 0)
-MAX_VERSION = (1, 15, 999)
+# Rango objetivo del launcher (1.7 -> ultima version publicada; Mojang
+# usa versionado de calendario desde la 26.x, p. ej. 26.3).
+MIN_VERSION = (1, 7, 0)
+MAX_VERSION = (999, 99, 999)
 
 DEFAULT_MEMORY_MB = 2048
 MIN_MEMORY_MB = 1024

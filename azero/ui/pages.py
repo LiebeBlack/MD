@@ -39,10 +39,10 @@ from ..util import human_size
 from ..workers import ForgeInstallWorker, MSLoginWorker
 from . import theme
 from .widgets import (Avatar, BrandBanner, Card, ConsoleView, Divider,
-                      FocusWheelSlider, InfoGrid, PageHeader, Pill, ScrollPage,
-                      StatCard, faint_label, link_button, list_row,
-                      make_button, muted_label, section_label,
-                      set_empty_table_message)
+                      FocusWheelSlider, InfoGrid, PageHeader, Pill,
+                      ScrollPage, StatCard, VersionPicker, faint_label,
+                      link_button, list_row, make_button, muted_label,
+                      section_label, set_empty_table_message)
 
 
 def _gb_text(memory_mb: int) -> str:
@@ -232,14 +232,13 @@ class PlayPage(ScrollPage):
         card = Card()
         card.body.addWidget(section_label("Versión"))
 
-        self.version_combo = QComboBox()
-        self.version_combo.setPlaceholderText("Cargando versiones…")
-        self.version_combo.setSizeAdjustPolicy(
-            QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
-        self.version_combo.setMinimumContentsLength(18)
-        self.version_combo.currentIndexChanged.connect(
+        self.version_picker = VersionPicker()
+        self.version_picker.set_placeholder("Cargando versiones…")
+        self.version_picker.setToolTip(
+            "Versiones agrupadas por familia y version base")
+        self.version_picker.selectionChanged.connect(
             self.shell._on_version_changed)
-        card.body.addWidget(self.version_combo)
+        card.body.addWidget(self.version_picker)
 
         self.version_meta = muted_label(
             "Leyendo el manifiesto oficial de Mojang…")
@@ -483,7 +482,7 @@ class PlayPage(ScrollPage):
 
     def set_busy_widgets(self, busy: bool) -> None:
         widgets: list[QWidget] = [
-            self.name_edit, self.version_combo, self.ram_slider,
+            self.name_edit, self.version_picker, self.ram_slider,
             self.auto_close_check, self.server_edit, self.optifine_button,
             self.add_mod_button, self.manage_mods_button,
         ]
@@ -1800,7 +1799,7 @@ class SettingsPage(ScrollPage):
         self.show_all.setChecked(settings.show_all_versions)
         self.show_all.setToolTip(
             "Incluye versiones antiguas y snapshots en la lista de Jugar. "
-            "El rango soportado sigue siendo 1.8 – 1.15.2.")
+            "El rango soportado es 1.7 en adelante.")
         card.body.addWidget(self.show_all)
         card.body.addWidget(Divider())
 

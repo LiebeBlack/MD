@@ -142,7 +142,7 @@ def wizard_pixmap(width: int = 192, height: int = 386) -> QPixmap:
         painter.setPen(QColor("#A9D2F5"))
         painter.drawText(QRectF(0, 180, width, 14),
                          Qt.AlignmentFlag.AlignCenter,
-                         "LAUNCHER 1.8 – 1.15.2")
+                         "LAUNCHER 1.7 – ACTUAL")
 
         footer = QFont("Segoe UI")
         footer.setPixelSize(9)
@@ -206,7 +206,7 @@ def banner_pixmap(width: int = 1200, height: int = 260) -> QPixmap:
                          Qt.AlignmentFlag.AlignLeft
                          | Qt.AlignmentFlag.AlignVCenter,
                          "Launcher de Minecraft Java Edition · "
-                         "1.8 – 1.15.2 · Windows")
+                         "1.7 – ACTUAL · Windows")
 
         painter.setPen(Qt.PenStyle.NoPen)
         painter.setBrush(QColor(124, 199, 255, 230))

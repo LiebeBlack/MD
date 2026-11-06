@@ -38,24 +38,13 @@ def _center_window(window: QWidget) -> None:
 def _java_major_for(version_id: str) -> int:
     """Java recomendado si el perfil aun no esta descargado (heuristica)."""
     key = parse_version_key(version_id)
+    if key[0] >= 26:
+        return 25
     if key >= (1, 20, 5):
         return 21
     if key >= (1, 17, 0):
         return 17
     return 8
-
-
-def _version_entry_sort(entry: dict) -> tuple:
-    """Ordena perfiles: version base descendente, luego Vanilla/Forge/
-    OptiFine y parche descendente."""
-    payload = load_version_profile(entry["id"]) or {}
-    base = payload.get("inheritsFrom") or entry["id"]
-    key = tuple(parse_version_key(base)) + (0,) * 3
-    key = key[:3]
-    lower = entry["id"].lower()
-    kind = 2 if "optifine" in lower else 1 if "forge" in lower else 0
-    patch = tuple(parse_version_key(entry["id"])) + (0,) * 3
-    return (-key[0], -key[1], kind, -patch[2], entry["id"])
 
 
 def _java_major_display(version_id: str) -> int:
@@ -211,7 +200,7 @@ class MainWindow(QMainWindow):
         self.brand_title.setTextFormat(Qt.TextFormat.RichText)
         self._refresh_brand()
         titles.addWidget(self.brand_title)
-        tagline = QLabel("Launcher 1.8–1.15.2")
+        tagline = QLabel("Launcher 1.7 en adelante")
         tagline.setObjectName("faint")
         titles.addWidget(tagline)
         layout.addLayout(titles)
@@ -429,7 +418,7 @@ class MainWindow(QMainWindow):
         page = getattr(self, "play_page", None)
         if page is None:
             return ""
-        return page.version_combo.currentData() or ""
+        return page.version_picker.current_id() or ""
 
     def _selected_base(self) -> str:
         version_id = self._selected_version()
@@ -462,7 +451,7 @@ class MainWindow(QMainWindow):
 
     def _refresh_state(self) -> None:
         busy = self._is_busy()
-        has_version = self.play_page.version_combo.count() > 0
+        has_version = self.play_page.version_picker.count() > 0
         page = self.play_page
         page.set_busy_widgets(busy)
 
@@ -560,7 +549,7 @@ class MainWindow(QMainWindow):
             self.account_page.refresh_accounts()
         self._refresh_state()
         if not self._is_busy() and hasattr(self, "play_page") \
-                and not self.play_page.version_combo.count():
+                and not self.play_page.version_picker.count():
             self._set_status("Cargando versiones…")
 
     def _apply_settings(self) -> None:
@@ -608,48 +597,37 @@ class MainWindow(QMainWindow):
 
     def _on_manifest_ready(self, entries: list[dict]) -> None:
         self._entries = entries
-        current = self.settings.version
-        combo = self.play_page.version_combo
-        combo.blockSignals(True)
-        combo.clear()
-        last_group = None
-        for entry in sorted(entries, key=_version_entry_sort):
-            payload = load_version_profile(entry["id"]) or {}
-            base = payload.get("inheritsFrom") or entry["id"]
-            bkey = tuple(parse_version_key(base)) + (0,) * 3
-            group = f"{bkey[0]}.{bkey[1]}.x"
-            if group != last_group:
-                combo.addItem(f"── {group} ──")
-                combo.model().item(combo.count() - 1).setEnabled(False)
-                last_group = group
-            label = entry["id"]
+        picker = self.play_page.version_picker
+        for entry in entries:
             if entry.get("local"):
-                lower = label.lower()
-                if "optifine" in lower:
-                    label += "  · OptiFine"
-                elif "forge" in lower:
-                    label += "  · Forge"
-                else:
-                    label += "  · local"
-            combo.addItem(label, entry["id"])
-        index = combo.findData(current)
-        if index < 0:
+                payload = load_version_profile(entry["id"]) or {}
+                entry["base"] = payload.get("inheritsFrom") or entry["id"]
+            else:
+                entry["base"] = entry["id"]
+        picker.set_entries(entries)
+
+        current = self.settings.version
+        ids = {entry["id"] for entry in entries}
+        choice = ""
+        if current in ids:
+            choice = current
+        else:
             # Preferir una version ya descargada (juego inmediato).
             installed = sorted(local_profiles(),
                                key=parse_version_key, reverse=True)
-            index = -1
             for profile_id in installed:
-                index = combo.findData(profile_id)
-                if index >= 0:
+                if profile_id in ids:
+                    choice = profile_id
                     break
-            if index < 0:
-                preferred = combo.findData("1.15.2")
-                index = preferred if preferred >= 0 else 0
-        if combo.count():
-            combo.setCurrentIndex(index)
-            self.settings.version = combo.currentData()
-        combo.blockSignals(False)
-        combo.setEnabled(True)
+            if not choice and entries:
+                # La release mas reciente; con snapshots activados el
+                # primero puede ser una pre-release y no interesa por defecto.
+                choice = next(
+                    (e["id"] for e in entries if e.get("type") == "release"),
+                    entries[0]["id"])
+        if choice:
+            picker.select(choice)
+            self.settings.version = choice
         self._update_version_meta()
         self._refresh_state()
         if not entries:
@@ -724,15 +702,11 @@ class MainWindow(QMainWindow):
         """Lanza directamente una version instalada (desde Versiones)."""
         if self._is_busy():
             return
-        combo = self.play_page.version_combo
-        index = combo.findData(version_id)
-        if index < 0:
-            # Perfil local que el manifiesto no lista: se agrega para que
-            # _selected_version() devuelva exactamente esta version.
-            combo.addItem(f"{version_id}  · local", version_id)
-            index = combo.count() - 1
-        combo.setCurrentIndex(index)
+        picker = self.play_page.version_picker
+        picker.ensure_entry(version_id)
+        picker.select(version_id)
         self.settings.version = version_id
+        self._on_version_changed()
         self._on_play_clicked()
 
     def delete_version(self, version_id: str) -> None:

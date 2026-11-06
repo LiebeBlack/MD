@@ -1,8 +1,8 @@
 """Deteccion de hardware: CPU, nucleos, RAM y flags de instruccion.
 
-No requiere AVX ni ninguna ISA concreta: Minecraft 1.8-1.15.2 funciona en
-cualquier x86-64 con SSE2. Los flags se usan solo con fines informativos
-y de sugerencia de configuracion.
+No requiere AVX ni ninguna ISA concreta: las versiones antiguas de
+Minecraft funcionan en cualquier x86-64 con SSE2. Los flags se usan solo
+con fines informativos y de sugerencia de configuracion.
 """
 
 from __future__ import annotations
@@ -129,7 +129,8 @@ def cpu_flags() -> dict[str, bool]:
 
     En Linux se leen de /proc/cpuinfo. En Windows solo SSE2 es consultable
     de forma fiable via IsProcessorFeaturePresent; el resto queda en False
-    (Minecraft 1.8-1.15.2 no los necesita: el minimo real es SSE2/x86-64).
+    (las versiones antiguas de Minecraft no los necesitan: el minimo real
+    es SSE2/x86-64).
     """
     # Constantes PROCESSOR_FEATURE_NUMBER (Windows 10+):
     # SSE3=13, SSSE3=36, SSE4.1=37, SSE4.2=38, AVX=39, AVX2=40, AVX512F=41.

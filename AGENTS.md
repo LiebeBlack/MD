@@ -1,12 +1,13 @@
 # AZeroCraft Launcher — notas para agentes
 
-Launcher de Minecraft Java Edition (1.8–1.15.2) para Windows, escrito en
+Launcher de Minecraft Java Edition (1.7 hasta la versión más reciente,
+versionado de calendario 26.x) para Windows, escrito en
 Python + PyQt6. Repositorio: https://github.com/LiebeBlack/MD
 
 ## Comandos
 
 ```powershell
-# Tests unitarios (24 tests en tests/test_core.py)
+# Tests unitarios (23 tests en tests/test_core.py)
 .\.venv-build\Scripts\python.exe -m unittest discover -s tests
 
 # Compilar todo el paquete (chequeo de sintaxis)
@@ -45,6 +46,14 @@ py -3.15 main.py
 - Los workers QThread se cancelan y esperan en `MainWindow.closeEvent`;
   cualquier QThread nuevo debe registrarse ahi para evitar crashes al
   cerrar.
-- Minecraft 1.12.1 usa `minecraftArguments` (formato antiguo); las
-  versiones 1.13+ usan `arguments.game/jvm` — `launch.build_command`
-  maneja ambos y combina el tweakClass de OptiFine.
+- Minecraft 1.12.1 y anteriores usan `minecraftArguments` (formato
+  antiguo); 1.13+ usa `arguments.game/jvm` y 26.x añade
+  `arguments.default-user-jvm` — `launch.build_command` maneja los tres
+  y combina el tweakClass de OptiFine. Las librerías `:natives-*`
+  (LWJGL3) van al classpath y se extraen en runtime; los nativos
+  clasicos (`natives` map / `natives-windows` pre-1.16) se extraen a
+  `natives/<version>/`.
+- El selector de versiones es `ui.widgets.VersionPicker` (arbol
+  familias → versiones base → perfiles OptiFine/Forge en un popup con
+  buscador); `main_window._on_manifest_ready` lo alimenta y la
+  seleccion se persiste en `settings.version`.

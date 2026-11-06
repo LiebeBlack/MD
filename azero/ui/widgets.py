@@ -3,18 +3,21 @@
 from __future__ import annotations
 
 import hashlib
+import re
 from typing import Callable
 
-from PyQt6.QtCore import QRectF, Qt, QUrl
+from PyQt6.QtCore import QPoint, QRectF, Qt, QUrl, pyqtSignal
 from PyQt6.QtGui import (QColor, QDesktopServices, QFont, QFontDatabase,
                          QLinearGradient, QPainter, QPainterPath, QPen)
-from PyQt6.QtWidgets import (QFrame, QGridLayout, QHBoxLayout, QLabel,
-                             QPlainTextEdit, QPushButton, QScrollArea,
-                             QSlider, QSizePolicy, QTableWidget,
-                             QTableWidgetItem, QVBoxLayout, QWidget)
+from PyQt6.QtWidgets import (QApplication, QFrame, QGridLayout, QHBoxLayout,
+                             QLabel, QLineEdit, QPlainTextEdit, QPushButton,
+                             QScrollArea, QSlider, QSizePolicy, QTableWidget,
+                             QTableWidgetItem, QToolButton, QTreeWidget,
+                             QTreeWidgetItem, QVBoxLayout, QWidget)
 
 from .. import APP_VERSION
 from ..branding import brand_mark, brand_pixmap
+from ..manifest import load_version_profile, parse_version_key
 from . import theme
 
 
@@ -143,7 +146,7 @@ class BrandBanner(QWidget):
                              Qt.AlignmentFlag.AlignLeft
                              | Qt.AlignmentFlag.AlignVCenter,
                              "Launcher de Minecraft Java Edition · "
-                             "1.8 – 1.15.2")
+                             "1.7 – actual")
 
             painter.setFont(QFont("Segoe UI", 8))
             painter.setPen(QColor("#9CC7F0"))
@@ -450,3 +453,341 @@ class ConsoleView(QPlainTextEdit):
 
     def append(self, text: str) -> None:
         self.appendPlainText(text)
+
+
+class _VersionPopup(QFrame):
+    """Panel desplegable del selector de versiones.
+
+    Muestra las versiones en un arbol agrupado por familia (1.12.x,
+    26.x...) y, dentro, por version base: cada perfil OptiFine/Forge
+    cuelga de su version madre. QTreeWidget solo pinta las filas
+    visibles, asi que el scroll no renderiza la lista completa.
+    """
+
+    picked = pyqtSignal(str)
+
+    _ROLE_ID = Qt.ItemDataRole.UserRole + 1
+
+    def __init__(self, parent: QWidget | None = None):
+        super().__init__(parent, Qt.WindowType.Popup)
+        self.setObjectName("versionPopup")
+        self.setFixedSize(430, 470)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(10, 10, 10, 10)
+        layout.setSpacing(8)
+
+        self.search = QLineEdit()
+        self.search.setPlaceholderText("Filtrar versiones…")
+        self.search.setClearButtonEnabled(True)
+        layout.addWidget(self.search)
+
+        self.tree = QTreeWidget()
+        self.tree.setObjectName("versionTree")
+        self.tree.setHeaderHidden(True)
+        self.tree.setRootIsDecorated(True)
+        self.tree.setUniformRowHeights(True)
+        self.tree.setAnimated(False)
+        layout.addWidget(self.tree, 1)
+
+        self._entries: list[dict] = []
+        self._selected = ""
+
+        self.search.textChanged.connect(self._apply_filter)
+        self.tree.itemClicked.connect(self._on_item_clicked)
+        self.tree.itemActivated.connect(self._on_item_clicked)
+
+    # ------------------------------------------------------------ datos
+    def set_entries(self, entries: list[dict], selected: str = "") -> None:
+        self._entries = list(entries)
+        self._selected = selected
+        self._rebuild()
+        self._apply_filter(self.search.text())
+
+    def set_selected(self, version_id: str) -> None:
+        self._selected = version_id
+        target = self._find_item(self.tree.invisibleRootItem(),
+                                 version_id)
+        if target is not None:
+            self._expand_to(target)
+            self.tree.setCurrentItem(target)
+            self.tree.scrollToItem(target)
+
+    @staticmethod
+    def _base_of(entry: dict) -> str:
+        vid = entry.get("id", "")
+        base = entry.get("base")
+        if base:
+            return base
+        if entry.get("local"):
+            payload = load_version_profile(vid) or {}
+            return payload.get("inheritsFrom") or vid
+        return vid
+
+    def _group(self) -> dict:
+        families: dict[str, dict] = {}
+        for entry in self._entries:
+            vid = entry.get("id", "")
+            if not vid:
+                continue
+            base = self._base_of(entry)
+            key = parse_version_key(base)
+            weekly = re.match(r"^(\d{2})w\d{1,2}", base)
+            if weekly:
+                label = f"{weekly.group(1)}w"
+            else:
+                label = (f"{key[0]}.{key[1]}.x"
+                         if key != (0, 0, 0) else "Otras")
+            family = families.setdefault(label, {"key": key, "bases": {}})
+            node = family["bases"].setdefault(
+                base, {"entry": None, "children": []})
+            if base == vid:
+                node["entry"] = entry
+            else:
+                node["children"].append(entry)
+        return families
+
+    @staticmethod
+    def _kind_of(vid: str, base_id: str) -> str:
+        lower = vid.lower()
+        if "optifine" in lower:
+            return "OptiFine"
+        if "forge" in lower:
+            return "Forge"
+        if vid != base_id:
+            return "perfil"
+        return ""
+
+    def _display_text(self, vid: str, base_id: str) -> str:
+        label = vid
+        if vid != base_id and vid.startswith(base_id + "-"):
+            label = vid[len(base_id) + 1:]
+        label = label.replace("_", " ")
+        kind = self._kind_of(vid, base_id)
+        return f"{label}   ·   {kind}" if kind else label
+
+    def _version_item(self, vid: str, entry: dict | None,
+                      base_id: str) -> QTreeWidgetItem:
+        item = QTreeWidgetItem([self._display_text(vid, base_id)])
+        item.setData(0, self._ROLE_ID, vid)
+        item.setFlags(Qt.ItemFlag.ItemIsEnabled
+                      | Qt.ItemFlag.ItemIsSelectable)
+        if entry is not None and entry.get("local"):
+            item.setForeground(0, QColor(theme.COLORS["TEXT_DIM"]))
+        return item
+
+    def _rebuild(self) -> None:
+        self.tree.clear()
+        for label, family in sorted(
+                self._group().items(),
+                key=lambda item: item[1]["key"], reverse=True):
+            total = sum((1 if node["entry"] else 0) + len(node["children"])
+                        for node in family["bases"].values())
+            fam_item = QTreeWidgetItem([f"{label}   ({total})"])
+            fam_item.setFlags(Qt.ItemFlag.ItemIsEnabled)
+            font = fam_item.font(0)
+            font.setBold(True)
+            fam_item.setFont(0, font)
+            self.tree.addTopLevelItem(fam_item)
+
+            bases = sorted(family["bases"].items(),
+                           key=lambda item: parse_version_key(item[0]),
+                           reverse=True)
+            for base_id, node in bases:
+                base_item = self._version_item(base_id, node["entry"],
+                                               base_id)
+                if node["entry"] is None:
+                    # La version madre no esta en la lista: rama sin selector.
+                    base_item.setFlags(Qt.ItemFlag.ItemIsEnabled)
+                    base_item.setData(0, self._ROLE_ID, None)
+                    base_item.setText(
+                        0, f"{base_id}   ·   version base no listada")
+                fam_item.addChild(base_item)
+
+                children = sorted(
+                    node["children"],
+                    key=lambda e: (parse_version_key(e.get("id", "")),
+                                   e.get("id", "")),
+                    reverse=True)
+                for child in children:
+                    base_item.addChild(self._version_item(
+                        child["id"], child, base_id))
+        self._restore_expansion()
+        self._highlight()
+
+    # -------------------------------------------------------- expansion
+    def _find_item(self, parent: QTreeWidgetItem,
+                   version_id: str) -> QTreeWidgetItem | None:
+        for i in range(parent.childCount()):
+            item = parent.child(i)
+            if item.data(0, self._ROLE_ID) == version_id:
+                return item
+            found = self._find_item(item, version_id)
+            if found is not None:
+                return found
+        return None
+
+    def _expand_to(self, item: QTreeWidgetItem) -> None:
+        parent = item.parent()
+        while parent is not None:
+            parent.setExpanded(True)
+            parent = parent.parent()
+
+    def _restore_expansion(self) -> None:
+        """Colapsa todas las familias salvo la que contiene la eleccion."""
+        root = self.tree.invisibleRootItem()
+        self._set_hidden_recursive(root, False)
+        for i in range(self.tree.topLevelItemCount()):
+            self.tree.topLevelItem(i).setExpanded(False)
+        if self._selected:
+            target = self._find_item(root, self._selected)
+            if target is not None:
+                self._expand_to(target)
+
+    def _highlight(self) -> None:
+        if not self._selected:
+            return
+        target = self._find_item(self.tree.invisibleRootItem(),
+                                 self._selected)
+        if target is not None:
+            self.tree.setCurrentItem(target)
+
+    # ----------------------------------------------------------- filtro
+    def _apply_filter(self, text: str) -> None:
+        query = text.strip().lower()
+        if not query:
+            self._restore_expansion()
+            return
+        for i in range(self.tree.topLevelItemCount()):
+            family = self.tree.topLevelItem(i)
+            visible = self._filter_node(family, query)
+            family.setHidden(not visible)
+            if visible:
+                family.setExpanded(True)
+
+    def _filter_node(self, item: QTreeWidgetItem, query: str) -> bool:
+        vid = item.data(0, self._ROLE_ID)
+        own = bool(vid and query in str(vid).lower())
+        own = own or query in item.text(0).lower()
+        child_visible = False
+        for i in range(item.childCount()):
+            if self._filter_node(item.child(i), query):
+                child_visible = True
+        visible = own or child_visible
+        item.setHidden(not visible)
+        return visible
+
+    def _set_hidden_recursive(self, item: QTreeWidgetItem,
+                              hidden: bool) -> None:
+        item.setHidden(hidden)
+        for i in range(item.childCount()):
+            self._set_hidden_recursive(item.child(i), hidden)
+
+    # ----------------------------------------------------------- senales
+    def _on_item_clicked(self, item: QTreeWidgetItem,
+                         column: int) -> None:  # noqa: ARG002
+        vid = item.data(0, self._ROLE_ID)
+        if vid:
+            self.picked.emit(str(vid))
+        else:
+            item.setExpanded(not item.isExpanded())
+
+
+class VersionPicker(QToolButton):
+    """Boton que abre el arbol de versiones agrupadas por familia.
+
+    Sustituto del QComboBox: mismo sitio en la UI, pero el desplegable
+    agrupa cada perfil bajo su version madre y solo renderiza lo visible.
+    """
+
+    selectionChanged = pyqtSignal(str)
+
+    def __init__(self, parent: QWidget | None = None):
+        super().__init__(parent)
+        self.setObjectName("versionPicker")
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding,
+                           QSizePolicy.Policy.Fixed)
+        self.setMinimumHeight(34)
+        self.setToolTip("Elegir la version de Minecraft")
+
+        self._entries: list[dict] = []
+        self._selected = ""
+        self._placeholder = "Seleccionar versión…"
+
+        self._popup = _VersionPopup(self)
+        self._popup.picked.connect(self._on_picked)
+        self.clicked.connect(self._show_popup)
+        self._refresh_text()
+
+    # ------------------------------------------------------------ API
+    def set_entries(self, entries: list[dict]) -> None:
+        self._entries = list(entries)
+        ids = {entry.get("id") for entry in entries}
+        if self._selected not in ids:
+            self._selected = ""
+        self._popup.set_entries(self._entries, self._selected)
+        self._refresh_text()
+
+    def select(self, version_id: str) -> None:
+        """Seleccion programatica: no emite selectionChanged."""
+        self._selected = version_id
+        self._popup.set_selected(version_id)
+        self._refresh_text()
+
+    def ensure_entry(self, version_id: str) -> None:
+        """Agrega un perfil local que el manifiesto no lista (Jugar)."""
+        if any(entry.get("id") == version_id for entry in self._entries):
+            return
+        payload = load_version_profile(version_id) or {}
+        base = payload.get("inheritsFrom") or version_id
+        self._entries.append({"id": version_id, "type": "local",
+                              "local": True, "base": base})
+        self._popup.set_entries(self._entries, self._selected)
+
+    def current_id(self) -> str:
+        return self._selected
+
+    def count(self) -> int:
+        return len(self._entries)
+
+    def set_placeholder(self, text: str) -> None:
+        self._placeholder = text
+        if not self._selected:
+            self._refresh_text()
+
+    # ----------------------------------------------------------- internos
+    def _show_popup(self) -> None:
+        if not self.isEnabled() or self.count() == 0:
+            return
+        self._popup.set_entries(self._entries, self._selected)
+        pos = self.mapToGlobal(self.rect().bottomLeft())
+        screen = self.screen() or QApplication.primaryScreen()
+        if screen is not None:
+            area = screen.availableGeometry()
+            popup_h = self._popup.height()
+            if pos.y() + popup_h > area.bottom():
+                # Sin sitio debajo: abrir hacia arriba del boton.
+                pos = self.mapToGlobal(self.rect().topLeft())
+                pos = pos - QPoint(0, popup_h)
+            pos.setX(max(area.left(),
+                         min(pos.x(), area.right() - self._popup.width())))
+            pos.setY(max(area.top(), min(pos.y(),
+                                        area.bottom() - popup_h)))
+        self._popup.move(pos)
+        self._popup.show()
+        self._popup.raise_()
+        self._popup.activateWindow()
+        self._popup.search.setFocus()
+
+    def _refresh_text(self) -> None:
+        label = self._selected or self._placeholder
+        self.setText(f"{label}   ▾")
+
+    def _on_picked(self, version_id: str) -> None:
+        self._popup.hide()
+        if version_id == self._selected:
+            return
+        self._selected = version_id
+        self._popup.set_selected(version_id)
+        self._refresh_text()
+        self.selectionChanged.emit(version_id)

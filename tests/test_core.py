@@ -51,16 +51,24 @@ class TestManifestKeys(unittest.TestCase):
     def test_version_key(self) -> None:
         self.assertEqual(_version_key("1.12.1"), (1, 12, 1))
         self.assertEqual(_version_key("1.8"), (1, 8, 0))
-        self.assertIsNone(_version_key("23w13a"))
+        self.assertEqual(_version_key("1.7.10"), (1, 7, 10))
+        self.assertEqual(_version_key("26.3"), (26, 3, 0))
+        self.assertEqual(_version_key("26.4-snapshot-7"), (26, 4, 0))
+        self.assertEqual(_version_key("23w13a"), (23, 13, 1))
+        self.assertEqual(_version_key("1.7.10-OptiFine_HD_U_I7"), (1, 7, 10))
         self.assertIsNone(_version_key(""))
+        self.assertIsNone(_version_key("sin-version"))
 
     def test_supported_range(self) -> None:
+        self.assertTrue(in_supported_range("1.7.2"))
+        self.assertTrue(in_supported_range("1.7.10"))
         self.assertTrue(in_supported_range("1.8.9"))
         self.assertTrue(in_supported_range("1.12.1"))
         self.assertTrue(in_supported_range("1.15.2"))
-        self.assertFalse(in_supported_range("1.7.10"))
-        self.assertFalse(in_supported_range("1.16.5"))
-        self.assertEqual(parse_version_key("23w13a"), (0, 0, 0))
+        self.assertTrue(in_supported_range("1.21.5"))
+        self.assertTrue(in_supported_range("26.3"))
+        self.assertFalse(in_supported_range("1.6.4"))
+        self.assertEqual(parse_version_key("23w13a"), (23, 13, 1))
 
 
 class TestRules(unittest.TestCase):

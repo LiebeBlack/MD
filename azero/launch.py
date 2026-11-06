@@ -131,10 +131,23 @@ def build_command(prepared: PreparedGame,
 
     jvm: list[str] = [f"-Xms{min(memory, 1024)}M", f"-Xmx{memory}M"]
 
+    # arguments.default-user-jvm (26.x): flags que Mojang aplica cuando el
+    # usuario no personaliza la JVM. Se ignoran los tamanos de heap porque
+    # el launcher ya fija -Xms/-Xmx segun los ajustes del usuario.
+    default_jvm = expand_arguments(
+        (version_json.get("arguments") or {}).get("default-user-jvm", []),
+        features)
+    for raw in default_jvm:
+        value = _substitute(raw, context)
+        if not value or re.match(r"^-Xm[sxn]", value):
+            continue
+        jvm.append(value)
+
     version_jvm = []
     if version_json.get("arguments"):
         version_jvm = expand_arguments(version_json["arguments"].get("jvm", []), features)
     classpath_value = context["classpath"]
+    has_library_path = False
     for raw in version_jvm:
         if raw in _STRUCTURAL_JVM:
             continue
@@ -143,13 +156,18 @@ def build_command(prepared: PreparedGame,
         # arguments.jvm; el launcher ya los añade al final por su cuenta.
         if not value or value in (classpath_value, prepared.main_class):
             continue
-        if value.startswith(("-Djava.library.path=", "-Dminecraft.launcher.brand=",
+        if value.startswith(("-Dminecraft.launcher.brand=",
                              "-Dminecraft.launcher.version=")):
             continue
+        if value.startswith("-Djava.library.path="):
+            # 26.x apunta a subcarpetas del natives dir (/java, /lwjgl...);
+            # se respeta el valor del manifiesto y no se duplica el nuestro.
+            has_library_path = True
         jvm.append(value)
 
+    if not has_library_path:
+        jvm.append(f"-Djava.library.path={prepared.natives_dir}")
     jvm.extend([
-        f"-Djava.library.path={prepared.natives_dir}",
         f"-Dminecraft.launcher.brand={APP_NAME}",
         f"-Dminecraft.launcher.version={APP_VERSION}",
     ])

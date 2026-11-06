@@ -515,6 +515,52 @@ QComboBox QAbstractItemView::item:selected {
     background-color: rgba($ACCENT_RGB, 0.12);
 }
 
+/* ---- selector de versiones agrupado ---- */
+QToolButton#versionPicker {
+    background-color: $SURFACE;
+    border: 1px solid $BORDER;
+    border-radius: 6px;
+    padding: 6px 30px 6px 10px;
+    min-height: 18px;
+    color: $TEXT;
+    font-weight: 600;
+    text-align: left;
+}
+QToolButton#versionPicker:hover {
+    border-color: $BORDER_STRONG;
+}
+QToolButton#versionPicker:focus {
+    border: 2px solid $ACCENT;
+    background-color: $FIELD_FOCUS;
+    padding: 5px 29px 5px 9px;
+}
+QToolButton#versionPicker:disabled {
+    color: $TEXT_FAINT;
+    background-color: $SURFACE_ALT;
+}
+QFrame#versionPopup {
+    background-color: $SURFACE;
+    border: 1px solid $BORDER_STRONG;
+    border-radius: 8px;
+}
+QTreeWidget#versionTree {
+    background-color: transparent;
+    border: none;
+    outline: none;
+}
+QTreeWidget#versionTree::item {
+    padding: 5px 8px;
+    border-radius: 5px;
+    min-height: 20px;
+}
+QTreeWidget#versionTree::item:hover {
+    background-color: $SURFACE_HOVER;
+}
+QTreeWidget#versionTree::item:selected {
+    background-color: rgba($ACCENT_RGB, 0.12);
+    color: $TEXT;
+}
+
 /* ---- botones ---- */
 QAbstractButton:focus {
     border-color: $ACCENT_DIM;

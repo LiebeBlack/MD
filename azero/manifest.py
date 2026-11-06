@@ -14,11 +14,26 @@ from .util import fetch_json, read_json, write_json
 MANIFEST_TTL_SECONDS = 6 * 3600
 
 
+# Snapshots semanales antiguos: 23w13a, 25w31a...
+_WEEKLY_SNAPSHOT = re.compile(r"^(\d{2})w(\d{1,2})([a-zA-Z])?$")
+# Versiones con sufijo (-snapshot-N, -preN, -OptiFine_...): el prefijo
+# numerado define el orden; los empates conservan el orden del manifiesto.
+_NUMERIC_PREFIX = re.compile(r"^(\d+(?:\.\d+){0,3})")
+
+
 def _version_key(version_id: str) -> tuple[int, int, int] | None:
-    parts = version_id.split(".")
-    if not parts or not all(part.isdigit() for part in parts):
+    if not version_id:
         return None
-    numbers = [int(part) for part in parts]
+    weekly = _WEEKLY_SNAPSHOT.match(version_id)
+    if weekly:
+        year, week = int(weekly.group(1)), int(weekly.group(2))
+        letter = weekly.group(3)
+        patch = ord(letter.lower()) - 96 if letter else 0
+        return year, week, patch
+    match = _NUMERIC_PREFIX.match(version_id)
+    if not match:
+        return None
+    numbers = [int(part) for part in match.group(1).split(".")]
     while len(numbers) < 3:
         numbers.append(0)
     return tuple(numbers[:3])  # type: ignore[return-value]
@@ -162,7 +177,7 @@ def resolve_version(version_id: str) -> dict:
         "type": chain[0].get("type") or base.get("type") or "release",
         "mainClass": None,
         "minecraftArguments": None,
-        "arguments": {"game": [], "jvm": []},
+        "arguments": {"game": [], "jvm": [], "default-user-jvm": []},
         "libraries": [],
         "assetIndex": None,
         "assets": None,
@@ -181,6 +196,8 @@ def resolve_version(version_id: str) -> dict:
         arguments = payload.get("arguments") or {}
         merged["arguments"]["game"].extend(arguments.get("game") or [])
         merged["arguments"]["jvm"].extend(arguments.get("jvm") or [])
+        merged["arguments"]["default-user-jvm"].extend(
+            arguments.get("default-user-jvm") or [])
         merged["libraries"].extend(payload.get("libraries") or [])
         for key in ("assetIndex", "assets", "logging", "javaVersion", "type"):
             if payload.get(key):
@@ -211,7 +228,9 @@ def merge_local_and_manifest(manifest: dict, show_all: bool) -> list[dict]:
     entries: list[dict] = []
     seen = set()
     for entry in manifest_versions(manifest, show_all=show_all):
-        entries.append({"id": entry["id"], "type": "release", "local": False})
+        entries.append({"id": entry["id"],
+                        "type": entry.get("type") or "release",
+                        "local": False})
         seen.add(entry["id"])
 
     for profile_id in local_profiles():

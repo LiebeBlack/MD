@@ -46,6 +46,15 @@ def default_features() -> dict[str, bool]:
     }
 
 
+def _version_tuple(text: str) -> tuple[int, ...]:
+    """'10.0.17134' -> (10, 0, 17134); tolera componentes no numericos."""
+    parts = []
+    for piece in str(text).split("."):
+        digits = "".join(ch for ch in piece if ch.isdigit())
+        parts.append(int(digits) if digits else 0)
+    return tuple(parts)
+
+
 def _rule_matches(rule: dict, features: dict[str, bool]) -> bool:
     os_rule = rule.get("os")
     if os_rule:
@@ -58,6 +67,15 @@ def _rule_matches(rule: dict, features: dict[str, bool]) -> bool:
                 if not re.search(os_rule["version"], os_version()):
                     return False
             except re.error:
+                return False
+        version_range = os_rule.get("versionRange")
+        if version_range:
+            current = _version_tuple(os_version())
+            minimum = version_range.get("min")
+            maximum = version_range.get("max")
+            if minimum and current < _version_tuple(minimum):
+                return False
+            if maximum and current > _version_tuple(maximum):
                 return False
 
     rule_features = rule.get("features")
