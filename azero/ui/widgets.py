@@ -6,13 +6,15 @@ import hashlib
 from typing import Callable
 
 from PyQt6.QtCore import QRectF, Qt, QUrl
-from PyQt6.QtGui import (QColor, QDesktopServices, QFont, QLinearGradient,
-                         QPainter, QPainterPath, QPen)
+from PyQt6.QtGui import (QColor, QDesktopServices, QFont, QFontDatabase,
+                         QLinearGradient, QPainter, QPainterPath, QPen)
 from PyQt6.QtWidgets import (QFrame, QGridLayout, QHBoxLayout, QLabel,
                              QPlainTextEdit, QPushButton, QScrollArea,
                              QSlider, QSizePolicy, QTableWidget,
                              QTableWidgetItem, QVBoxLayout, QWidget)
 
+from .. import APP_VERSION
+from ..branding import brand_mark, brand_pixmap
 from . import theme
 
 
@@ -68,6 +70,95 @@ class Card(QFrame):
         self.body = QVBoxLayout(self)
         self.body.setContentsMargins(margins, margins, margins, margins)
         self.body.setSpacing(spacing)
+
+
+class BrandBanner(QWidget):
+    """Cabecera visual de Acerca de: fondo de marca, logo y version."""
+
+    def __init__(self, parent: QWidget | None = None):
+        super().__init__(parent)
+        self.setFixedHeight(140)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding,
+                           QSizePolicy.Policy.Fixed)
+        self.setAccessibleName("AZeroCraft Launcher")
+        self._fonts = bool(QFontDatabase.families())
+
+    def paintEvent(self, event) -> None:  # noqa: N802 - API de Qt
+        width, height = self.width(), self.height()
+        if width <= 0 or height <= 0:
+            return
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        rect = QRectF(0, 0, width, height)
+        clip = QPainterPath()
+        clip.addRoundedRect(rect, 12, 12)
+        painter.setClipPath(clip)
+
+        gradient = QLinearGradient(0, 0, width, height)
+        gradient.setColorAt(0.0, QColor("#0B3D73"))
+        gradient.setColorAt(0.55, QColor("#0F6CBD"))
+        gradient.setColorAt(1.0, QColor("#0A2342"))
+        painter.fillRect(rect, gradient)
+
+        painter.setPen(QPen(QColor(255, 255, 255, 11), 1))
+        for x in range(-height, width + height, 24):
+            painter.drawLine(x, 0, x + height, height)
+
+        painter.save()
+        painter.setOpacity(0.11)
+        painter.translate(width - 250, 0)
+        painter.scale(2.1, 2.1)
+        brand_mark(painter, QColor("#FFFFFF"), 22)
+        painter.restore()
+
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QColor(255, 255, 255, 236))
+        painter.drawRoundedRect(QRectF(20, 24, 72, 72), 18, 18)
+        painter.drawPixmap(26, 30, brand_pixmap(60))
+
+        if self._fonts:
+            label = QFont("Segoe UI", 6.5, QFont.Weight.Bold)
+            label.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, 1.6)
+            painter.setFont(label)
+            painter.setPen(QColor("#A9D2F5"))
+            painter.drawText(QRectF(108, 20, 400, 14),
+                             Qt.AlignmentFlag.AlignLeft
+                             | Qt.AlignmentFlag.AlignVCenter,
+                             "ACERCA DE")
+
+            painter.setFont(QFont("Segoe UI", 18, QFont.Weight.Bold))
+            painter.setPen(QColor("#FFFFFF"))
+            painter.drawText(QRectF(108, 34, width - 210, 30),
+                             Qt.AlignmentFlag.AlignLeft
+                             | Qt.AlignmentFlag.AlignVCenter,
+                             "AZeroCraft Launcher")
+
+            painter.setFont(QFont("Segoe UI", 8.5))
+            painter.setPen(QColor("#C7E2FA"))
+            painter.drawText(QRectF(108, 70, width - 210, 18),
+                             Qt.AlignmentFlag.AlignLeft
+                             | Qt.AlignmentFlag.AlignVCenter,
+                             "Launcher de Minecraft Java Edition · "
+                             "1.8 – 1.15.2")
+
+            painter.setFont(QFont("Segoe UI", 8))
+            painter.setPen(QColor("#9CC7F0"))
+            painter.drawText(QRectF(108, 92, width - 210, 18),
+                             Qt.AlignmentFlag.AlignLeft
+                             | Qt.AlignmentFlag.AlignVCenter,
+                             "Por Liebe Black · versiones, librerías y "
+                             "Java oficiales · offline y Microsoft")
+
+            pill = QRectF(width - 90, 22, 64, 22)
+            painter.setPen(QPen(QColor(255, 255, 255, 52), 1))
+            painter.setBrush(QColor(255, 255, 255, 28))
+            painter.drawRoundedRect(pill, 11, 11)
+            painter.setPen(QColor("#FFFFFF"))
+            painter.setFont(QFont("Segoe UI", 7.5, QFont.Weight.Bold))
+            painter.drawText(pill, Qt.AlignmentFlag.AlignCenter,
+                             f"v{APP_VERSION}")
+
+        painter.end()
 
 
 class PageHeader(QWidget):

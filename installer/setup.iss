@@ -48,6 +48,7 @@ UninstallDisplayName={#AppName} {#AppVersion}
 Compression=lzma2/ultra64
 SolidCompression=yes
 WizardStyle=modern
+WizardImageStretch=yes
 SetupLogging=yes
 CloseApplications=yes
 CloseApplicationsFilter=AZeroCraft.exe

@@ -38,10 +38,10 @@ from ..manifest import (load_version_profile, local_profiles,
 from ..util import human_size
 from ..workers import ForgeInstallWorker, MSLoginWorker
 from . import theme
-from .widgets import (Avatar, Card, ConsoleView, Divider, FocusWheelSlider,
-                      InfoGrid, PageHeader, Pill, ScrollPage, StatCard,
-                      faint_label, link_button, list_row, make_button,
-                      muted_label, section_label,
+from .widgets import (Avatar, BrandBanner, Card, ConsoleView, Divider,
+                      FocusWheelSlider, InfoGrid, PageHeader, Pill, ScrollPage,
+                      StatCard, faint_label, link_button, list_row,
+                      make_button, muted_label, section_label,
                       set_empty_table_message)
 
 
@@ -2038,12 +2038,8 @@ class AboutPage(ScrollPage):
 
     # ------------------------------------------------------------- build
     def _build(self) -> None:
-        header = PageHeader(
-            "Acerca de",
-            "Launcher, proyecto y sistema.")
-        self.body.addWidget(header)
+        self.body.addWidget(BrandBanner())
 
-        self._app_card()
         self._project_card()
         self._support_card()
         self._update_card()

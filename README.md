@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/azero.png" width="96" alt="AZeroCraft Launcher">
+  <img src="assets/banner.png" alt="AZeroCraft Launcher">
 </p>
 
 # AZeroCraft Launcher

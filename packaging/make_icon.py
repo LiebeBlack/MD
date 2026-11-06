@@ -3,7 +3,8 @@
 Salida:
     assets/azero.ico          icono multiresolucion para exe e instalador
     assets/azero.png          marca 256 px para README/docs
-    assets/wizard.bmp         panel del asistente de Inno Setup
+    assets/banner.png         banner horizontal de README
+    assets/wizard.bmp         panel ampliado del asistente de Inno Setup
     assets/wizard-small.bmp   icono pequeno del asistente
 
 Uso: python packaging/make_icon.py
@@ -21,6 +22,7 @@ sys.path.insert(0, str(ROOT))
 ASSETS = ROOT / "assets"
 ICON_PATH = ASSETS / "azero.ico"
 PNG_PATH = ASSETS / "azero.png"
+BANNER_PATH = ASSETS / "banner.png"
 WIZARD_PATH = ASSETS / "wizard.bmp"
 WIZARD_SMALL_PATH = ASSETS / "wizard-small.bmp"
 
@@ -37,8 +39,8 @@ def main() -> int:
     from PyQt6.QtGui import QImage
     from PyQt6.QtWidgets import QApplication
 
-    from azero.branding import (SIZES, brand_pixmap, wizard_pixmap,
-                                wizard_small_pixmap)
+    from azero.branding import (SIZES, banner_pixmap, brand_pixmap,
+                                wizard_pixmap, wizard_small_pixmap)
 
     app = QApplication.instance() or QApplication([])
     ASSETS.mkdir(parents=True, exist_ok=True)
@@ -69,11 +71,13 @@ def main() -> int:
 
     ICON_PATH.write_bytes(header + directory + data)
     brand_pixmap(256).save(str(PNG_PATH), "PNG")
+    banner_pixmap().save(str(BANNER_PATH), "PNG")
     _save_bmp(wizard_pixmap(), WIZARD_PATH)
     _save_bmp(wizard_small_pixmap(), WIZARD_SMALL_PATH)
 
     print(f"Icono generado: {ICON_PATH} ({ICON_PATH.stat().st_size} bytes)")
     print(f"PNG generado: {PNG_PATH} ({PNG_PATH.stat().st_size} bytes)")
+    print(f"Banner generado: {BANNER_PATH} ({BANNER_PATH.stat().st_size} bytes)")
     print(f"Wizard generado: {WIZARD_PATH} ({WIZARD_PATH.stat().st_size} bytes)")
     print(f"Wizard small generado: {WIZARD_SMALL_PATH} "
           f"({WIZARD_SMALL_PATH.stat().st_size} bytes)")
