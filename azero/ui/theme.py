@@ -7,10 +7,22 @@ from string import Template
 
 from PyQt6.QtCore import QPointF, QRectF, Qt
 from PyQt6.QtGui import (QColor, QFont, QIcon, QLinearGradient, QPainter,
-                         QPainterPath, QPen, QPixmap)
+                         QPainterPath, QPalette, QPen, QPixmap)
 from PyQt6.QtWidgets import QApplication
 
 from .. import paths
+
+# --------------------------------------------------------------------------
+# Escala de la interfaz. Todas las paginas usan estos valores para que los
+# margenes, separaciones y anchos sean consistentes entre pantallas.
+# --------------------------------------------------------------------------
+PAGE_MARGIN = 16
+PAGE_SPACING = 12
+CARD_MARGIN = 12
+CARD_SPACING = 8
+COLUMN_GAP = 12
+CONTENT_MAX_WIDTH = 1280
+SIDEBAR_WIDTH = 200
 
 # Paletas Office 365 / Fluent. Cada tema define todos los tokens del QSS,
 # incluidos los colores "sueltos" (consola, foco de campos, gradientes).
@@ -22,11 +34,11 @@ LIGHT = {
     "SURFACE_HOVER": "#EBEBEB",
     "SURFACE_PRESSED": "#E1E1E1",
     "BORDER": "#D2D0CE",
-    "BORDER_SOFT": "#EBEBEB",
+    "BORDER_SOFT": "#E6E4E2",
     "BORDER_STRONG": "#A19F9D",
     "TEXT": "#252423",
-    "TEXT_DIM": "#605E5C",
-    "TEXT_FAINT": "#8A8886",
+    "TEXT_DIM": "#545250",
+    "TEXT_FAINT": "#737170",
     "ACCENT": "#185ABD",
     "ACCENT_HI": "#0F6CBD",
     "ACCENT_DIM": "#124A9E",
@@ -65,8 +77,8 @@ DARK = {
     "BORDER_SOFT": "#3A3A3A",
     "BORDER_STRONG": "#6E6E6E",
     "TEXT": "#FFFFFF",
-    "TEXT_DIM": "#ADADAD",
-    "TEXT_FAINT": "#8A8A8A",
+    "TEXT_DIM": "#BDBDBD",
+    "TEXT_FAINT": "#969696",
     "ACCENT": "#3E8BDD",
     "ACCENT_HI": "#5592E4",
     "ACCENT_DIM": "#2B6CB8",
@@ -107,7 +119,7 @@ def _ui_assets_dir() -> Path:
     return target
 
 
-def _draw_chevron(path: Path, color: str) -> None:
+def _draw_chevron(path: Path, color: str, up: bool = False) -> None:
     pixmap = QPixmap(24, 24)
     pixmap.fill(Qt.GlobalColor.transparent)
     painter = QPainter(pixmap)
@@ -116,7 +128,11 @@ def _draw_chevron(path: Path, color: str) -> None:
     pen.setCapStyle(Qt.PenCapStyle.RoundCap)
     pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
     painter.setPen(pen)
-    painter.drawPolyline([QPointF(7, 10), QPointF(12, 15), QPointF(17, 10)])
+    if up:
+        points = [QPointF(7, 15), QPointF(12, 10), QPointF(17, 15)]
+    else:
+        points = [QPointF(7, 10), QPointF(12, 15), QPointF(17, 10)]
+    painter.drawPolyline(points)
     painter.end()
     pixmap.save(str(path))
 
@@ -135,17 +151,82 @@ def _draw_check(path: Path, color: str) -> None:
     pixmap.save(str(path))
 
 
+def _draw_clear(path: Path, color: str) -> None:
+    pixmap = QPixmap(24, 24)
+    pixmap.fill(Qt.GlobalColor.transparent)
+    painter = QPainter(pixmap)
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+    pen = QPen(QColor(color), 2.4)
+    pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+    painter.setPen(pen)
+    painter.drawLine(QPointF(8, 8), QPointF(16, 16))
+    painter.drawLine(QPointF(16, 8), QPointF(8, 16))
+    painter.end()
+    pixmap.save(str(path))
+
+
 def generate_assets(palette: dict | None = None) -> dict[str, str]:
     palette = palette or COLORS
     folder = _ui_assets_dir()
     chevron = folder / "chevron.png"
+    chevron_up = folder / "chevron_up.png"
     check = folder / "check.png"
+    clear = folder / "clear.png"
     _draw_chevron(chevron, palette["TEXT_DIM"])
+    _draw_chevron(chevron_up, palette["TEXT_DIM"], up=True)
     _draw_check(check, palette["ACCENT_TEXT"])
+    _draw_clear(clear, palette["TEXT_FAINT"])
     return {
         "chevron": chevron.as_posix(),
+        "chevron_up": chevron_up.as_posix(),
         "check": check.as_posix(),
+        "clear": clear.as_posix(),
     }
+
+
+def build_palette(theme_name: str = "light") -> QPalette:
+    """QPalette real del tema.
+
+    El QSS pinta casi todo, pero Qt dibuja algunos elementos con la paleta
+    (menus contextuales, icono de limpiar de QLineEdit, flechas nativas,
+    tooltips). Sin esto, el modo oscuro mezcla piezas claras del tema Fusion.
+    """
+    p = THEMES.get(theme_name, LIGHT)
+    palette = QPalette()
+    roles = {
+        QPalette.ColorRole.Window: p["BG"],
+        QPalette.ColorRole.WindowText: p["TEXT"],
+        QPalette.ColorRole.Base: p["SURFACE"],
+        QPalette.ColorRole.AlternateBase: p["SURFACE_ALT"],
+        QPalette.ColorRole.ToolTipBase: p["SURFACE"],
+        QPalette.ColorRole.ToolTipText: p["TEXT"],
+        QPalette.ColorRole.PlaceholderText: p["TEXT_FAINT"],
+        QPalette.ColorRole.Text: p["TEXT"],
+        QPalette.ColorRole.Button: p["SURFACE"],
+        QPalette.ColorRole.ButtonText: p["TEXT"],
+        QPalette.ColorRole.BrightText: p["DANGER"],
+        QPalette.ColorRole.Link: p["ACCENT"],
+        QPalette.ColorRole.Highlight: p["ACCENT"],
+        QPalette.ColorRole.HighlightedText: p["ACCENT_TEXT"],
+        QPalette.ColorRole.Light: p["SURFACE_HOVER"],
+        QPalette.ColorRole.Midlight: p["SURFACE_ALT"],
+        QPalette.ColorRole.Mid: p["BORDER"],
+        QPalette.ColorRole.Dark: p["BORDER_STRONG"],
+        QPalette.ColorRole.Shadow: p["BG"],
+    }
+    for role, color in roles.items():
+        palette.setColor(role, QColor(color))
+    disabled = QPalette.ColorGroup.Disabled
+    for role in (QPalette.ColorRole.WindowText, QPalette.ColorRole.Text,
+                 QPalette.ColorRole.ButtonText):
+        palette.setColor(disabled, role, QColor(p["TEXT_FAINT"]))
+    palette.setColor(disabled, QPalette.ColorRole.Base,
+                     QColor(p["SURFACE_ALT"]))
+    palette.setColor(disabled, QPalette.ColorRole.Button,
+                     QColor(p["SURFACE_ALT"]))
+    palette.setColor(disabled, QPalette.ColorRole.Highlight,
+                     QColor(p["BORDER"]))
+    return palette
 
 
 def app_icon() -> QIcon:
@@ -156,9 +237,17 @@ def app_icon() -> QIcon:
     path = QPainterPath()
     path.addRoundedRect(QRectF(4, 4, 120, 120), 26, 26)
     gradient = QLinearGradient(0, 0, 128, 128)
-    gradient.setColorAt(0.0, QColor("#3E8BDD"))
+    gradient.setColorAt(0.0, QColor("#4A95E6"))
     gradient.setColorAt(1.0, QColor("#185ABD"))
     painter.fillPath(path, gradient)
+
+    # Brillo superior sutil, sin depender de imagenes externas.
+    shine = QLinearGradient(0, 0, 0, 128)
+    shine.setColorAt(0.0, QColor(255, 255, 255, 46))
+    shine.setColorAt(0.55, QColor(255, 255, 255, 0))
+    painter.fillPath(path, shine)
+    painter.setPen(QPen(QColor(255, 255, 255, 60), 2))
+    painter.drawRoundedRect(QRectF(5, 5, 118, 118), 25, 25)
 
     font = QFont("Segoe UI", 58, QFont.Weight.Bold)
     painter.setFont(font)
@@ -213,7 +302,7 @@ QLabel {
 }
 QLabel#brandTitle {
     font-family: "Segoe UI", "Inter", sans-serif;
-    font-size: 13pt;
+    font-size: 14pt;
     font-weight: 700;
     letter-spacing: 0.2px;
 }
@@ -224,26 +313,35 @@ QLabel#sectionLabel {
     color: $TEXT_FAINT;
     font-size: 7.5pt;
     font-weight: 700;
-    letter-spacing: 1.4px;
-    padding-top: 2px;
+    letter-spacing: 1.3px;
+    padding-top: 1px;
 }
 QLabel#muted {
     color: $TEXT_DIM;
-    font-size: 8pt;
-    line-height: 1.35;
+    font-size: 8.5pt;
 }
 QLabel#faint {
     color: $TEXT_FAINT;
-    font-size: 7.5pt;
+    font-size: 8pt;
 }
 QLabel#mono {
     color: $TEXT_FAINT;
     font-family: "Cascadia Mono", "Consolas", monospace;
-    font-size: 7.5pt;
+    font-size: 8pt;
 }
 QLabel#valueLabel {
     color: $TEXT;
     font-weight: 600;
+}
+QLabel#appTitle {
+    color: $TEXT;
+    font-size: 18pt;
+    font-weight: 800;
+}
+QLabel#emptyState {
+    color: $TEXT_FAINT;
+    font-size: 8.5pt;
+    font-style: italic;
 }
 QLabel#pill {
     background-color: rgba($ACCENT_RGB, 0.10);
@@ -253,7 +351,7 @@ QLabel#pill {
     padding: 2px 10px;
     font-size: 7.5pt;
     font-weight: 700;
-    letter-spacing: 0.8px;
+    letter-spacing: 0.7px;
 }
 QLabel#pillDim {
     background-color: $SURFACE_ALT;
@@ -262,20 +360,39 @@ QLabel#pillDim {
     border-radius: 10px;
     padding: 2px 10px;
     font-size: 7.5pt;
+    font-weight: 700;
+    letter-spacing: 0.7px;
 }
 QLabel#statusLabel {
     color: $TEXT_DIM;
-    font-size: 8pt;
+    font-size: 8.5pt;
 }
 QLabel#statusError {
     color: $DANGER;
-    font-size: 8pt;
+    font-size: 8.5pt;
     font-weight: 600;
 }
 QLabel#statusOk {
     color: $OK_COLOR;
-    font-size: 8pt;
+    font-size: 8.5pt;
     font-weight: 600;
+}
+QLabel#statusDot {
+    min-width: 8px;
+    max-width: 8px;
+    min-height: 8px;
+    max-height: 8px;
+    border-radius: 4px;
+    background-color: $TEXT_FAINT;
+}
+QLabel#statusDot[kind="ok"] {
+    background-color: $OK_COLOR;
+}
+QLabel#statusDot[kind="error"] {
+    background-color: $DANGER;
+}
+QLabel#statusDot[kind="busy"] {
+    background-color: $WARN;
 }
 
 /* ---- campos de texto ---- */
@@ -283,7 +400,7 @@ QLineEdit {
     background-color: $SURFACE;
     border: 1px solid $BORDER;
     border-radius: 6px;
-    padding: 5px 9px;
+    padding: 6px 10px;
     selection-background-color: rgba($ACCENT_RGB, 0.22);
     selection-color: $TEXT;
 }
@@ -291,8 +408,9 @@ QLineEdit:hover {
     border-color: $BORDER_STRONG;
 }
 QLineEdit:focus {
-    border-color: $ACCENT;
+    border: 2px solid $ACCENT;
     background-color: $FIELD_FOCUS;
+    padding: 5px 9px;
 }
 QLineEdit:disabled {
     color: $TEXT_FAINT;
@@ -306,9 +424,14 @@ QLineEdit#nameEdit {
     border: 1px solid transparent;
     border-radius: 6px;
 }
-QLineEdit#nameEdit:hover, QLineEdit#nameEdit:focus {
+QLineEdit#nameEdit:hover {
     background-color: $SURFACE;
     border-color: $BORDER;
+}
+QLineEdit#nameEdit:focus {
+    background-color: $SURFACE;
+    border: 1px solid $ACCENT;
+    padding: 2px 6px;
 }
 
 /* ---- combos ---- */
@@ -316,15 +439,16 @@ QComboBox {
     background-color: $SURFACE;
     border: 1px solid $BORDER;
     border-radius: 6px;
-    padding: 5px 30px 5px 9px;
-    min-height: 15px;
+    padding: 6px 30px 6px 10px;
+    min-height: 17px;
 }
 QComboBox:hover {
     border-color: $BORDER_STRONG;
 }
 QComboBox:focus {
-    border-color: $ACCENT;
+    border: 2px solid $ACCENT;
     background-color: $FIELD_FOCUS;
+    padding: 5px 29px 5px 9px;
 }
 QComboBox:disabled {
     color: $TEXT_FAINT;
@@ -349,9 +473,9 @@ QComboBox QAbstractItemView {
     outline: none;
 }
 QComboBox QAbstractItemView::item {
-    padding: 4px 7px;
+    padding: 5px 9px;
     border-radius: 5px;
-    min-height: 15px;
+    min-height: 18px;
 }
 QComboBox QAbstractItemView::item:hover {
     background-color: $SURFACE_HOVER;
@@ -368,7 +492,7 @@ QPushButton {
     background-color: $SURFACE;
     border: 1px solid $BORDER;
     border-radius: 6px;
-    padding: 5px 11px;
+    padding: 6px 12px;
     color: $TEXT;
     font-weight: 600;
 }
@@ -389,12 +513,12 @@ QPushButton#playButton {
     background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
                                 stop:0 $PLAY_A, stop:1 $PLAY_B);
     border: 1px solid rgba(255, 255, 255, 0.18);
-    border-radius: 7px;
+    border-radius: 8px;
     color: $ACCENT_TEXT;
-    font-size: 11pt;
+    font-size: 12pt;
     font-weight: 700;
-    letter-spacing: 1px;
-    padding: 12px 18px;
+    letter-spacing: 1.2px;
+    padding: 13px 18px;
 }
 QPushButton#playButton:hover {
     background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
@@ -404,6 +528,10 @@ QPushButton#playButton:hover {
 QPushButton#playButton:pressed {
     background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
                                 stop:0 $PLAY_B, stop:1 $ACCENT_DIM);
+}
+QPushButton#playButton:focus {
+    border: 2px solid $TEXT;
+    padding: 12px 17px;
 }
 QPushButton#playButton:disabled {
     background: $SURFACE_ALT;
@@ -424,7 +552,7 @@ QPushButton#ghostButton {
     border: 1px solid transparent;
     border-radius: 6px;
     color: $TEXT_DIM;
-    padding: 4px 8px;
+    padding: 5px 9px;
     font-weight: 600;
 }
 QPushButton#ghostButton:hover {
@@ -434,6 +562,11 @@ QPushButton#ghostButton:hover {
 }
 QPushButton#ghostButton:pressed {
     background-color: $SURFACE_PRESSED;
+}
+QPushButton#ghostButton:focus {
+    color: $TEXT;
+    border-color: $ACCENT;
+    background-color: rgba($ACCENT_RGB, 0.06);
 }
 QPushButton#ghostButton:disabled {
     color: $TEXT_FAINT;
@@ -456,6 +589,10 @@ QPushButton#accentGhost:hover {
 QPushButton#accentGhost:pressed {
     background-color: rgba($ACCENT_RGB, 0.20);
 }
+QPushButton#accentGhost:focus {
+    border: 2px solid $ACCENT;
+    padding: 4px 10px;
+}
 QPushButton#accentGhost:disabled {
     color: $TEXT_FAINT;
     background-color: $SURFACE_ALT;
@@ -477,6 +614,10 @@ QPushButton#iconButton:hover {
 QPushButton#iconButton:pressed {
     background-color: $SURFACE_PRESSED;
 }
+QPushButton#iconButton:focus {
+    border-color: $ACCENT;
+    color: $TEXT;
+}
 QPushButton#iconButton:disabled {
     color: $TEXT_FAINT;
 }
@@ -495,6 +636,10 @@ QPushButton#dangerButton:hover {
 QPushButton#dangerButton:pressed {
     background-color: rgba($DANGER_RGB, 0.14);
 }
+QPushButton#dangerButton:focus {
+    border: 2px solid $DANGER;
+    padding: 4px 10px;
+}
 QPushButton#dangerButton:disabled {
     color: $TEXT_FAINT;
     border-color: rgba($DANGER_RGB, 0.15);
@@ -505,7 +650,7 @@ QPushButton#primaryButton {
     border-radius: 6px;
     color: $ACCENT_TEXT;
     font-weight: 600;
-    padding: 6px 12px;
+    padding: 6px 13px;
 }
 QPushButton#primaryButton:hover {
     background-color: $ACCENT_HI;
@@ -514,10 +659,66 @@ QPushButton#primaryButton:hover {
 QPushButton#primaryButton:pressed {
     background-color: $ACCENT_DIM;
 }
+QPushButton#primaryButton:focus {
+    border: 2px solid $ACCENT_TEXT;
+    padding: 5px 12px;
+}
 QPushButton#primaryButton:disabled {
     background-color: $SURFACE_ALT;
     border-color: $BORDER_SOFT;
     color: $TEXT_FAINT;
+}
+QPushButton#segButton {
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    color: $TEXT_DIM;
+    padding: 5px 16px;
+    font-weight: 600;
+}
+QPushButton#segButton:hover {
+    color: $TEXT;
+    background-color: $SURFACE_HOVER;
+}
+QPushButton#segButton:checked {
+    background-color: $SURFACE;
+    border-color: $BORDER;
+    color: $ACCENT;
+    font-weight: 700;
+}
+QPushButton#segButton:focus {
+    border-color: $ACCENT;
+}
+QFrame#segmented {
+    background-color: $SURFACE_ALT;
+    border: 1px solid $BORDER;
+    border-radius: 8px;
+}
+QPushButton#presetButton {
+    background: transparent;
+    border: 1px solid $BORDER_SOFT;
+    border-radius: 5px;
+    color: $TEXT_DIM;
+    padding: 3px 9px;
+    font-size: 8pt;
+    font-weight: 600;
+}
+QPushButton#presetButton:hover {
+    color: $TEXT;
+    background-color: $SURFACE_HOVER;
+    border-color: $BORDER;
+}
+QPushButton#presetButton:checked {
+    background-color: rgba($ACCENT_RGB, 0.11);
+    border-color: rgba($ACCENT_RGB, 0.40);
+    color: $ACCENT;
+}
+QPushButton#presetButton:focus {
+    border-color: $ACCENT;
+}
+QPushButton#presetButton:disabled {
+    color: $TEXT_FAINT;
+    border-color: $BORDER_SOFT;
 }
 
 /* ---- spin boxes ---- */
@@ -525,32 +726,53 @@ QSpinBox {
     background-color: $SURFACE;
     border: 1px solid $BORDER;
     border-radius: 6px;
-    padding: 5px 6px;
-    min-height: 15px;
+    padding: 6px 8px;
+    min-height: 17px;
     color: $TEXT;
 }
 QSpinBox:hover {
     border-color: $BORDER_STRONG;
 }
 QSpinBox:focus {
-    border-color: $ACCENT;
+    border: 2px solid $ACCENT;
     background-color: $FIELD_FOCUS;
+    padding: 5px 7px;
 }
 QSpinBox:disabled {
     color: $TEXT_FAINT;
     background-color: $SURFACE_ALT;
 }
 QSpinBox::up-button, QSpinBox::down-button {
-    width: 22px;
+    width: 20px;
     border: none;
+    border-left: 1px solid $BORDER_SOFT;
     background: transparent;
+}
+QSpinBox::up-button {
+    subcontrol-origin: border;
+    subcontrol-position: top right;
+    border-top-right-radius: 6px;
+}
+QSpinBox::down-button {
+    subcontrol-origin: border;
+    subcontrol-position: bottom right;
+    border-bottom-right-radius: 6px;
 }
 QSpinBox::up-button:hover, QSpinBox::down-button:hover {
     background-color: $SURFACE_HOVER;
-    border-radius: 4px;
 }
 QSpinBox::up-button:pressed, QSpinBox::down-button:pressed {
-    background-color: $ACCENT_DIM;
+    background-color: $SURFACE_PRESSED;
+}
+QSpinBox::up-arrow {
+    image: url("$CHEVRON_UP");
+    width: 9px;
+    height: 9px;
+}
+QSpinBox::down-arrow {
+    image: url("$CHEVRON");
+    width: 9px;
+    height: 9px;
 }
 
 /* ---- checks y sliders ---- */
@@ -558,9 +780,16 @@ QCheckBox {
     color: $TEXT_DIM;
     spacing: 8px;
     font-size: 8.5pt;
+    border: 1px solid transparent;
+    border-radius: 5px;
+    padding: 1px 3px;
 }
 QCheckBox:hover {
     color: $TEXT;
+}
+QCheckBox:focus {
+    color: $TEXT;
+    border-color: $ACCENT;
 }
 QCheckBox:disabled {
     color: $TEXT_FAINT;
@@ -605,9 +834,9 @@ QSlider::add-page:horizontal {
 }
 QSlider::handle:horizontal {
     background: $SURFACE;
-    width: 13px;
-    height: 13px;
-    margin: -4px 0;
+    width: 14px;
+    height: 14px;
+    margin: -5px 0;
     border-radius: 8px;
     border: 2px solid $BORDER_STRONG;
 }
@@ -624,7 +853,7 @@ QSlider::sub-page:horizontal:disabled, QSlider::groove:horizontal:disabled {
 }
 
 /* ---- consola y progreso ---- */
-QPlainTextEdit#console {
+QPlainTextEdit#console, QTextEdit#console {
     background-color: $CONSOLE_BG;
     border: 1px solid $BORDER_SOFT;
     border-radius: 8px;
@@ -634,15 +863,18 @@ QPlainTextEdit#console {
     selection-background-color: $CONSOLE_SEL;
     padding: 8px;
 }
-QPlainTextEdit#console:hover {
+QPlainTextEdit#console:hover, QTextEdit#console:hover {
     border-color: $BORDER;
+}
+QPlainTextEdit#console:focus, QTextEdit#console:focus {
+    border-color: $ACCENT;
 }
 
 QProgressBar {
     background-color: $SURFACE_HOVER;
     border: 1px solid $BORDER_SOFT;
     border-radius: 4px;
-    height: 7px;
+    height: 8px;
     text-align: center;
     color: transparent;
 }
@@ -655,8 +887,8 @@ QProgressBar::chunk {
 /* ---- scrollbars ---- */
 QScrollBar:vertical {
     background: transparent;
-    width: 8px;
-    margin: 2px 2px;
+    width: 9px;
+    margin: 2px;
 }
 QScrollBar::handle:vertical {
     background: $BORDER;
@@ -681,8 +913,8 @@ QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
 }
 QScrollBar:horizontal {
     background: transparent;
-    height: 8px;
-    margin: 2px 2px;
+    height: 9px;
+    margin: 2px;
 }
 QScrollBar::handle:horizontal {
     background: $BORDER;
@@ -702,9 +934,46 @@ QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {
     background: transparent;
 }
 
-/* ---- dialogos, tooltips, divisores ---- */
+/* ---- menus, dialogos, tooltips, divisores ---- */
+QMenu {
+    background-color: $SURFACE;
+    border: 1px solid $BORDER;
+    border-radius: 8px;
+    padding: 5px;
+}
+QMenu::item {
+    background: transparent;
+    color: $TEXT;
+    padding: 6px 22px 6px 14px;
+    border-radius: 5px;
+}
+QMenu::item:selected {
+    background-color: rgba($ACCENT_RGB, 0.14);
+    color: $TEXT;
+}
+QMenu::item:disabled {
+    color: $TEXT_FAINT;
+}
+QMenu::separator {
+    height: 1px;
+    background: $BORDER_SOFT;
+    margin: 4px 8px;
+}
+QToolButton {
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 5px;
+    padding: 3px;
+}
+QToolButton:hover {
+    background-color: $SURFACE_HOVER;
+    border-color: $BORDER_SOFT;
+}
 QDialog {
     background-color: $BG_ALT;
+}
+QDialogButtonBox QPushButton, QMessageBox QPushButton {
+    min-width: 84px;
 }
 QToolTip {
     background-color: $SURFACE;
@@ -738,19 +1007,20 @@ QLabel#navTitle {
     color: $TEXT_FAINT;
     font-size: 7.5pt;
     font-weight: 700;
-    letter-spacing: 1.4px;
-    padding: 6px 12px 2px 12px;
+    letter-spacing: 1.3px;
+    padding: 8px 12px 2px 12px;
 }
 QPushButton#navButton {
     background: transparent;
     border: 1px solid transparent;
+    border-left: 3px solid transparent;
     border-radius: 6px;
     color: $TEXT_DIM;
     text-align: left;
-    padding: 6px 10px;
+    padding: 7px 10px 7px 8px;
     font-size: 9pt;
     font-weight: 600;
-    min-height: 18px;
+    min-height: 20px;
 }
 QPushButton#navButton:hover {
     background-color: rgba($ACCENT_RGB, 0.06);
@@ -759,9 +1029,14 @@ QPushButton#navButton:hover {
 QPushButton#navButton:pressed {
     background-color: rgba($ACCENT_RGB, 0.12);
 }
+QPushButton#navButton:focus {
+    border-color: $ACCENT;
+    color: $TEXT;
+}
 QPushButton#navButton[active="true"] {
     background-color: rgba($ACCENT_RGB, 0.12);
     border-color: rgba($ACCENT_RGB, 0.20);
+    border-left: 3px solid $ACCENT;
     color: $ACCENT;
     font-weight: 700;
 }
@@ -776,14 +1051,13 @@ QWidget#page {
 }
 QLabel#pageTitle {
     color: $TEXT;
-    font-size: 15pt;
-    font-weight: 700;
-    letter-spacing: 0.2px;
+    font-size: 16pt;
+    font-weight: 800;
+    letter-spacing: 0.1px;
 }
 QLabel#pageSubtitle {
     color: $TEXT_DIM;
     font-size: 9pt;
-    letter-spacing: 0.1px;
 }
 QFrame#pageHeader {
     background: transparent;
@@ -802,26 +1076,36 @@ QTableWidget, QListWidget, QTreeWidget {
     selection-color: $TEXT;
     outline: none;
 }
+QTableWidget:focus, QListWidget:focus, QTreeWidget:focus {
+    border-color: $ACCENT;
+}
 QTableWidget {
     alternate-background-color: $SURFACE_ALT;
 }
 QTableWidget::item, QListWidget::item, QTreeWidget::item {
-    padding: 3px 8px;
+    padding: 4px 8px;
     border: none;
 }
 QTableWidget::item:hover, QListWidget::item:hover,
 QTreeWidget::item:hover {
     background-color: $SURFACE_HOVER;
 }
+QTableWidget::item:selected {
+    background-color: rgba($ACCENT_RGB, 0.12);
+    color: $TEXT;
+}
 QHeaderView::section {
     background-color: $SURFACE_ALT;
     color: $TEXT_FAINT;
     border: none;
     border-bottom: 1px solid $BORDER_SOFT;
-    padding: 5px 9px;
+    padding: 6px 9px;
     font-size: 7.5pt;
     font-weight: 700;
-    letter-spacing: 1px;
+    letter-spacing: 0.9px;
+}
+QHeaderView::section:hover {
+    color: $TEXT_DIM;
 }
 QTableCornerButton::section {
     background-color: $SURFACE_ALT;
@@ -847,7 +1131,7 @@ QFrame#statCard:hover {
 }
 QLabel#statValue {
     color: $TEXT;
-    font-size: 12pt;
+    font-size: 13pt;
     font-weight: 700;
 }
 QLabel#statCaption {
@@ -870,7 +1154,8 @@ def build_stylesheet(theme_name: str = "light") -> str:
     palette = THEMES.get(theme_name, LIGHT)
     assets = generate_assets(palette)
     return QSS.substitute(**palette, CHEVRON=assets["chevron"],
-                          CHECK=assets["check"])
+                          CHEVRON_UP=assets["chevron_up"],
+                          CHECK=assets["check"], CLEAR=assets["clear"])
 
 
 def apply_theme(app: QApplication, theme_name: str = "light") -> None:
@@ -881,6 +1166,7 @@ def apply_theme(app: QApplication, theme_name: str = "light") -> None:
     palette = THEMES[theme_name]
     COLORS = dict(palette)
     app.setStyle("Fusion")
+    app.setPalette(build_palette(theme_name))
     app.setWindowIcon(app_icon())
     font = QFont("Segoe UI", 10)
     font.setHintingPreference(QFont.HintingPreference.PreferFullHinting)
