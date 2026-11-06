@@ -10,8 +10,8 @@ from PyQt6.QtGui import (QColor, QDesktopServices, QFont, QLinearGradient,
                          QPainter, QPainterPath, QPen)
 from PyQt6.QtWidgets import (QFrame, QGridLayout, QHBoxLayout, QLabel,
                              QPlainTextEdit, QPushButton, QScrollArea,
-                             QSizePolicy, QTableWidget, QTableWidgetItem,
-                             QVBoxLayout, QWidget)
+                             QSlider, QSizePolicy, QTableWidget,
+                             QTableWidgetItem, QVBoxLayout, QWidget)
 
 from . import theme
 
@@ -240,6 +240,16 @@ class Divider(QFrame):
         self.setFixedHeight(1)
         self.setSizePolicy(QSizePolicy.Policy.Expanding,
                            QSizePolicy.Policy.Fixed)
+
+
+class FocusWheelSlider(QSlider):
+    """Slider que ignora la rueda salvo que tenga el foco de teclado."""
+
+    def wheelEvent(self, event) -> None:  # noqa: N802 - API de Qt
+        if self.hasFocus():
+            super().wheelEvent(event)
+        else:
+            event.ignore()
 
 
 def section_label(text: str) -> QLabel:

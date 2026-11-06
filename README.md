@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/azero.png" width="96" alt="AZeroCraft Launcher">
+</p>
+
 # AZeroCraft Launcher
 
 **Desarrollado por [Liebe Black](https://github.com/LiebeBlack)** ·

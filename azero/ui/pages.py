@@ -38,10 +38,11 @@ from ..manifest import (load_version_profile, local_profiles,
 from ..util import human_size
 from ..workers import ForgeInstallWorker, MSLoginWorker
 from . import theme
-from .widgets import (Avatar, Card, ConsoleView, Divider, InfoGrid,
-                      PageHeader, Pill, ScrollPage, StatCard, faint_label,
-                      link_button, list_row, make_button, muted_label,
-                      section_label, set_empty_table_message)
+from .widgets import (Avatar, Card, ConsoleView, Divider, FocusWheelSlider,
+                      InfoGrid, PageHeader, Pill, ScrollPage, StatCard,
+                      faint_label, link_button, list_row, make_button,
+                      muted_label, section_label,
+                      set_empty_table_message)
 
 
 def _gb_text(memory_mb: int) -> str:
@@ -375,7 +376,7 @@ class PlayPage(ScrollPage):
         head.addWidget(self.ram_value)
         card.body.addLayout(head)
 
-        self.ram_slider = QSlider(Qt.Orientation.Horizontal)
+        self.ram_slider = FocusWheelSlider(Qt.Orientation.Horizontal)
         ram_max = hardware.memory_slider_max_mb()
         self.ram_slider.setMinimum(MIN_MEMORY_MB)
         self.ram_slider.setMaximum(ram_max)
@@ -386,13 +387,14 @@ class PlayPage(ScrollPage):
             "de la disponible provoca cierres y lentitud en el sistema.")
         self.ram_slider.valueChanged.connect(self.shell._on_ram_changed)
         self.ram_slider.valueChanged.connect(self._sync_ram_presets)
-        self.ram_slider.sliderReleased.connect(self.shell._save_settings)
+        self.ram_slider.sliderReleased.connect(self._commit_ram)
         card.body.addWidget(self.ram_slider)
 
         presets = QHBoxLayout()
         presets.setSpacing(6)
+        recommended = hardware.recommended_memory_mb()
         for label, mb in (("2 GB", 2048), ("4 GB", 4096),
-                          ("Recomendado", hardware.recommended_memory_mb()),
+                          ("Recomendado", recommended),
                           ("Máx", ram_max)):
             button = make_button(
                 label, "preset", f"Asignar {mb} MB de RAM al juego")
@@ -403,6 +405,8 @@ class PlayPage(ScrollPage):
             presets.addWidget(button)
         presets.addStretch(1)
         card.body.addLayout(presets)
+        card.body.addWidget(faint_label(
+            f"Sugerido para este equipo: {_ram_text(recommended)}."))
 
         card.body.addWidget(Divider())
         card.body.addWidget(faint_label("Servidor (opcional)"))
@@ -435,6 +439,16 @@ class PlayPage(ScrollPage):
         self.ram_slider.setValue(mb)
         self.shell._save_settings()
         self._sync_ram_presets()
+
+    def _commit_ram(self) -> None:
+        """Ajusta la RAM a pasos de 512 MB al soltar el slider."""
+        value = self.ram_slider.value()
+        snapped = round(value / MEMORY_STEP_MB) * MEMORY_STEP_MB
+        snapped = max(self.ram_slider.minimum(),
+                      min(self.ram_slider.maximum(), snapped))
+        if snapped != value:
+            self.ram_slider.setValue(snapped)
+        self.shell._save_settings()
 
     def _sync_ram_presets(self, *_) -> None:
         """Marca un único preset: el que coincide con el slider."""
@@ -510,14 +524,25 @@ class VersionsPage(ScrollPage):
 
         installed_card = Card()
         installed_card.body.addWidget(section_label("Versiones instaladas"))
+        filters = QHBoxLayout()
+        filters.setSpacing(8)
         self.filter_edit = QLineEdit()
-        self.filter_edit.setPlaceholderText(
-            "Filtrar por versión, Forge u OptiFine…")
+        self.filter_edit.setPlaceholderText("Filtrar por nombre o versión…")
         self.filter_edit.setClearButtonEnabled(True)
         self.filter_edit.setToolTip(
-            "Filtra la lista por nombre de versión, Forge u OptiFine.")
+            "Filtra la lista por nombre de versión o grupo.")
         self.filter_edit.textChanged.connect(self._apply_filter)
-        installed_card.body.addWidget(self.filter_edit)
+        filters.addWidget(self.filter_edit, 1)
+        self.type_filter = QComboBox()
+        self.type_filter.addItem("Todos los tipos", "all")
+        self.type_filter.addItem("Vanilla", "Vanilla")
+        self.type_filter.addItem("Forge", "Forge")
+        self.type_filter.addItem("OptiFine", "OptiFine")
+        self.type_filter.setFixedWidth(150)
+        self.type_filter.setToolTip("Mostrar solo un tipo de perfil")
+        self.type_filter.currentIndexChanged.connect(self._apply_filter)
+        filters.addWidget(self.type_filter)
+        installed_card.body.addLayout(filters)
 
         self.installed_list = QTreeWidget()
         self.installed_list.setColumnCount(1)
@@ -529,11 +554,13 @@ class VersionsPage(ScrollPage):
         self.installed_list.setUniformRowHeights(False)
         self.installed_list.setMinimumHeight(190)
         self.installed_list.setMaximumHeight(420)
+        self.installed_list.setExpandsOnDoubleClick(False)
+        self.installed_list.setToolTip(
+            "Pulsa un grupo para plegarlo o desplegarlo.")
+        self.installed_list.itemClicked.connect(self._on_tree_clicked)
+        self.installed_list.itemExpanded.connect(self._on_group_toggled)
+        self.installed_list.itemCollapsed.connect(self._on_group_toggled)
         installed_card.body.addWidget(self.installed_list)
-        self.installed_list.itemExpanded.connect(
-            lambda _item: self._fit_installed_height())
-        self.installed_list.itemCollapsed.connect(
-            lambda _item: self._fit_installed_height())
 
         self.filter_empty = QLabel("Sin resultados para este filtro.")
         self.filter_empty.setObjectName("emptyState")
@@ -755,15 +782,15 @@ class VersionsPage(ScrollPage):
             row.ensurePolished()
             item = QTreeWidgetItem()
             item.setData(0, Qt.ItemDataRole.UserRole, entry["id"])
+            item.setData(0, int(Qt.ItemDataRole.UserRole) + 1,
+                         entry["kind"])
             item.setSizeHint(0, row.sizeHint())
             group.addChild(item)
             self.installed_list.setItemWidget(item, 0, row)
 
         for group in groups.values():
-            count = group.childCount()
-            unit = "versión" if count == 1 else "versiones"
-            group.setText(0, f"{group.text(0)}  ·  {count} {unit}")
             group.setExpanded(True)
+            group.setText(0, self._group_label_text(group))
 
         if self.installed_list.topLevelItemCount() == 0:
             item = QTreeWidgetItem(
@@ -778,30 +805,59 @@ class VersionsPage(ScrollPage):
         self.extra_roots_label.setText(
             "Carpetas adicionales: " + " · ".join(extra) if extra else "")
 
+    def _group_label_text(self, group: QTreeWidgetItem) -> str:
+        """Texto del grupo con conteo visible y cheurón de estado."""
+        label = str(group.data(0, Qt.ItemDataRole.UserRole) or "")
+        total = group.childCount()
+        visible = sum(1 for index in range(total)
+                      if not group.child(index).isHidden())
+        prefix = "▾" if group.isExpanded() else "▸"
+        if visible == total:
+            unit = "versión" if total == 1 else "versiones"
+            return f"{prefix}  {label}  ·  {total} {unit}"
+        return f"{prefix}  {label}  ·  {visible} de {total}"
+
+    def _on_group_toggled(self, item: QTreeWidgetItem) -> None:
+        if item.childCount():
+            item.setText(0, self._group_label_text(item))
+        self._fit_installed_height()
+
+    def _on_tree_clicked(self, item: QTreeWidgetItem, _column: int) -> None:
+        if item.parent() is None and item.childCount():
+            item.setExpanded(not item.isExpanded())
+
     def _apply_filter(self) -> None:
-        """Filtra el árbol de versiones instaladas por texto."""
+        """Filtra el árbol por texto y por tipo de perfil."""
         text = self.filter_edit.text().strip().lower()
+        kind = (self.type_filter.currentData()
+                if hasattr(self, "type_filter") else "all")
+        kind = kind or "all"
         any_visible = False
         for i in range(self.installed_list.topLevelItemCount()):
             group = self.installed_list.topLevelItem(i)
             if group.childCount() == 0:
                 # Elemento placeholder ("No hay versiones…").
-                group.setHidden(bool(text))
+                group.setHidden(bool(text) or kind != "all")
                 continue
             visible = 0
             for j in range(group.childCount()):
                 child = group.child(j)
                 version_id = str(
                     child.data(0, Qt.ItemDataRole.UserRole) or "")
+                child_kind = str(
+                    child.data(0, int(Qt.ItemDataRole.UserRole) + 1) or "")
                 group_key = str(
                     group.data(0, Qt.ItemDataRole.UserRole) or "").lower()
                 match = (not text or text in version_id.lower()
                          or text in group_key)
+                match = match and (kind == "all" or child_kind == kind)
                 child.setHidden(not match)
                 visible += 0 if child.isHidden() else 1
             group.setHidden(visible == 0)
+            group.setText(0, self._group_label_text(group))
             any_visible = any_visible or visible > 0
-        no_results = (bool(text) and not any_visible
+        filtered = bool(text) or kind != "all"
+        no_results = (filtered and not any_visible
                       and self.installed_list.topLevelItemCount() > 0)
         self.filter_empty.setVisible(no_results)
         self.installed_list.setVisible(not no_results)

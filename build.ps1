@@ -52,6 +52,16 @@ Write-Host "`nEjecutable generado en: $root\dist\AZeroCraft\AZeroCraft.exe" -For
 
 # 4. Instalador Inno Setup (opcional)
 if ($Installer) {
+    # La version del instalador debe seguir a APP_VERSION; si no, el
+    # setup se generaria con un nombre y una ficha obsoletos.
+    $appVersion = (& $venvPython -c "from azero.constants import APP_VERSION; print(APP_VERSION)").Trim()
+    if (-not $appVersion) {
+        throw "No se pudo leer APP_VERSION de azero.constants."
+    }
+    $issText = Get-Content -Raw "installer\setup.iss"
+    if ($issText -notmatch ('#define AppVersion "' + [regex]::Escape($appVersion) + '"')) {
+        throw "APP_VERSION ($appVersion) no coincide con installer\setup.iss."
+    }
     $iscc = Get-Command ISCC.exe -ErrorAction SilentlyContinue
     if (-not $iscc) {
         $candidates = @(

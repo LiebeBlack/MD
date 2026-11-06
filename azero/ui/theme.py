@@ -6,11 +6,12 @@ from pathlib import Path
 from string import Template
 
 from PyQt6.QtCore import QPointF, QRectF, Qt
-from PyQt6.QtGui import (QColor, QFont, QIcon, QLinearGradient, QPainter,
-                         QPainterPath, QPalette, QPen, QPixmap)
+from PyQt6.QtGui import (QColor, QFont, QIcon, QPainter, QPainterPath,
+                         QPalette, QPen, QPixmap)
 from PyQt6.QtWidgets import QApplication
 
 from .. import paths
+from ..branding import brand_icon
 
 # --------------------------------------------------------------------------
 # Escala de la interfaz. Todas las paginas usan estos valores para que los
@@ -277,31 +278,8 @@ def build_palette(theme_name: str = "light") -> QPalette:
 
 
 def app_icon() -> QIcon:
-    pixmap = QPixmap(128, 128)
-    pixmap.fill(Qt.GlobalColor.transparent)
-    painter = QPainter(pixmap)
-    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-    path = QPainterPath()
-    path.addRoundedRect(QRectF(4, 4, 120, 120), 26, 26)
-    gradient = QLinearGradient(0, 0, 128, 128)
-    gradient.setColorAt(0.0, QColor("#4A95E6"))
-    gradient.setColorAt(1.0, QColor("#185ABD"))
-    painter.fillPath(path, gradient)
-
-    # Brillo superior sutil, sin depender de imagenes externas.
-    shine = QLinearGradient(0, 0, 0, 128)
-    shine.setColorAt(0.0, QColor(255, 255, 255, 46))
-    shine.setColorAt(0.55, QColor(255, 255, 255, 0))
-    painter.fillPath(path, shine)
-    painter.setPen(QPen(QColor(255, 255, 255, 60), 2))
-    painter.drawRoundedRect(QRectF(5, 5, 118, 118), 25, 25)
-
-    font = QFont("Segoe UI", 58, QFont.Weight.Bold)
-    painter.setFont(font)
-    painter.setPen(QColor("#FFFFFF"))
-    painter.drawText(QRectF(0, 0, 128, 128), Qt.AlignmentFlag.AlignCenter, "A")
-    painter.end()
-    return QIcon(pixmap)
+    """Icono de la app: la misma marca vectorial que el .ico e instalador."""
+    return brand_icon()
 
 
 QSS = Template("""

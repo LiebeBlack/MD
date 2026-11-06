@@ -1,4 +1,10 @@
-"""Genera assets/azero.ico con el mismo logo que usa la UI.
+"""Genera los recursos de marca de AZeroCraft.
+
+Salida:
+    assets/azero.ico          icono multiresolucion para exe e instalador
+    assets/azero.png          marca 256 px para README/docs
+    assets/wizard.bmp         panel del asistente de Inno Setup
+    assets/wizard-small.bmp   icono pequeno del asistente
 
 Uso: python packaging/make_icon.py
 """
@@ -12,43 +18,39 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-ICON_PATH = ROOT / "assets" / "azero.ico"
+ASSETS = ROOT / "assets"
+ICON_PATH = ASSETS / "azero.ico"
+PNG_PATH = ASSETS / "azero.png"
+WIZARD_PATH = ASSETS / "wizard.bmp"
+WIZARD_SMALL_PATH = ASSETS / "wizard-small.bmp"
+
+
+def _save_bmp(pixmap, path: Path) -> None:
+    """BMP opaco de 24 bits, el formato mas compatible con Inno Setup."""
+    from PyQt6.QtGui import QImage
+    image = pixmap.toImage().convertToFormat(QImage.Format.Format_RGB888)
+    image.save(str(path), "BMP")
 
 
 def main() -> int:
-    import os
-    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-
-    from PyQt6.QtCore import QBuffer, QIODevice, QRectF, Qt
-    from PyQt6.QtGui import QColor, QFont, QImage, QLinearGradient, QPainter, QPainterPath, QPixmap
+    from PyQt6.QtCore import QBuffer, QIODevice
+    from PyQt6.QtGui import QImage
     from PyQt6.QtWidgets import QApplication
 
+    from azero.branding import (SIZES, brand_pixmap, wizard_pixmap,
+                                wizard_small_pixmap)
+
     app = QApplication.instance() or QApplication([])
+    ASSETS.mkdir(parents=True, exist_ok=True)
 
-    sizes = (16, 24, 32, 48, 64, 128, 256)
     images: list[QImage] = []
-    for size in sizes:
-        pixmap = QPixmap(size, size)
-        pixmap.fill(Qt.GlobalColor.transparent)
-        painter = QPainter(pixmap)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        path = QPainterPath()
-        path.addRoundedRect(QRectF(0, 0, size, size), size * 0.24, size * 0.24)
-        gradient = QLinearGradient(0, 0, size, size)
-        gradient.setColorAt(0.0, QColor("#4BF0B2"))
-        gradient.setColorAt(1.0, QColor("#1FAE86"))
-        painter.fillPath(path, gradient)
-        font = QFont("Segoe UI", max(6, int(size * 0.46)), QFont.Weight.Bold)
-        painter.setFont(font)
-        painter.setPen(QColor("#062018"))
-        painter.drawText(QRectF(0, 0, size, size), Qt.AlignmentFlag.AlignCenter, "A")
-        painter.end()
-        images.append(pixmap.toImage())
+    for size in SIZES:
+        images.append(brand_pixmap(size).toImage())
 
-    # QIcon no escribe .ico multiplataforma de forma fiable; construimos el
-    # contenedor ICO manualmente con los PNG codificados por Qt.
+    # QIcon no escribe .ico de forma fiable; construimos el contenedor ICO
+    # manualmente con los PNG codificados por Qt.
     pngs = []
-    for size, image in zip(sizes, images):
+    for size, image in zip(SIZES, images):
         buffer = QBuffer()
         buffer.open(QIODevice.OpenModeFlag.WriteOnly)
         image.convertToFormat(QImage.Format.Format_ARGB32).save(buffer, "PNG")
@@ -65,9 +67,16 @@ def main() -> int:
         data += png
         offset += len(png)
 
-    ICON_PATH.parent.mkdir(parents=True, exist_ok=True)
     ICON_PATH.write_bytes(header + directory + data)
+    brand_pixmap(256).save(str(PNG_PATH), "PNG")
+    _save_bmp(wizard_pixmap(), WIZARD_PATH)
+    _save_bmp(wizard_small_pixmap(), WIZARD_SMALL_PATH)
+
     print(f"Icono generado: {ICON_PATH} ({ICON_PATH.stat().st_size} bytes)")
+    print(f"PNG generado: {PNG_PATH} ({PNG_PATH.stat().st_size} bytes)")
+    print(f"Wizard generado: {WIZARD_PATH} ({WIZARD_PATH.stat().st_size} bytes)")
+    print(f"Wizard small generado: {WIZARD_SMALL_PATH} "
+          f"({WIZARD_SMALL_PATH.stat().st_size} bytes)")
     return 0
 
 
