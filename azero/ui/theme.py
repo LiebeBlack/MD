@@ -802,6 +802,9 @@ QTableWidget, QListWidget, QTreeWidget {
     selection-color: $TEXT;
     outline: none;
 }
+QTableWidget {
+    alternate-background-color: $SURFACE_ALT;
+}
 QTableWidget::item, QListWidget::item, QTreeWidget::item {
     padding: 3px 8px;
     border: none;

@@ -32,7 +32,8 @@ from ..auth import offline_uuid, validate_username
 from ..constants import (DOCS_URL, ISSUES_URL, MEMORY_STEP_MB,
                          MIN_MEMORY_MB, RELEASES_URL, REPO_URL,
                          SPONSORS_URL, USER_AGENT)
-from ..manifest import load_version_profile, parse_version_key
+from ..manifest import (load_version_profile, local_profiles,
+                        parse_version_key)
 from ..util import human_size
 from ..workers import ForgeInstallWorker, MSLoginWorker
 from . import theme
@@ -197,8 +198,13 @@ class PlayPage(ScrollPage):
         progress_row.addWidget(self.percent_label)
         console_card.body.addLayout(progress_row)
 
-        columns.addWidget(console_card, 3)
-        columns.setAlignment(console_card, Qt.AlignmentFlag.AlignTop)
+        right = QWidget()
+        right_layout = QVBoxLayout(right)
+        right_layout.setContentsMargins(0, 0, 0, 0)
+        right_layout.setSpacing(10)
+        right_layout.addWidget(console_card)
+        right_layout.addWidget(self._system_card(), 1)
+        columns.addWidget(right, 3)
         self.body.addLayout(columns, 1)
 
     def _copy_console(self) -> None:
@@ -324,6 +330,63 @@ class PlayPage(ScrollPage):
             text += ("  ·  AVISO: los mods de Forge no cargan con esta "
                      "version; instala Forge en Ajustes > Mods")
         self.mods_status.setText(text)
+
+    def _system_card(self) -> Card:
+        """Tarjeta de estado del sistema: ocupa el espacio vertical que
+        queda bajo la consola con informacion util y accesos directos."""
+        card = Card(margins=10, spacing=6)
+        card.body.addWidget(section_label("Sistema"))
+        card.body.addWidget(faint_label(f"Hardware: {hardware.summary()}"))
+        runtimes = java_module.find_runtimes()
+        if runtimes:
+            java_text = " · ".join(
+                f"Java {item.major} ({item.source})"
+                for item in runtimes[:3])
+        else:
+            java_text = "Sin Java detectado"
+        card.body.addWidget(faint_label(f"Java: {java_text}"))
+        profiles = local_profiles()
+        self.sys_profiles_label = faint_label("")
+        card.body.addWidget(self.sys_profiles_label)
+        self._refresh_sys_profiles(profiles)
+        mc_label = faint_label(f".minecraft: {paths.MC_DIR}")
+        mc_label.setWordWrap(True)
+        card.body.addWidget(mc_label)
+        buttons = QHBoxLayout()
+        buttons.setSpacing(8)
+        open_mc = QPushButton("Abrir .minecraft")
+        open_mc.setObjectName("ghostButton")
+        open_mc.setCursor(Qt.CursorShape.PointingHandCursor)
+        open_mc.clicked.connect(lambda: _open_path(paths.MC_DIR))
+        open_logs = QPushButton("Registros")
+        open_logs.setObjectName("ghostButton")
+        open_logs.setCursor(Qt.CursorShape.PointingHandCursor)
+        open_logs.clicked.connect(lambda: _open_path(paths.LOGS_DIR))
+        buttons.addWidget(open_mc)
+        buttons.addWidget(open_logs)
+        buttons.addStretch(1)
+        card.body.addLayout(buttons)
+        card.body.addStretch(1)
+        return card
+
+    def _refresh_sys_profiles(self, profiles: list[str] | None = None) -> None:
+        """Actualiza el contador de versiones/loaders de la tarjeta Sistema."""
+        label = getattr(self, "sys_profiles_label", None)
+        if label is None:
+            return
+        profiles = local_profiles() if profiles is None else profiles
+        forge_count = len(forge.installed_profiles())
+        optifine_count = sum(
+            1 for profile in profiles if "optifine" in profile.lower())
+        loaders = (f"Forge ×{forge_count}" if forge_count else "") \
+            + (" · " if forge_count and optifine_count else "") \
+            + (f"OptiFine ×{optifine_count}" if optifine_count else "")
+        label.setText(
+            f"Versiones: {len(profiles)}"
+            + (f" · Loaders: {loaders}" if loaders else " · Sin loader"))
+
+    def refresh_system_info(self) -> None:
+        self._refresh_sys_profiles()
 
     def _quick_card(self) -> Card:
         card = Card(margins=10, spacing=6)
@@ -459,6 +522,13 @@ class VersionsPage(ScrollPage):
 
         installed_card = Card(margins=10, spacing=6)
         installed_card.body.addWidget(section_label("Versiones instaladas"))
+        self.filter_edit = QLineEdit()
+        self.filter_edit.setPlaceholderText("Filtrar versiones…")
+        self.filter_edit.setClearButtonEnabled(True)
+        self.filter_edit.setToolTip(
+            "Filtra la lista por nombre de version, Forge u OptiFine.")
+        self.filter_edit.textChanged.connect(self._apply_filter)
+        installed_card.body.addWidget(self.filter_edit)
         self.installed_list = QTreeWidget()
         self.installed_list.setColumnCount(1)
         self.installed_list.setHeaderHidden(True)
@@ -548,7 +618,7 @@ class VersionsPage(ScrollPage):
         table.setHorizontalHeaderLabels(headers)
         table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
-        table.setAlternatingRowColors(False)
+        table.setAlternatingRowColors(True)
         table.verticalHeader().setVisible(False)
         table.horizontalHeader().setStretchLastSection(True)
         table.setShowGrid(False)
@@ -699,6 +769,7 @@ class VersionsPage(ScrollPage):
 
             row.ensurePolished()
             item = QTreeWidgetItem()
+            item.setData(0, Qt.ItemDataRole.UserRole, entry["id"])
             item.setSizeHint(0, row.sizeHint())
             group.addChild(item)
             self.installed_list.setItemWidget(item, 0, row)
@@ -713,11 +784,32 @@ class VersionsPage(ScrollPage):
                  "Pulsa JUGAR para descargar una."])
             item.setFlags(Qt.ItemFlag.NoItemFlags)
             self.installed_list.addTopLevelItem(item)
+        self._apply_filter()
         extra = [line.strip()
                  for line in self.shell.settings.extra_mc_dirs.splitlines()
                  if line.strip()]
         self.extra_roots_label.setText(
             "Carpetas adicionales: " + " · ".join(extra) if extra else "")
+
+    def _apply_filter(self) -> None:
+        """Filtra el arbol de versiones instaladas por texto."""
+        text = self.filter_edit.text().strip().lower()
+        for i in range(self.installed_list.topLevelItemCount()):
+            group = self.installed_list.topLevelItem(i)
+            if group.childCount() == 0:
+                # Elemento placeholder ("No hay versiones…").
+                group.setHidden(bool(text))
+                continue
+            visible = 0
+            for j in range(group.childCount()):
+                child = group.child(j)
+                version_id = str(
+                    child.data(0, Qt.ItemDataRole.UserRole) or "")
+                match = (not text or text in version_id.lower()
+                         or text in group.text(0).lower())
+                child.setHidden(not match)
+                visible += 0 if child.isHidden() else 1
+            group.setHidden(visible == 0)
 
     def _refresh_downloads(self) -> None:
         table = self.downloads_table
@@ -1498,6 +1590,14 @@ class SettingsPage(ScrollPage):
         mc_label = faint_label(f".minecraft oficial: {paths.MC_DIR}")
         mc_label.setWordWrap(True)
         card.body.addWidget(mc_label)
+        extra = [line.strip()
+                 for line in self.shell.settings.extra_mc_dirs.splitlines()
+                 if line.strip()]
+        if extra:
+            extra_label = faint_label(
+                ".minecraft adicionales: " + " · ".join(extra))
+            extra_label.setWordWrap(True)
+            card.body.addWidget(extra_label)
         row = QHBoxLayout()
         open_data = QPushButton("Abrir carpeta de datos")
         open_data.setObjectName("ghostButton")

@@ -367,6 +367,7 @@ class MainWindow(QMainWindow):
         has_version = self.play_page.version_combo.count() > 0
         page = self.play_page
         page.set_busy_widgets(busy)
+        page.refresh_system_info()
 
         if self._launch_running():
             if self._session_id is not None:
