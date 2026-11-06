@@ -326,7 +326,12 @@ class MainWindow(QMainWindow):
         return self._launch_running() or self._of_running()
 
     def _selected_version(self) -> str:
-        return self.play_page.version_combo.currentData() or ""
+        # Durante la construccion de PlayPage el atributo aun no existe;
+        # los widgets que consultan la version seleccionada deben recibir "".
+        page = getattr(self, "play_page", None)
+        if page is None:
+            return ""
+        return page.version_combo.currentData() or ""
 
     def _selected_base(self) -> str:
         version_id = self._selected_version()
@@ -390,6 +395,10 @@ class MainWindow(QMainWindow):
             _repolish(page.play_button)
 
     def _set_status(self, text: str, kind: str = "normal") -> None:
+        # La barra de estado se construye despues de las paginas; una
+        # señal temprana no debe romper el arranque.
+        if not hasattr(self, "status_label"):
+            return
         mapping = {"normal": "statusLabel", "error": "statusError",
                    "ok": "statusOk"}
         self.status_label.setText(text)
@@ -397,6 +406,8 @@ class MainWindow(QMainWindow):
         _repolish(self.status_label)
 
     def _set_progress(self, done: int, total: int) -> None:
+        if not hasattr(self, "progress"):
+            return
         if total <= 0:
             self.progress.setRange(0, 0)
             self.percent_label.setText("")
