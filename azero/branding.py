@@ -123,7 +123,8 @@ def wizard_pixmap(width: int = 192, height: int = 386) -> QPixmap:
     painter.drawPixmap(54, 36, brand_pixmap(84))
 
     if QFontDatabase.families():
-        label = QFont("Segoe UI", 6.5)
+        label = QFont("Segoe UI")
+        label.setPixelSize(9)
         label.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, 1.6)
         painter.setFont(label)
         painter.setPen(QColor("#A9D2F5"))
@@ -143,7 +144,8 @@ def wizard_pixmap(width: int = 192, height: int = 386) -> QPixmap:
                          Qt.AlignmentFlag.AlignCenter,
                          "LAUNCHER 1.8 – 1.15.2")
 
-        footer = QFont("Segoe UI", 6.5)
+        footer = QFont("Segoe UI")
+        footer.setPixelSize(9)
         painter.setFont(footer)
         painter.setPen(QColor("#9CC7F0"))
         painter.drawText(QRectF(0, height - 30, width, 14),

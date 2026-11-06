@@ -117,7 +117,9 @@ class BrandBanner(QWidget):
         painter.drawPixmap(26, 30, brand_pixmap(60))
 
         if self._fonts:
-            label = QFont("Segoe UI", 6.5, QFont.Weight.Bold)
+            label = QFont("Segoe UI")
+            label.setWeight(QFont.Weight.Bold)
+            label.setPixelSize(9)
             label.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, 1.6)
             painter.setFont(label)
             painter.setPen(QColor("#A9D2F5"))
@@ -133,7 +135,9 @@ class BrandBanner(QWidget):
                              | Qt.AlignmentFlag.AlignVCenter,
                              "AZeroCraft Launcher")
 
-            painter.setFont(QFont("Segoe UI", 8.5))
+            subtitle_font = QFont("Segoe UI")
+            subtitle_font.setPixelSize(12)
+            painter.setFont(subtitle_font)
             painter.setPen(QColor("#C7E2FA"))
             painter.drawText(QRectF(108, 70, width - 210, 18),
                              Qt.AlignmentFlag.AlignLeft
@@ -154,7 +158,10 @@ class BrandBanner(QWidget):
             painter.setBrush(QColor(255, 255, 255, 28))
             painter.drawRoundedRect(pill, 11, 11)
             painter.setPen(QColor("#FFFFFF"))
-            painter.setFont(QFont("Segoe UI", 7.5, QFont.Weight.Bold))
+            version_font = QFont("Segoe UI")
+            version_font.setWeight(QFont.Weight.Bold)
+            version_font.setPixelSize(11)
+            painter.setFont(version_font)
             painter.drawText(pill, Qt.AlignmentFlag.AlignCenter,
                              f"v{APP_VERSION}")
 
