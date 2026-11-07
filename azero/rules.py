@@ -75,7 +75,10 @@ def _rule_matches(rule: dict, features: dict[str, bool]) -> bool:
             maximum = version_range.get("max")
             if minimum and current < _version_tuple(minimum):
                 return False
-            if maximum and current > _version_tuple(maximum):
+            # En la spec de Mojang `max` es exclusivo: sin esto, una build
+            # exactamente igual al limite cumple min y max a la vez y se
+            # aplican dos reglas contradictorias (p. ej. dos GCs en 26.x).
+            if maximum and current >= _version_tuple(maximum):
                 return False
 
     rule_features = rule.get("features")

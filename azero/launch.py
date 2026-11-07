@@ -174,7 +174,14 @@ def build_command(prepared: PreparedGame,
     if prepared.logging_path and prepared.logging_path.exists():
         jvm.append(f"-Dlog4j.configurationFile={prepared.logging_path}")
 
-    jvm.extend(_GC_FLAGS.get(getattr(settings, "gc_preset", "auto"), []))
+    gc_choice = getattr(settings, "gc_preset", "auto")
+    if gc_choice != "auto":
+        # Un GC elegido por el usuario sustituye al del manifiesto
+        # (default-user-jvm de 26.x): dos -XX:+Use*GC distintos abortan
+        # la JVM con "Multiple garbage collectors selected".
+        jvm[:] = [arg for arg in jvm
+                  if not re.match(r"^-XX:\+Use\w*GC$", arg)]
+    jvm.extend(_GC_FLAGS.get(gc_choice, []))
 
     # Aceleracion por GPU: pipeline OpenGL de Java2D (util en iGPU Intel UHD
     # y drivers antiguos donde D3D falla o es mas lento).

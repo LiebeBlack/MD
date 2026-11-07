@@ -7,7 +7,7 @@ Python + PyQt6. Repositorio: https://github.com/LiebeBlack/MD
 ## Comandos
 
 ```powershell
-# Tests unitarios (23 tests en tests/test_core.py)
+# Tests unitarios (24 tests en tests/test_core.py)
 .\.venv-build\Scripts\python.exe -m unittest discover -s tests
 
 # Compilar todo el paquete (chequeo de sintaxis)

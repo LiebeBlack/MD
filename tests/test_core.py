@@ -250,6 +250,34 @@ class TestBuildCommand(unittest.TestCase):
         self.assertEqual(command[cp_index + 2],
                          "net.minecraft.client.main.Main")
 
+    def test_single_garbage_collector(self) -> None:
+        """Regresion: 26.x trae -XX:+UseZGC en default-user-jvm; si el
+        usuario elige otro GC no pueden quedar dos -XX:+Use*GC (la JVM
+        aborta con 'Multiple garbage collectors selected')."""
+        version_json = {
+            "mainClass": "net.minecraft.client.main.Main",
+            "arguments": {"default-user-jvm": [
+                "-XX:+UseZGC", "-XX:+AlwaysPreTouch"]},
+            "assetIndex": {"id": "x"},
+        }
+        profile = create_profile("Alex")
+
+        settings = self._settings()
+        settings.gc_preset = "serial"
+        command = build_command(self._prepared(version_json), profile,
+                                settings, _FakeRuntime())
+        gcs = [a for a in command
+               if a.startswith("-XX:") and "GC" in a]
+        self.assertEqual(gcs, ["-XX:+UseSerialGC"])
+        self.assertIn("-XX:+AlwaysPreTouch", command)
+
+        settings.gc_preset = "auto"
+        command = build_command(self._prepared(version_json), profile,
+                                settings, _FakeRuntime())
+        gcs = [a for a in command
+               if a.startswith("-XX:") and "GC" in a]
+        self.assertEqual(gcs, ["-XX:+UseZGC"])
+
 
 class TestMcScan(unittest.TestCase):
     def test_detect_mc_root_variants(self) -> None:
