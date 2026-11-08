@@ -16,8 +16,11 @@ from azero.auth import (OnlineProfile, create_profile, offline_uuid,
                         validate_username)
 from azero.install import PreparedGame
 from azero.launch import build_command
+from azero.loaders import (_choose_stable, _neoforge_short_prefix,
+                           loader_kind)
 from azero.libraries import (build_library_plan, fix_authlib_session,
                              maven_path)
+from azero.mods import _loader_of
 from azero.manifest import (_version_key, in_supported_range,
                             parse_version_key, resolve_version,
                             version_family_label)
@@ -174,6 +177,36 @@ class TestMavenPath(unittest.TestCase):
         self.assertTrue(any("b-1.jar" in name for name in names))
         self.assertTrue(any("f-3.jar" in name for name in names))
         self.assertFalse(any("d-2.jar" in name for name in names))
+
+
+class TestLoaderHelpers(unittest.TestCase):
+    def test_loader_kind(self) -> None:
+        self.assertEqual(loader_kind("fabric-loader-0.16.9-1.21.1"),
+                         "fabric")
+        self.assertEqual(loader_kind("neoforge-21.1.95"), "neoforge")
+        self.assertEqual(loader_kind("1.21.1-forge-52.0.0"), "forge")
+        self.assertEqual(loader_kind("1.12.2-OptiFine_HD_U_G5"),
+                         "optifine")
+        self.assertEqual(loader_kind("1.21.1"), "")
+
+    def test_neoforge_short_prefix(self) -> None:
+        self.assertEqual(_neoforge_short_prefix("1.21.1"), "21.1.")
+        self.assertEqual(_neoforge_short_prefix("1.20.4"), "20.4.")
+        self.assertEqual(_neoforge_short_prefix("26.1.2"), "26.1.")
+
+    def test_choose_stable_skips_prereleases(self) -> None:
+        self.assertEqual(
+            _choose_stable(["0.1.0", "0.2.0-beta", "0.1.5"]), "0.1.5")
+        self.assertEqual(_choose_stable(["1.0.0-beta"]), "1.0.0-beta")
+
+    def test_mod_loader_detection(self) -> None:
+        self.assertEqual(_loader_of(["fabric.mod.json", "x.class"]),
+                         "fabric")
+        self.assertEqual(
+            _loader_of(["META-INF/neoforge.mods.toml"]), "neoforge")
+        self.assertEqual(_loader_of(["META-INF/mods.toml"]), "forge")
+        self.assertEqual(_loader_of(["mcmod.info"]), "forge")
+        self.assertEqual(_loader_of(["com/example/Mod.class"]), "")
 
 
 class TestAuthlibFix(unittest.TestCase):

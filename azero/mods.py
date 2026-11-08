@@ -1,10 +1,10 @@
 """Gestor de mods: archivos .jar en la carpeta mods/ de Minecraft.
 
 El launcher instala los jars; los mods que requieren un mod loader
-(Forge/Fabric) necesitan ademas ese loader instalado — la mayoria de mods
-de Minecraft 1.12.1 son mods de Forge. Forge se instala desde el boton
-"Instalar Forge" de esta misma tarjeta; su perfil aparece en Versiones y
-soporta herencia igual que OptiFine.
+(Forge/Fabric/NeoForge) necesitan ademas ese loader instalado — la
+mayoria de mods de Minecraft 1.12.1 son mods de Forge. Los loaders se
+instalan desde los botones de la tarjeta Mods de Ajustes; sus perfiles
+aparecen en Versiones y soportan herencia igual que OptiFine.
 """
 
 from __future__ import annotations
@@ -26,6 +26,7 @@ class ModInfo:
     title: str = ""
     version: str = ""
     forge: bool = False
+    loader: str = ""
 
 
 def mods_dir() -> Path:
@@ -74,6 +75,26 @@ def _names_look_forge(names: list[str]) -> bool:
     return False
 
 
+def _loader_of(names: list[str]) -> str:
+    """Loader del mod segun los metadatos dentro del jar.
+
+    Orden importante: fabric.mod.json es exclusivo de Fabric;
+    neoforge.mods.toml distingue NeoForge de Forge (que usa
+    META-INF/mods.toml o mcmod.info); los jars Forge 1.13+ tambien
+    llevan mods.toml, asi que NeoForge se comprueba antes.
+    """
+    name_set = set(names)
+    lowered = {name.lower() for name in names}
+    if "fabric.mod.json" in name_set:
+        return "fabric"
+    if "meta-inf/neoforge.mods.toml" in lowered:
+        return "neoforge"
+    if "mcmod.info" in name_set or "meta-inf/mods.toml" in lowered \
+            or _names_look_forge(names):
+        return "forge"
+    return ""
+
+
 def is_forge_mod(path: Path) -> bool:
     """Heuristica: el jar parece un mod de Forge/FML (mcmod.info o clases
     de MinecraftForge/FML en el interior). Solo lectura del zip."""
@@ -82,6 +103,15 @@ def is_forge_mod(path: Path) -> bool:
             return _names_look_forge(jar.namelist())
     except Exception:  # noqa: BLE001
         return False
+
+
+def detect_loader(path: Path) -> str:
+    """Tipo de loader que necesita el mod: fabric/neoforge/forge/""."""
+    try:
+        with zipfile.ZipFile(path) as jar:
+            return _loader_of(jar.namelist())
+    except Exception:  # noqa: BLE001
+        return ""
 
 
 def describe_mod(path: Path) -> tuple[str, str]:
@@ -101,17 +131,19 @@ def list_mods() -> list[ModInfo]:
         if not (item.is_file() and item.suffix.lower() == ".jar"):
             continue
         try:
-            # Una sola apertura del zip: metadatos + deteccion Forge.
+            # Una sola apertura del zip: metadatos + deteccion de loader.
             with zipfile.ZipFile(item) as jar:
                 names = jar.namelist()
                 title, version = _read_mod_metadata(set(names), jar,
                                                     item.stem)
-                forge = _names_look_forge(names)
+                loader = _loader_of(names)
+                forge = loader in ("forge", "neoforge")
         except Exception:  # noqa: BLE001 - jar ilegible: datos minimos
-            title, version, forge = item.stem, "", False
+            title, version, forge, loader = item.stem, "", False, ""
         mods.append(ModInfo(name=item.name, path=item,
                             size=item.stat().st_size,
-                            title=title, version=version, forge=forge))
+                            title=title, version=version, forge=forge,
+                            loader=loader))
     mods.sort(key=lambda mod: mod.name.lower())
     return mods
 
@@ -131,8 +163,10 @@ def install_mod(source: Path) -> ModInfo:
     target = folder / source.name
     shutil.copy2(source, target)
     title, version = describe_mod(target)
+    loader = detect_loader(target)
     return ModInfo(name=target.name, path=target,
-                   size=target.stat().st_size, title=title, version=version)
+                   size=target.stat().st_size, title=title, version=version,
+                   forge=loader in ("forge", "neoforge"), loader=loader)
 
 
 def remove_mod(name: str) -> None:

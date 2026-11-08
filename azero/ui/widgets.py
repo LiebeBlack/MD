@@ -546,6 +546,10 @@ class _VersionPopup(QFrame):
         lower = vid.lower()
         if "optifine" in lower:
             return "OptiFine"
+        if "neoforge" in lower:
+            return "NeoForge"
+        if "fabric" in lower:
+            return "Fabric"
         if "forge" in lower:
             return "Forge"
         if vid != base_id:

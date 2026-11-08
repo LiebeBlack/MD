@@ -1001,11 +1001,13 @@ class MainWindow(QMainWindow):
             getattr(self, "about_page", None), "_update_checker", None)
         if update_checker is not None and update_checker.isRunning():
             update_checker.wait(2000)
-        forge_worker = getattr(
-            getattr(self, "settings_page", None), "_forge_worker", None)
-        if forge_worker is not None and forge_worker.isRunning():
-            forge_worker.cancel()
-            forge_worker.wait(1500)
+        settings_page = getattr(self, "settings_page", None)
+        forge_worker = getattr(settings_page, "_forge_worker", None)
+        loader_worker = getattr(settings_page, "_loader_worker", None)
+        for worker in (forge_worker, loader_worker):
+            if worker is not None and worker.isRunning():
+                worker.cancel()
+                worker.wait(1500)
         # Los workers que siguen vivos (p. ej. el juego en curso, que el
         # worker solo vigila) no pueden destruirse en ejecucion: se despegan
         # del arbol de widgets y Qt los libera al terminar el proceso.
@@ -1015,7 +1017,7 @@ class MainWindow(QMainWindow):
                            "_login_worker", None),
                    getattr(getattr(self, "about_page", None),
                            "_update_checker", None),
-                   forge_worker]
+                   forge_worker, loader_worker]
         for worker in workers:
             if worker is not None and worker.isRunning():
                 worker.setParent(None)

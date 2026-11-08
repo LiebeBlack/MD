@@ -8,7 +8,7 @@ from pathlib import Path
 
 from PyQt6.QtCore import QThread, pyqtSignal
 
-from . import forge, launch, manifest, msauth, optifine
+from . import forge, launch, loaders, manifest, msauth, optifine
 from .install import TaskContext
 from .util import CancelledError
 
@@ -198,6 +198,60 @@ class ForgeInstallWorker(QThread):
             self.failed.emit(str(error))
             return
         self.done.emit(version)
+
+
+class LoaderInstallWorker(QThread):
+    """Instala Fabric o NeoForge en segundo plano.
+
+    Misma forma que ForgeInstallWorker pero despacha a azero.loaders;
+    el perfil resultante aparece en Versiones como los de Forge.
+    """
+
+    stage = pyqtSignal(str)
+    progress = pyqtSignal(int, int)
+    log = pyqtSignal(str)
+    done = pyqtSignal(str)
+    failed = pyqtSignal(str)
+    cancelled = pyqtSignal()
+
+    def __init__(self, loader: str, version_id: str, settings, parent=None):
+        super().__init__(parent)
+        self.loader = loader
+        self.version_id = version_id
+        self.settings = settings
+        self._cancel = threading.Event()
+
+    def cancel(self) -> None:
+        self._cancel.set()
+
+    def _context(self) -> TaskContext:
+        return TaskContext(
+            stage=self.stage.emit,
+            progress=self.progress.emit,
+            log=self.log.emit,
+            cancel_event=self._cancel,
+        )
+
+    def run(self) -> None:
+        install = loaders.INSTALLERS.get(self.loader)
+        if install is None:
+            self.failed.emit(f"Loader desconocido: {self.loader}")
+            return
+        try:
+            profile = install(
+                self.version_id,
+                java_path=getattr(self.settings, "java_path", ""),
+                log=self.log.emit,
+                ctx=self._context(),
+                offline=bool(getattr(self.settings, "offline_mode", False)))
+        except CancelledError:
+            self.log.emit(f"Instalacion de {self.loader} cancelada.")
+            self.cancelled.emit()
+            return
+        except Exception as error:  # noqa: BLE001
+            self.failed.emit(str(error))
+            return
+        self.done.emit(profile)
 
 
 class MSLoginWorker(QThread):

@@ -28,7 +28,7 @@ from PyQt6.QtWidgets import (QApplication, QButtonGroup, QCheckBox, QComboBox,
                              QTreeWidgetItem, QVBoxLayout, QWidget)
 
 from .. import (APP_NAME, APP_VERSION, database, forge, hardware,
-                java as java_module, mcscan, mods, msauth, paths)
+                java as java_module, loaders, mcscan, mods, msauth, paths)
 from ..auth import offline_uuid, validate_username
 from ..constants import (DOCS_URL, ISSUES_URL, LATEST_RELEASE_API,
                          MEMORY_STEP_MB, MIN_MEMORY_MB, RELEASES_URL,
@@ -36,7 +36,8 @@ from ..constants import (DOCS_URL, ISSUES_URL, LATEST_RELEASE_API,
 from ..manifest import (load_version_profile, local_profiles,
                         parse_version_key, version_family_label)
 from ..util import human_size
-from ..workers import ForgeInstallWorker, MSLoginWorker
+from ..workers import (ForgeInstallWorker, LoaderInstallWorker,
+                       MSLoginWorker)
 from . import theme
 from .widgets import (Avatar, BrandBanner, Card, ConsoleView, Divider,
                       FocusWheelSlider, InfoGrid, PageHeader, Pill,
@@ -297,14 +298,22 @@ class PlayPage(ScrollPage):
         if not installed:
             self.mods_status.setText("Sin mods instalados.")
             return
-        forge_count = sum(1 for mod in installed if mod.forge)
+        loader_mods = [mod for mod in installed if mod.loader]
         count = len(installed)
         text = (f"{count} mod{'s' if count != 1 else ''} "
-                f"{'instalados' if count != 1 else 'instalado'}"
-                + (f" · {forge_count} de Forge" if forge_count else ""))
+                f"{'instalados' if count != 1 else 'instalado'}")
+        if loader_mods:
+            kinds = sorted({mod.loader for mod in loader_mods})
+            text += " · loaders: " + ", ".join(
+                kind.capitalize() for kind in kinds)
         version_id = (self.shell._selected_version() or "").lower()
-        if forge_count and "forge" not in version_id:
-            text += (" · AVISO: requieren Forge — instálalo en "
+        missing = [kind for kind in
+                   sorted({mod.loader for mod in loader_mods})
+                   if kind and kind not in version_id
+                   and not loaders.has_loader_profile(kind)]
+        if missing:
+            names = ", ".join(kind.capitalize() for kind in missing)
+            text += (f" · AVISO: requieren {names} — instálalo en "
                      "Ajustes > Mods")
         self.mods_status.setText(text)
 
@@ -348,15 +357,16 @@ class PlayPage(ScrollPage):
         if grid is None:
             return
         profiles = local_profiles() if profiles is None else profiles
-        forge_count = len(forge.installed_profiles())
-        optifine_count = sum(
-            1 for profile in profiles if "optifine" in profile.lower())
-        loaders = (f"Forge ×{forge_count}" if forge_count else "") \
-            + (" · " if forge_count and optifine_count else "") \
-            + (f"OptiFine ×{optifine_count}" if optifine_count else "")
+        grouped = loaders.installed_loader_profiles()
+        labels = {"forge": "Forge", "fabric": "Fabric",
+                  "neoforge": "NeoForge", "optifine": "OptiFine"}
+        parts = [f"{labels[kind]} ×{len(ids)}"
+                 for kind, ids in grouped.items()]
+        loaders_text = " · ".join(parts)
         count = len(profiles)
         text = (f"{count} versión" + ("es" if count != 1 else "")
-                + (f" · {loaders}" if loaders else " · sin loader"))
+                + (f" · {loaders_text}" if loaders_text
+                   else " · sin loader"))
         grid.set_value("Versiones", text)
 
     def refresh_system_info(self) -> None:
@@ -535,6 +545,8 @@ class VersionsPage(ScrollPage):
         self.type_filter.addItem("Todos los tipos", "all")
         self.type_filter.addItem("Vanilla", "Vanilla")
         self.type_filter.addItem("Forge", "Forge")
+        self.type_filter.addItem("Fabric", "Fabric")
+        self.type_filter.addItem("NeoForge", "NeoForge")
         self.type_filter.addItem("OptiFine", "OptiFine")
         self.type_filter.setFixedWidth(150)
         self.type_filter.setToolTip("Mostrar solo un tipo de perfil")
@@ -670,11 +682,9 @@ class VersionsPage(ScrollPage):
                     continue
                 seen.add(child.name)
                 size = jar.stat().st_size if jar.exists() else 0
-                lower = child.name.lower()
-                is_of = "optifine" in lower
-                is_forge = "forge" in lower
-                kind = ("OptiFine" if is_of else
-                        "Forge" if is_forge else "Vanilla")
+                kind = {"optifine": "OptiFine", "neoforge": "NeoForge",
+                        "fabric": "Fabric", "forge": "Forge"}.get(
+                    loaders.loader_kind(child.name), "Vanilla")
                 # Los perfiles con herencia no tienen jar propio: el
                 # cliente base se descarga bajo demanda al jugar.
                 entries.append({
@@ -1621,8 +1631,9 @@ class SettingsPage(ScrollPage):
         card = Card()
         card.body.addWidget(section_label("Mods"))
         card.body.addWidget(muted_label(
-            "Añade mods .jar a la carpeta del juego. Forge se instala "
-            "abajo; OptiFine se gestiona en Jugar."))
+            "Añade mods .jar a la carpeta del juego. Los loaders "
+            "(Forge, Fabric, NeoForge) se instalan abajo; OptiFine se "
+            "gestiona en Jugar."))
         self.mods_list = QListWidget()
         self.mods_list.setMinimumHeight(96)
         self.mods_list.setMaximumHeight(150)
@@ -1644,16 +1655,20 @@ class SettingsPage(ScrollPage):
         row.addStretch(1)
         card.body.addLayout(row)
 
-        forge_row = QHBoxLayout()
-        forge_row.setSpacing(8)
-        forge_row.addWidget(faint_label("Forge:"))
-        forge_row.addWidget(make_button(
-            "Instalar Forge…", "accent",
-            "Descarga el instalador oficial de Forge y crea el perfil "
-            "sin abrir ventanas (necesario para la mayoría de mods).",
-            self._install_forge))
-        forge_row.addStretch(1)
-        card.body.addLayout(forge_row)
+        loaders_row = QHBoxLayout()
+        loaders_row.setSpacing(8)
+        loaders_row.addWidget(faint_label("Loaders:"))
+        for kind, label, tip in (
+                ("forge", "Forge", "necesario para la mayoría de mods"),
+                ("fabric", "Fabric", "loader ligero, mods de Fabric"),
+                ("neoforge", "NeoForge", "continuación moderna de Forge")):
+            loaders_row.addWidget(make_button(
+                f"{label}…", "accent",
+                f"Instala {label} ({tip}) para la versión seleccionada "
+                "en Jugar, sin abrir ventanas.",
+                lambda k=kind: self._install_loader(k)))
+        loaders_row.addStretch(1)
+        card.body.addLayout(loaders_row)
         self._refresh_mods()
         return card
 
@@ -1665,7 +1680,7 @@ class SettingsPage(ScrollPage):
                 else mod.name
             if mod.version:
                 label += f" {mod.version}"
-            badge = " · Forge" if mod.forge else ""
+            badge = f" · {mod.loader.capitalize()}" if mod.loader else ""
             item = QListWidgetItem(
                 f"{label}{badge}  ·  {human_size(mod.size)}")
             item.setData(Qt.ItemDataRole.UserRole, mod.name)
@@ -1675,15 +1690,21 @@ class SettingsPage(ScrollPage):
             empty = QListWidgetItem("No hay mods instalados.")
             empty.setFlags(Qt.ItemFlag.NoItemFlags)
             self.mods_list.addItem(empty)
-        profiles = forge.installed_profiles()
-        if profiles:
-            shown = ", ".join(profiles[:2])
-            extra = f" (+{len(profiles) - 2})" if len(profiles) > 2 else ""
+        grouped = loaders.installed_loader_profiles()
+        parts = []
+        for kind in ("forge", "fabric", "neoforge", "optifine"):
+            ids = grouped.get(kind) or []
+            if ids:
+                shown = ", ".join(ids[:2])
+                extra = f" (+{len(ids) - 2})" if len(ids) > 2 else ""
+                parts.append(f"{kind.capitalize()} {shown}{extra}")
+        if parts:
             self.mods_loader_label.setText(
-                f"Forge {shown}{extra} · los mods usan ese perfil.")
+                " · ".join(parts) + " · los mods usan ese perfil.")
         else:
             self.mods_loader_label.setText(
-                "Forge no instalado · requerido para la mayoría de mods.")
+                "Ningún loader instalado · la mayoría de mods lo "
+                "requieren.")
 
     def showEvent(self, event) -> None:  # noqa: N802 - API de Qt
         super().showEvent(event)
@@ -1704,24 +1725,30 @@ class SettingsPage(ScrollPage):
             return
         self._refresh_mods()
         self.shell._set_status(f"Mod instalado: {info.name}", "ok")
-        self._maybe_offer_forge(Path(selected))
+        self._maybe_offer_loader(Path(selected), info.loader)
 
-    def _maybe_offer_forge(self, jar: Path) -> None:
-        """Si el mod necesita Forge y no hay perfil Forge, lo ofrece."""
-        if forge.installed_profiles() or not mods.is_forge_mod(jar):
+    _LOADER_NAMES = {"forge": "Forge", "fabric": "Fabric",
+                     "neoforge": "NeoForge"}
+
+    def _maybe_offer_loader(self, jar: Path, kind: str) -> None:
+        """Si el mod necesita un loader que no esta instalado, lo ofrece."""
+        if not kind or kind == "optifine":
+            return
+        if loaders.has_loader_profile(kind):
             return
         base = self.shell._selected_base() or self.shell._selected_version()
         if not base:
             return
+        name = self._LOADER_NAMES.get(kind, kind)
         answer = QMessageBox.question(
-            self, "Mod de Forge detectado",
-            f"'{jar.name}' es un mod de Forge. Forge no está instalado.\n\n"
-            f"¿Instalar Forge para Minecraft {base} ahora?\n"
+            self, f"Mod de {name} detectado",
+            f"'{jar.name}' es un mod de {name}. {name} no está instalado.\n\n"
+            f"¿Instalar {name} para Minecraft {base} ahora?\n"
             "Se descargará e instalará automáticamente.",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.Yes)
         if answer == QMessageBox.StandardButton.Yes:
-            self._install_forge()
+            self._install_loader(kind)
 
     def _remove_mod(self) -> None:
         item = self.mods_list.currentItem()
@@ -1738,52 +1765,75 @@ class SettingsPage(ScrollPage):
         self._refresh_mods()
         self.shell._set_status(f"Mod eliminado: {name}", "ok")
 
-    def _install_forge(self) -> None:
+    def _install_loader(self, kind: str) -> None:
         version_id = self.shell._selected_base() or ""
         if not version_id:
+            name = self._LOADER_NAMES.get(kind, kind)
             QMessageBox.information(
-                self, "Forge", "Selecciona primero una versión de "
+                self, name, f"Selecciona primero una versión de "
                 "Minecraft en la pestaña Jugar.")
             return
-        self._forge_base = version_id
-        worker = ForgeInstallWorker(version_id, self.shell.settings, self)
+        self._loader_base = version_id
+        self._loader_kind = kind
+        if kind == "forge":
+            worker = ForgeInstallWorker(version_id, self.shell.settings,
+                                        self)
+        else:
+            worker = LoaderInstallWorker(kind, version_id,
+                                         self.shell.settings, self)
         worker.stage.connect(
             lambda text: self.shell.stage_label.setText(text))
         worker.progress.connect(self.shell._set_progress)
         worker.log.connect(lambda text: self.shell.console.append(text))
         worker.cancelled.connect(
             lambda: self.shell._set_status(
-                "Instalación de Forge cancelada.", "error"))
-        worker.done.connect(lambda name: self._forge_done(name))
+                f"Instalación de {kind} cancelada.", "error"))
+        worker.done.connect(lambda name: self._loader_done(name))
         worker.failed.connect(
-            lambda msg: QMessageBox.warning(self, "Forge", msg))
+            lambda msg: QMessageBox.warning(
+                self, self._LOADER_NAMES.get(kind, kind), msg))
         worker.finished.connect(worker.deleteLater)
-        self._forge_worker = worker
+        self._loader_worker = worker
         worker.start()
 
-    def _forge_done(self, forge_version: str) -> None:
-        base = getattr(self, "_forge_base", "") or \
+    def _loader_done(self, profile: str) -> None:
+        base = getattr(self, "_loader_base", "") or \
             self.shell._selected_base()
-        profile = forge._find_forge_profile(base) if base else None
-        if profile:
+        kind = getattr(self, "_loader_kind", "")
+        name = self._LOADER_NAMES.get(kind, kind.capitalize())
+        found = None
+        if base:
+            if kind == "forge":
+                found = forge._find_forge_profile(base)
+            else:
+                found = loaders.find_loader_profile(kind, base)
+        if found or profile:
+            shown = found or profile
             self.shell._set_status(
-                f"Forge instalado: perfil '{profile}'.", "ok")
+                f"{name} instalado: perfil '{shown}'.", "ok")
             self.shell._reload_versions()
+            self._refresh_mods()
             return
         # Respaldo con instalador gráfico: vigilar la aparición del perfil.
         self.shell._set_status(
-            "Instalador de Forge abierto — se detectará al terminar.", "ok")
-        self._watch_forge(base, 60)
+            f"Instalador de {name} abierto — se detectará al terminar.",
+            "ok")
+        self._watch_loader(base, kind, 60)
 
-    def _watch_forge(self, base: str, attempts: int) -> None:
+    def _watch_loader(self, base: str, kind: str, attempts: int) -> None:
         if not base or attempts <= 0:
             return
-        if forge._find_forge_profile(base):
-            self.shell._set_status("Perfil de Forge detectado.", "ok")
+        found = (forge._find_forge_profile(base) if kind == "forge"
+                 else loaders.find_loader_profile(kind, base))
+        if found:
+            self.shell._set_status(
+                f"Perfil de {self._LOADER_NAMES.get(kind, kind)} "
+                "detectado.", "ok")
             self.shell._reload_versions()
+            self._refresh_mods()
             return
         QTimer.singleShot(
-            3000, lambda: self._watch_forge(base, attempts - 1))
+            3000, lambda: self._watch_loader(base, kind, attempts - 1))
 
     # --------------------------------------------------------------- datos
     def _data_card(self) -> Card:
