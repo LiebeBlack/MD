@@ -315,6 +315,16 @@ class PlayPage(ScrollPage):
             names = ", ".join(kind.capitalize() for kind in missing)
             text += (f" · AVISO: requieren {names} — instálalo en "
                      "Ajustes > Mods")
+        # Mods que declaran una version de Minecraft incompatible.
+        base = self.shell._selected_base() or ""
+        if base:
+            bad = mods.incompatible_mods(installed, base)
+            if bad:
+                names = ", ".join(
+                    mod.title or mod.name for mod, _dep in bad[:3])
+                extra = f" +{len(bad) - 3}" if len(bad) > 3 else ""
+                text += (f" · AVISO: {names}{extra} no son para MC "
+                         f"{base}")
         self.mods_status.setText(text)
 
     def _system_card(self) -> Card:
@@ -1684,7 +1694,12 @@ class SettingsPage(ScrollPage):
             item = QListWidgetItem(
                 f"{label}{badge}  ·  {human_size(mod.size)}")
             item.setData(Qt.ItemDataRole.UserRole, mod.name)
-            item.setToolTip(mod.name)
+            deps = mod.depends or {}
+            hints = [f"requiere {key} {value}"
+                     for key, value in sorted(deps.items())
+                     if key in ("minecraft", "java", "loader")]
+            item.setToolTip("\n".join([mod.name, *hints])
+                            if hints else mod.name)
             self.mods_list.addItem(item)
         if not installed:
             empty = QListWidgetItem("No hay mods instalados.")

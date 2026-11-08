@@ -10,9 +10,11 @@ aparecen en Versiones y soportan herencia igual que OptiFine.
 from __future__ import annotations
 
 import json
+import re
 import shutil
+import tomllib
 import zipfile
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from . import paths
@@ -27,6 +29,7 @@ class ModInfo:
     version: str = ""
     forge: bool = False
     loader: str = ""
+    depends: dict = field(default_factory=dict)
 
 
 def mods_dir() -> Path:
@@ -114,6 +117,177 @@ def detect_loader(path: Path) -> str:
         return ""
 
 
+# ---------------------------------------------------- dependencias del mod
+def _read_depends(names: set[str], jar: zipfile.ZipFile) -> dict:
+    """Dependencias declaradas por el mod (minecraft/java/loader).
+
+    fabric.mod.json usa ``depends``; Forge/NeoForge usan
+    META-INF/mods.toml o META-INF/neoforge.mods.toml con
+    ``[[dependencies]]`` y ``modId``/``versionRange``.
+    """
+    depends: dict[str, str] = {}
+    try:
+        if "fabric.mod.json" in names:
+            data = json.loads(
+                jar.read("fabric.mod.json").decode("utf-8", "replace"))
+            for key, value in (data.get("depends") or {}).items():
+                depends[str(key)] = str(value)
+            return depends
+        lowered = {n.lower() for n in names}
+        toml_name = ("meta-inf/neoforge.mods.toml"
+                     if "meta-inf/neoforge.mods.toml" in lowered
+                     else "meta-inf/mods.toml")
+        actual = next((n for n in names if n.lower() == toml_name), None)
+        if actual is None:
+            return depends
+        data = tomllib.loads(jar.read(actual).decode("utf-8", "replace"))
+        for dep in data.get("dependencies") or []:
+            mod_id = str(dep.get("modId") or "").lower()
+            version_range = str(dep.get("versionRange") or "").strip()
+            if not version_range:
+                continue
+            if mod_id == "minecraft":
+                depends["minecraft"] = version_range
+            elif mod_id == "java":
+                depends["java"] = version_range
+            elif mod_id in ("fabricloader", "forge", "neoforge"):
+                depends.setdefault("loader", version_range)
+    except Exception:  # noqa: BLE001 - metadatos opcionales
+        return {}
+    return depends
+
+
+_VERSION_PART = re.compile(r"\d+")
+_PREDICATE = re.compile(
+    r"^\s*(~|>=|<=|>|<|=)?\s*v?(\d+(?:\.\d+){0,3})"
+    r"(?:-[0-9A-Za-z.-]+)?\s*$")
+
+
+def _version_tuple(text: str) -> tuple[int, ...]:
+    parts = [int(p) for p in _VERSION_PART.findall(text)][:4]
+    while len(parts) < 4:
+        parts.append(0)
+    return tuple(parts)
+
+
+def _predicate_ok(operator: str, dep: tuple[int, ...],
+                  target: tuple[int, ...]) -> bool:
+    if operator == "~":
+        # ~1.21.1 -> >=1.21.1 <1.22 ; ~26.3 -> >=26.3 <26.4
+        upper = [dep[0], dep[1] + 1, 0, 0]
+        return dep <= target < tuple(upper)
+    if operator in (">=", ""):
+        return target >= dep
+    if operator == "<=":
+        return target <= dep
+    if operator == ">":
+        return target > dep
+    if operator == "<":
+        return target < dep
+    return target == dep  # "=" y sin operador: version exacta
+
+
+def _compare(target: tuple[int, ...], op: str,
+             bound: tuple[int, ...]) -> bool:
+    if op in (">=", ""):
+        return target >= bound
+    if op == "<=":
+        return target <= bound
+    if op == ">":
+        return target > bound
+    if op == "<":
+        return target < bound
+    return target == bound
+
+
+def _bound_check(raw: str, target: tuple[int, ...],
+                 default_op: str) -> bool | None:
+    """Un extremo del rango: '[', ']' dan inclusividad por defecto."""
+    match = re.match(r"^(>=|>|<=|<|=)?\s*(.+)$", raw.strip())
+    if not match:
+        return None
+    bound = _version_tuple(match.group(2))
+    if bound == (0, 0, 0, 0):
+        return None
+    op = match.group(1) or default_op
+    return _compare(target, op, bound)
+
+
+def _range_matches(dep: str, target: tuple[int, ...]) -> bool | None:
+    """Rango estilo Maven: ``[1.21,1.22)``, ``(1.21,]``, ``[,1.22)``."""
+    dep = dep.strip()
+    lower_inc = dep.startswith("[")
+    upper_inc = dep.endswith("]")
+    inner = dep[1:-1] if len(dep) > 1 and dep[-1] in ")]" else dep[1:]
+    bounds = [b.strip() for b in inner.split(",")]
+    lower_raw = bounds[0] if bounds else ""
+    upper_raw = bounds[1] if len(bounds) > 1 else ""
+    if lower_raw:
+        ok = _bound_check(lower_raw, target,
+                          ">=" if lower_inc else ">")
+        if ok is not True:
+            return ok
+    if upper_raw:
+        ok = _bound_check(upper_raw, target,
+                          "<=" if upper_inc else "<")
+        if ok is not True:
+            return ok
+    return True
+
+
+def dep_matches(depends_value: str, version: str) -> bool | None:
+    """True/False si la dependencia cubre ``version``; None si no se
+    puede interpretar (versiones raras tipo 1.7.10-pre4)."""
+    dep = (depends_value or "").strip()
+    if not dep or dep in ("*", "any"):
+        return True
+    target = _version_tuple(version)
+    if target == (0, 0, 0, 0):
+        return None
+    if dep.startswith(("[", "(")):
+        return _range_matches(dep, target)
+    verdict = True
+    for token in re.split(r"[\s,]+", dep):
+        token = token.strip().rstrip("-")
+        if not token:
+            continue
+        # Wildcard "26.3.x" / "1.21.x": >=26.3.0 <26.4.0
+        wild = re.match(r"^v?(\d+(?:\.\d+)*)\.?x$", token)
+        if wild:
+            numbers = [int(p) for p in wild.group(1).split(".")]
+            lower = tuple(numbers + [0] * (4 - len(numbers)))[:4]
+            if len(numbers) >= 2:
+                upper = (numbers[0], numbers[1] + 1, 0, 0)
+            else:
+                upper = (numbers[0] + 1, 0, 0, 0)
+            if not (lower <= target < upper):
+                return False
+            continue
+        match = _PREDICATE.match(token)
+        if not match:
+            return None
+        operator, raw = match.group(1) or "", match.group(2)
+        dep_version = _version_tuple(raw)
+        if dep_version == (0, 0, 0, 0):
+            return None
+        if not _predicate_ok(operator, dep_version, target):
+            return False
+    return verdict
+
+
+def incompatible_mods(mods_list: list[ModInfo], mc_version: str
+                      ) -> list[tuple[ModInfo, str]]:
+    """Mods cuyo ``depends.minecraft`` excluye ``mc_version``."""
+    bad = []
+    for mod in mods_list:
+        dep = (mod.depends or {}).get("minecraft")
+        if not dep:
+            continue
+        if dep_matches(dep, mc_version) is False:
+            bad.append((mod, dep))
+    return bad
+
+
 def describe_mod(path: Path) -> tuple[str, str]:
     """Devuelve (titulo, version) de un jar; nunca lanza excepciones."""
     try:
@@ -131,19 +305,21 @@ def list_mods() -> list[ModInfo]:
         if not (item.is_file() and item.suffix.lower() == ".jar"):
             continue
         try:
-            # Una sola apertura del zip: metadatos + deteccion de loader.
+            # Una sola apertura del zip: metadatos + loader + depends.
             with zipfile.ZipFile(item) as jar:
                 names = jar.namelist()
                 title, version = _read_mod_metadata(set(names), jar,
                                                     item.stem)
                 loader = _loader_of(names)
                 forge = loader in ("forge", "neoforge")
+                depends = _read_depends(set(names), jar)
         except Exception:  # noqa: BLE001 - jar ilegible: datos minimos
             title, version, forge, loader = item.stem, "", False, ""
+            depends = {}
         mods.append(ModInfo(name=item.name, path=item,
                             size=item.stat().st_size,
                             title=title, version=version, forge=forge,
-                            loader=loader))
+                            loader=loader, depends=depends))
     mods.sort(key=lambda mod: mod.name.lower())
     return mods
 

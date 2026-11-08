@@ -20,7 +20,7 @@ from azero.loaders import (_choose_stable, _neoforge_short_prefix,
                            loader_kind)
 from azero.libraries import (build_library_plan, fix_authlib_session,
                              maven_path)
-from azero.mods import _loader_of
+from azero.mods import _loader_of, dep_matches, incompatible_mods
 from azero.manifest import (_version_key, in_supported_range,
                             parse_version_key, resolve_version,
                             version_family_label)
@@ -207,6 +207,31 @@ class TestLoaderHelpers(unittest.TestCase):
         self.assertEqual(_loader_of(["META-INF/mods.toml"]), "forge")
         self.assertEqual(_loader_of(["mcmod.info"]), "forge")
         self.assertEqual(_loader_of(["com/example/Mod.class"]), "")
+
+    def test_dep_matches(self) -> None:
+        self.assertIs(dep_matches("~1.21.1", "1.21.1"), True)
+        self.assertIs(dep_matches("~1.21.1", "1.22.0"), False)
+        self.assertIs(dep_matches(">=26.1 <27", "1.21.1"), False)
+        self.assertIs(dep_matches(">=26.1 <27", "26.3"), True)
+        self.assertIs(dep_matches("26.3.x", "26.3"), True)
+        self.assertIs(dep_matches("26.3.x", "1.21.1"), False)
+        self.assertIs(dep_matches("[1.21,1.22)", "1.21.5"), True)
+        self.assertIs(dep_matches("[1.21,1.22)", "1.22.0"), False)
+        self.assertIs(dep_matches("[>=26.1,27)", "26.3"), True)
+        self.assertIs(dep_matches("~26.3-", "1.21.1"), False)
+        self.assertIs(dep_matches(">=1.21 <=1.21.1", "26.3"), False)
+        self.assertIsNone(dep_matches("rara.version", "1.21.1"))
+
+    def test_incompatible_mods(self) -> None:
+        mods_list = [
+            SimpleNamespace(depends={"minecraft": "~26.3"},
+                            name="a.jar", title="A"),
+            SimpleNamespace(depends={"minecraft": "~1.21.1"},
+                            name="b.jar", title="B"),
+            SimpleNamespace(depends={}, name="c.jar", title="C"),
+        ]
+        bad = incompatible_mods(mods_list, "1.21.1")
+        self.assertEqual([m.name for m, _ in bad], ["a.jar"])
 
 
 class TestAuthlibFix(unittest.TestCase):
