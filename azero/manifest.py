@@ -50,10 +50,35 @@ def parse_version_key(version_id: str) -> tuple[int, int, int]:
     return _version_key(version_id) or (0, 0, 0)
 
 
-def fetch_manifest(force: bool = False) -> dict:
-    """Descarga (con cache de 6 h) el version_manifest_v2 oficial."""
+def version_family_label(version_id: str) -> str:
+    """Etiqueta de familia para agrupar versiones en la UI.
+
+    Releases clasicas se agrupan por major.minor (1.12.x, 1.21.x) y los
+    snapshots semanales por año (23w). Desde el versionado de calendario
+    de Mojang (26.x en adelante) todo el año forma una sola familia.
+    """
+    weekly = _WEEKLY_SNAPSHOT.match(version_id)
+    if weekly:
+        return f"{weekly.group(1)}w"
+    key = parse_version_key(version_id)
+    if key == (0, 0, 0):
+        return "Otras"
+    if key[0] >= 26:
+        return f"{key[0]}.x"
+    return f"{key[0]}.{key[1]}.x"
+
+
+def fetch_manifest(force: bool = False,
+                   offline: bool = False) -> dict:
+    """Descarga (con cache de 6 h) el version_manifest_v2 oficial.
+
+    Con ``offline=True`` nunca toca la red: devuelve la cache local o
+    un manifiesto vacio para que los perfiles locales sigan funcionando.
+    """
     paths.ensure_dirs()
     cache = paths.CACHE_DIR / "version_manifest_v2.json"
+    if offline:
+        return read_json(cache) or {"versions": []}
     if not force and cache.exists():
         age = time.time() - cache.stat().st_mtime
         cached = read_json(cache)
@@ -112,7 +137,27 @@ def write_version_profile(version_id: str, payload: dict) -> Path:
 _BROKEN_OBJECT = re.compile(r"\{\s*,[^{}]*\}")
 
 
+# Cache en memoria de perfiles locales: el JSON solo cambia cuando el
+# archivo se reescribe, asi que basta validar mtime+tamaño.
+_PROFILE_CACHE: dict[Path, tuple[tuple[int, int], dict | None]] = {}
+
+
 def _read_profile_json(path: Path) -> dict | None:
+    try:
+        stat = path.stat()
+    except OSError:
+        _PROFILE_CACHE.pop(path, None)
+        return None
+    stamp = (stat.st_mtime_ns, stat.st_size)
+    cached = _PROFILE_CACHE.get(path)
+    if cached is not None and cached[0] == stamp:
+        return cached[1]
+    payload = _parse_profile_json(path)
+    _PROFILE_CACHE[path] = (stamp, payload)
+    return payload
+
+
+def _parse_profile_json(path: Path) -> dict | None:
     payload = read_json(path)
     if payload is not None:
         return payload

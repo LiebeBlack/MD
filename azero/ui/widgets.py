@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 import hashlib
-import re
 from typing import Callable
 
-from PyQt6.QtCore import QPoint, QRectF, Qt, QUrl, pyqtSignal
+from PyQt6.QtCore import QPoint, QRectF, Qt, QSize, QUrl, pyqtSignal
 from PyQt6.QtGui import (QColor, QDesktopServices, QFont, QFontDatabase,
                          QLinearGradient, QPainter, QPainterPath, QPen)
 from PyQt6.QtWidgets import (QApplication, QFrame, QGridLayout, QHBoxLayout,
@@ -17,7 +16,8 @@ from PyQt6.QtWidgets import (QApplication, QFrame, QGridLayout, QHBoxLayout,
 
 from .. import APP_VERSION
 from ..branding import brand_mark, brand_pixmap
-from ..manifest import load_version_profile, parse_version_key
+from ..manifest import (load_version_profile, parse_version_key,
+                        version_family_label)
 from . import theme
 
 
@@ -531,12 +531,7 @@ class _VersionPopup(QFrame):
                 continue
             base = self._base_of(entry)
             key = parse_version_key(base)
-            weekly = re.match(r"^(\d{2})w\d{1,2}", base)
-            if weekly:
-                label = f"{weekly.group(1)}w"
-            else:
-                label = (f"{key[0]}.{key[1]}.x"
-                         if key != (0, 0, 0) else "Otras")
+            label = version_family_label(base)
             family = families.setdefault(label, {"key": key, "bases": {}})
             node = family["bases"].setdefault(
                 base, {"entry": None, "children": []})
@@ -713,6 +708,9 @@ class VersionPicker(QToolButton):
         self._entries: list[dict] = []
         self._selected = ""
         self._placeholder = "Seleccionar versión…"
+        # True cuando el arbol del popup refleja _entries: evita
+        # reconstruir ~900 items en cada apertura del desplegable.
+        self._popup_synced = False
 
         self._popup = _VersionPopup(self)
         self._popup.picked.connect(self._on_picked)
@@ -725,7 +723,7 @@ class VersionPicker(QToolButton):
         ids = {entry.get("id") for entry in entries}
         if self._selected not in ids:
             self._selected = ""
-        self._popup.set_entries(self._entries, self._selected)
+        self._popup_synced = False
         self._refresh_text()
 
     def select(self, version_id: str) -> None:
@@ -743,6 +741,7 @@ class VersionPicker(QToolButton):
         self._entries.append({"id": version_id, "type": "local",
                               "local": True, "base": base})
         self._popup.set_entries(self._entries, self._selected)
+        self._popup_synced = True
 
     def current_id(self) -> str:
         return self._selected
@@ -759,11 +758,21 @@ class VersionPicker(QToolButton):
     def _show_popup(self) -> None:
         if not self.isEnabled() or self.count() == 0:
             return
-        self._popup.set_entries(self._entries, self._selected)
+        if self._popup_synced:
+            # Las entradas no cambiaron: basta resaltar la eleccion.
+            self._popup.set_selected(self._selected)
+        else:
+            self._popup.set_entries(self._entries, self._selected)
+            self._popup_synced = True
         pos = self.mapToGlobal(self.rect().bottomLeft())
         screen = self.screen() or QApplication.primaryScreen()
         if screen is not None:
             area = screen.availableGeometry()
+            # El popup nunca debe salirse del area visible.
+            size = QSize(min(430, area.width() - 16),
+                         min(470, area.height() - 16))
+            if self._popup.size() != size:
+                self._popup.setFixedSize(size)
             popup_h = self._popup.height()
             if pos.y() + popup_h > area.bottom():
                 # Sin sitio debajo: abrir hacia arriba del boton.

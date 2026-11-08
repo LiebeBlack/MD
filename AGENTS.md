@@ -7,7 +7,7 @@ Python + PyQt6. Repositorio: https://github.com/LiebeBlack/MD
 ## Comandos
 
 ```powershell
-# Tests unitarios (24 tests en tests/test_core.py)
+# Tests unitarios (28 tests en tests/test_core.py)
 .\.venv-build\Scripts\python.exe -m unittest discover -s tests
 
 # Compilar todo el paquete (chequeo de sintaxis)
@@ -57,3 +57,19 @@ py -3.15 main.py
   familias → versiones base → perfiles OptiFine/Forge en un popup con
   buscador); `main_window._on_manifest_ready` lo alimenta y la
   seleccion se persiste en `settings.version`.
+- OptiFine se instala en `azero/optifine.py` ejecutando
+  `optifine.Patcher` del propio instalador (funciona hasta 1.21+);
+  las ediciones `_preN` deben parsear (regex con `_` en la release).
+- Forge se instala en `azero/forge.py`: via silenciosa escribiendo el
+  perfil desde `install_profile.json` (formato antiguo `versionInfo` o
+  nuevo `/version.json` + artefactos embebidos bajo `maven/`); solo si
+  hay processors se recurre a `--installClient`/GUI, y ahi si hace
+  falta `prepare()` del cliente base. Los artefactos
+  `net.minecraftforge:` sin url usan `maven.minecraftforge.net`, no el
+  maven de Mojang; `clientreq:false` excluye libs de servidor.
+- `settings.offline_mode` (Ajustes > "Modo sin conexión") hace que
+  `prepare()`/`install_and_launch()` no exijan manifiesto, indices de
+  assets ni hashes: usa solo la cache local, acepta archivos por
+  tamano, tolera descargas fallidas y no descarga Java. La lista de
+  versiones muestra solo perfiles locales si no hay cache del
+  manifiesto. `CancelledError` nunca se traga en la tolerancia.

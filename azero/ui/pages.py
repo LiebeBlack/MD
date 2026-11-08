@@ -34,7 +34,7 @@ from ..constants import (DOCS_URL, ISSUES_URL, LATEST_RELEASE_API,
                          MEMORY_STEP_MB, MIN_MEMORY_MB, RELEASES_URL,
                          REPO_URL, SPONSORS_URL, USER_AGENT)
 from ..manifest import (load_version_profile, local_profiles,
-                        parse_version_key)
+                        parse_version_key, version_family_label)
 from ..util import human_size
 from ..workers import ForgeInstallWorker, MSLoginWorker
 from . import theme
@@ -166,7 +166,6 @@ class PlayPage(ScrollPage):
         self.stage_label = muted_label("Esperando acción.")
         self.stage_label.setWordWrap(True)
         stage_row.addWidget(self.stage_label, 1)
-        stage_row.addWidget(faint_label("Ctrl+Enter"))
         console_card.body.addLayout(stage_row)
 
         right = QWidget()
@@ -305,8 +304,8 @@ class PlayPage(ScrollPage):
                 + (f" · {forge_count} de Forge" if forge_count else ""))
         version_id = (self.shell._selected_version() or "").lower()
         if forge_count and "forge" not in version_id:
-            text += ("  ·  AVISO: los mods de Forge no cargan con esta "
-                     "versión; instala Forge en Ajustes > Mods")
+            text += (" · AVISO: requieren Forge — instálalo en "
+                     "Ajustes > Mods")
         self.mods_status.setText(text)
 
     def _system_card(self) -> Card:
@@ -639,14 +638,14 @@ class VersionsPage(ScrollPage):
 
     # ------------------------------------------------------------ datos
     def refresh_all(self) -> None:
-        self._refresh_stats()
-        self._refresh_installed()
+        installed = self._scan_installed()
+        self._refresh_stats(installed)
+        self._refresh_installed(installed)
         self._refresh_downloads()
         self._refresh_sessions()
         self._refresh_logs()
 
-    def _refresh_stats(self) -> None:
-        installed = self._scan_installed()
+    def _refresh_stats(self, installed: list[dict]) -> None:
         total = sum(item["size"] for item in installed)
         self.stat_versions.set_value(str(len(installed)))
         self.stat_size.set_value(human_size(total))
@@ -676,12 +675,11 @@ class VersionsPage(ScrollPage):
                 is_forge = "forge" in lower
                 kind = ("OptiFine" if is_of else
                         "Forge" if is_forge else "Vanilla")
-                # Los perfiles con herencia (OptiFine/Forge) no tienen jar
-                # propio: prepare() descarga el cliente del padre al lanzar.
-                installed = jar.exists() or profile.exists()
+                # Los perfiles con herencia no tienen jar propio: el
+                # cliente base se descarga bajo demanda al jugar.
                 entries.append({
                     "id": child.name, "size": size, "kind": kind,
-                    "installed": installed,
+                    "client": jar.exists(),
                 })
         entries.sort(key=lambda e: parse_version_key(e["id"]), reverse=True)
         return entries
@@ -718,16 +716,15 @@ class VersionsPage(ScrollPage):
         self.shell._set_status(
             f"Carpeta de Minecraft registrada: {root}", "ok")
 
-    def _refresh_installed(self) -> None:
+    def _refresh_installed(self, installed: list[dict]) -> None:
         self.installed_list.clear()
         groups: dict[str, QTreeWidgetItem] = {}
-        for entry in self._scan_installed():
+        for entry in installed:
             # Los perfiles con herencia (Forge/OptiFine) se agrupan bajo
             # su versión base, no bajo su nombre de perfil.
             payload = load_version_profile(entry["id"]) or {}
             base = payload.get("inheritsFrom") or entry["id"]
-            key = parse_version_key(base)
-            group_label = f"{key[0]}.{key[1]}.x"
+            group_label = version_family_label(base)
             group = groups.get(group_label)
             if group is None:
                 group = QTreeWidgetItem([group_label])
@@ -749,8 +746,8 @@ class VersionsPage(ScrollPage):
             name = QLabel(entry["id"])
             name.setObjectName("valueLabel")
             parts = [human_size(entry["size"])] if entry["size"] else []
-            if not entry["installed"]:
-                parts.append("solo perfil")
+            if not entry["client"]:
+                parts.append("perfil, cliente base bajo demanda")
             detail = QLabel(" · ".join(parts) or "perfil local")
             detail.setObjectName("faint")
             info.addWidget(name)
@@ -761,11 +758,10 @@ class VersionsPage(ScrollPage):
             play = make_button(
                 "Jugar", "primary", "Iniciar esta versión",
                 lambda vid=entry["id"]: self.shell.play_version(vid))
-            play.setEnabled(entry["installed"])
-            if not entry["installed"]:
+            if not entry["client"]:
                 play.setToolTip(
-                    "Falta el cliente: se descargará al pulsar Jugar desde "
-                    "la página principal.")
+                    "Perfil sin cliente propio: el cliente base se "
+                    "descargará al jugar.")
             folder = make_button(
                 "Carpeta", "ghost", "Abrir la carpeta de esta versión",
                 lambda vid=entry["id"]: _open_path(
@@ -1801,6 +1797,15 @@ class SettingsPage(ScrollPage):
             "Incluye versiones antiguas y snapshots en la lista de Jugar. "
             "El rango soportado es 1.7 en adelante.")
         card.body.addWidget(self.show_all)
+
+        self.offline_mode = QCheckBox("Modo sin conexión")
+        self.offline_mode.setChecked(settings.offline_mode)
+        self.offline_mode.setToolTip(
+            "Juega solo con los archivos ya descargados: no consulta el "
+            "manifiesto ni verifica SHA-1/SHA-256, y tolera descargas o "
+            "indices que no estén en caché. Ideal sin internet o con "
+            "conexiones inestables.")
+        card.body.addWidget(self.offline_mode)
         card.body.addWidget(Divider())
 
         self.data_grid = InfoGrid([
@@ -1949,6 +1954,7 @@ class SettingsPage(ScrollPage):
         self.auto_java.toggled.connect(self._mark_dirty)
         self.jvm_edit.textChanged.connect(self._mark_dirty)
         self.show_all.toggled.connect(self._mark_dirty)
+        self.offline_mode.toggled.connect(self._mark_dirty)
         self.priority_combo.currentIndexChanged.connect(self._mark_dirty)
         self.gc_combo.currentIndexChanged.connect(self._mark_dirty)
         self.cores_spin.valueChanged.connect(self._mark_dirty)
@@ -1974,9 +1980,11 @@ class SettingsPage(ScrollPage):
         settings.java_path = self.java_edit.text().strip()
         settings.auto_download_java = self.auto_java.isChecked()
         settings.extra_jvm_args = self.jvm_edit.text().strip()
-        reload_needed = (self.show_all.isChecked()
-                         != settings.show_all_versions)
+        reload_needed = (
+            self.show_all.isChecked() != settings.show_all_versions
+            or self.offline_mode.isChecked() != settings.offline_mode)
         settings.show_all_versions = self.show_all.isChecked()
+        settings.offline_mode = self.offline_mode.isChecked()
         settings.game_priority = (
             self.priority_combo.currentData() or "normal")
         settings.gc_preset = self.gc_combo.currentData() or "auto"
@@ -2039,6 +2047,7 @@ class AboutPage(ScrollPage):
     def _build(self) -> None:
         self.body.addWidget(BrandBanner())
 
+        self._app_card()
         self._project_card()
         self._support_card()
         self._update_card()

@@ -16,9 +16,11 @@ from azero.auth import (OnlineProfile, create_profile, offline_uuid,
                         validate_username)
 from azero.install import PreparedGame
 from azero.launch import build_command
-from azero.libraries import maven_path
+from azero.libraries import build_library_plan, maven_path
 from azero.manifest import (_version_key, in_supported_range,
-                            parse_version_key, resolve_version)
+                            parse_version_key, resolve_version,
+                            version_family_label)
+from azero.optifine import _parse_version_string, _split_edition_release
 from azero.rules import expand_arguments, rules_allow
 from azero.util import _Progress, extract_zip, human_size, write_json
 
@@ -70,6 +72,51 @@ class TestManifestKeys(unittest.TestCase):
         self.assertFalse(in_supported_range("1.6.4"))
         self.assertEqual(parse_version_key("23w13a"), (23, 13, 1))
 
+    def test_family_label(self) -> None:
+        self.assertEqual(version_family_label("1.12.2"), "1.12.x")
+        self.assertEqual(version_family_label("1.7.10"), "1.7.x")
+        self.assertEqual(version_family_label("1.21.5"), "1.21.x")
+        self.assertEqual(version_family_label("26.3"), "26.x")
+        self.assertEqual(version_family_label("26.4-snapshot-7"), "26.x")
+        self.assertEqual(version_family_label("23w13a"), "23w")
+        self.assertEqual(version_family_label("raro"), "Otras")
+
+
+class TestOptiFineParsing(unittest.TestCase):
+    def test_stable_edition(self) -> None:
+        self.assertEqual(_split_edition_release("HD_U_G5"),
+                         ("HD_U", "G5"))
+        self.assertEqual(_parse_version_string("1.12.2_HD_U_G5"),
+                         ("1.12.2", "HD_U", "G5"))
+
+    def test_prerelease_edition(self) -> None:
+        # Regresion: las ediciones _preN no parseaban y la instalacion
+        # fallaba con "No se pudo determinar la version".
+        self.assertEqual(_split_edition_release("HD_U_J1_pre9"),
+                         ("HD_U", "J1_pre9"))
+        self.assertEqual(_parse_version_string("1.21_HD_U_J1_pre9"),
+                         ("1.21", "HD_U", "J1_pre9"))
+        self.assertEqual(_parse_version_string("1.20.1_HD_U_I6"),
+                         ("1.20.1", "HD_U", "I6"))
+
+    def test_version_from_embedded_changelog(self) -> None:
+        """Regresion: el nombre del archivo ya no importa; la version se
+        lee de changelog.txt dentro del instalador."""
+        from azero.optifine import inspect_installer
+        with tempfile.TemporaryDirectory() as tmp:
+            installer = Path(tmp) / "descarga (1).jar"
+            with zipfile.ZipFile(installer, "w") as jar:
+                jar.writestr("changelog.txt",
+                             "OptiFine 1.21_HD_U_J1_pre9\n - fix\n")
+                jar.writestr("notch/net/optifine/Config.class", b"x")
+                jar.writestr("launchwrapper-of.txt", "2.3")
+            info = inspect_installer(installer)
+            self.assertEqual(info.mc_version, "1.21")
+            self.assertEqual(info.edition_release, "HD_U_J1_pre9")
+            self.assertEqual(info.profile_id,
+                             "1.21-OptiFine_HD_U_J1_pre9")
+            self.assertEqual(info.launchwrapper, "2.3")
+
 
 class TestRules(unittest.TestCase):
     def test_allow_disallow(self) -> None:
@@ -112,6 +159,20 @@ class TestMavenPath(unittest.TestCase):
         )
         with self.assertRaises(ValueError):
             maven_path("sin-dos-puntos")
+
+    def test_clientreq_false_is_skipped(self) -> None:
+        """Forge marca clientreq:false en libs solo de servidor."""
+        version_json = {"libraries": [
+            {"name": "a:b:1"},
+            {"name": "c:d:2", "clientreq": False},
+            {"name": "e:f:3", "clientreq": True},
+        ]}
+        plan = build_library_plan(version_json)
+        names = [path.name for path in plan.classpath]
+        self.assertEqual(len(names), 2)
+        self.assertTrue(any("b-1.jar" in name for name in names))
+        self.assertTrue(any("f-3.jar" in name for name in names))
+        self.assertFalse(any("d-2.jar" in name for name in names))
 
 
 class TestResolveVersion(unittest.TestCase):
@@ -278,6 +339,35 @@ class TestBuildCommand(unittest.TestCase):
                if a.startswith("-XX:") and "GC" in a]
         self.assertEqual(gcs, ["-XX:+UseZGC"])
 
+    def test_extra_jvm_gc_overrides_all(self) -> None:
+        """Regresion: un -XX:+Use*GC en extra_jvm_args tambien debe ganar
+        al preset y al manifiesto, o la JVM aborta con 'Multiple garbage
+        collectors selected'."""
+        version_json = {
+            "mainClass": "net.minecraft.client.main.Main",
+            "arguments": {"default-user-jvm": ["-XX:+UseZGC"]},
+            "assetIndex": {"id": "x"},
+        }
+        profile = create_profile("Alex")
+
+        settings = self._settings()
+        settings.gc_preset = "serial"
+        settings.extra_jvm_args = "-XX:+UseG1GC -Dfoo=bar"
+        command = build_command(self._prepared(version_json), profile,
+                                settings, _FakeRuntime())
+        gcs = [a for a in command
+               if a.startswith("-XX:") and "GC" in a]
+        self.assertEqual(gcs, ["-XX:+UseG1GC"])
+        self.assertIn("-Dfoo=bar", command)
+
+        # Sin GC en extra_jvm_args el preset sigue ganando al manifiesto.
+        settings.extra_jvm_args = "-Dfoo=bar"
+        command = build_command(self._prepared(version_json), profile,
+                                settings, _FakeRuntime())
+        gcs = [a for a in command
+               if a.startswith("-XX:") and "GC" in a]
+        self.assertEqual(gcs, ["-XX:+UseSerialGC"])
+
 
 class TestMcScan(unittest.TestCase):
     def test_detect_mc_root_variants(self) -> None:
@@ -310,6 +400,34 @@ class TestMcScan(unittest.TestCase):
             self.assertIsNone(mcscan.detect_mc_root(empty))
 
 
+class TestAssetIntegrity(unittest.TestCase):
+    def test_corrupt_objects_detects_bad_sha1(self) -> None:
+        """Regresion: un objeto de assets corrupto con tamano correcto
+        no se detectaba nunca; con internet debe repararse."""
+        import hashlib
+        from azero import assets
+        with tempfile.TemporaryDirectory() as tmp:
+            old_assets = paths.ASSETS_DIR
+            paths.ASSETS_DIR = Path(tmp)
+            try:
+                good = hashlib.sha1(b"ok").hexdigest()
+                bad = hashlib.sha1(b"roto").hexdigest()
+                objects = paths.ASSETS_DIR / "objects"
+                (objects / good[:2]).mkdir(parents=True)
+                (objects / bad[:2]).mkdir(parents=True)
+                (objects / good[:2] / good).write_bytes(b"ok")
+                (objects / bad[:2] / bad).write_bytes(b"contenido malo")
+                index = {"objects": {
+                    "a": {"hash": good, "size": 2},
+                    "b": {"hash": bad, "size": 13},
+                    "c": {"hash": "f" * 40, "size": 5},  # ausente: no es corrupto
+                }}
+                corrupt = assets.corrupt_objects(index)
+                self.assertEqual([p.name for p in corrupt], [bad])
+            finally:
+                paths.ASSETS_DIR = old_assets
+
+
 class TestSettingsSanitize(unittest.TestCase):
     def test_invalid_types_are_dropped(self) -> None:
         from azero.settings import _sanitize
@@ -327,6 +445,30 @@ class TestSettingsSanitize(unittest.TestCase):
         self.assertIs(clean["auto_close"], True)
         self.assertNotIn("username", clean)
         self.assertNotIn("unknown_key", clean)
+
+    def test_load_clamps_out_of_range_values(self) -> None:
+        """Regresion: un settings.json editado a mano con memory_mb
+        desbordado o enums invalidos rompia la JVM o el selector."""
+        from azero.settings import Settings
+        with tempfile.TemporaryDirectory() as tmp:
+            old_dir = paths.DATA_DIR
+            old_file = paths.SETTINGS_FILE
+            paths.DATA_DIR = Path(tmp)
+            paths.SETTINGS_FILE = paths.DATA_DIR / "settings.json"
+            try:
+                paths.SETTINGS_FILE.write_text(
+                    '{"memory_mb": 999999, "game_priority": "turbo",'
+                    ' "gc_preset": "bogus", "cpu_cores": -3,'
+                    ' "hw_defaults_applied": true}',
+                    encoding="utf-8")
+                settings = Settings.load()
+                self.assertEqual(settings.memory_mb, 16384)
+                self.assertEqual(settings.game_priority, "normal")
+                self.assertEqual(settings.gc_preset, "auto")
+                self.assertEqual(settings.cpu_cores, 0)
+            finally:
+                paths.DATA_DIR = old_dir
+                paths.SETTINGS_FILE = old_file
 
 
 class TestJavaCompatibility(unittest.TestCase):

@@ -13,7 +13,8 @@ from pathlib import Path
 
 from . import java as java_module
 from . import hardware, paths
-from .auth import OfflineProfile, OnlineProfile
+from .auth import (OfflineProfile, OnlineProfile, create_profile,
+                   validate_username)
 from . import msauth
 from .constants import APP_NAME, APP_VERSION
 from .install import PreparedGame, TaskContext, prepare
@@ -175,12 +176,12 @@ def build_command(prepared: PreparedGame,
         jvm.append(f"-Dlog4j.configurationFile={prepared.logging_path}")
 
     gc_choice = getattr(settings, "gc_preset", "auto")
+    gc_token = re.compile(r"^-XX:\+Use\w*GC$")
     if gc_choice != "auto":
         # Un GC elegido por el usuario sustituye al del manifiesto
         # (default-user-jvm de 26.x): dos -XX:+Use*GC distintos abortan
         # la JVM con "Multiple garbage collectors selected".
-        jvm[:] = [arg for arg in jvm
-                  if not re.match(r"^-XX:\+Use\w*GC$", arg)]
+        jvm[:] = [arg for arg in jvm if not gc_token.match(arg)]
     jvm.extend(_GC_FLAGS.get(gc_choice, []))
 
     # Aceleracion por GPU: pipeline OpenGL de Java2D (util en iGPU Intel UHD
@@ -190,7 +191,13 @@ def build_command(prepared: PreparedGame,
 
     extra = (settings.extra_jvm_args or "").strip()
     if extra:
-        jvm.extend(shlex.split(extra, posix=False))
+        extra_tokens = shlex.split(extra, posix=False)
+        # Si el usuario escribe su propio -XX:+Use*GC en los argumentos
+        # extra, tiene prioridad sobre preset y manifiesto: dos banderas
+        # de GC a la vez abortan la JVM antes de arrancar.
+        if any(gc_token.match(token) for token in extra_tokens):
+            jvm[:] = [arg for arg in jvm if not gc_token.match(arg)]
+        jvm.extend(extra_tokens)
 
     jvm.extend(["-cp", classpath_value, prepared.main_class])
 
@@ -304,16 +311,30 @@ def spawn(command: list[str], cwd: Path, auto_close: bool,
 def install_and_launch(version_id: str, settings, ctx: TaskContext,
                        with_assets: bool = True,
                        on_spawned=None) -> LaunchOutcome:
+    offline = bool(getattr(settings, "offline_mode", False))
     if (getattr(settings, "active_account", "") or "").startswith("ms:"):
         ctx.stage("Verificando sesion de Microsoft")
-    profile = msauth.resolve_profile(settings)
+    try:
+        profile = msauth.resolve_profile(settings)
+    except Exception as error:  # noqa: BLE001
+        if not offline:
+            raise
+        # Sin conexion el refresh token no se puede renovar: se juega
+        # con el perfil local para no bloquear el lanzamiento.
+        ctx.log(f"Cuenta Microsoft no disponible ({error}); "
+                "se usara el perfil sin conexion.")
+        username = (getattr(settings, "username", "") or "").strip()
+        if validate_username(username):
+            username = "Player"
+        profile = create_profile(username)
 
-    prepared = prepare(version_id, ctx, with_assets=with_assets)
+    prepared = prepare(version_id, ctx, with_assets=with_assets,
+                       offline=offline)
     ctx.stage(f"Preparando Java {prepared.java_major}")
     runtime = java_module.ensure_java(
         prepared.java_major,
         java_path=settings.java_path,
-        allow_download=settings.auto_download_java,
+        allow_download=settings.auto_download_java and not offline,
         progress=ctx.progress,
         stage=ctx.stage,
         log=ctx.log,

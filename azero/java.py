@@ -212,10 +212,14 @@ def _adoptium_os() -> str:
 
 def _find_java_home(root: Path) -> Path | None:
     executable = "java.exe" if sys.platform.startswith("win") else "java"
-    direct = root / "bin" / executable
-    if direct.exists():
-        return root
-    for child in sorted(root.iterdir()):
+    try:
+        direct = root / "bin" / executable
+        if direct.exists():
+            return root
+        children = sorted(root.iterdir())
+    except OSError:
+        return None
+    for child in children:
         if child.is_dir():
             found = _find_java_home(child)
             if found:

@@ -34,10 +34,10 @@ def mods_dir() -> Path:
     return target
 
 
-def _read_mod_metadata(jar: zipfile.ZipFile, fallback: str) -> tuple[str, str]:
+def _read_mod_metadata(names: set[str], jar: zipfile.ZipFile,
+                       fallback: str) -> tuple[str, str]:
     """Extrae nombre/version del mod sin ejecutar nada (solo lectura del zip)."""
     try:
-        names = set(jar.namelist())
         for candidate in ("mcmod.info", "fabric.mod.json"):
             if candidate not in names:
                 continue
@@ -62,29 +62,33 @@ def _read_mod_metadata(jar: zipfile.ZipFile, fallback: str) -> tuple[str, str]:
         return fallback, ""
 
 
+def _names_look_forge(names: list[str]) -> bool:
+    """Heuristica Forge/FML sobre la lista de entradas de un zip."""
+    if "mcmod.info" in names:
+        return True
+    for name in names:
+        lowered = name.lower()
+        if "minecraftforge" in lowered or "/fml/" in lowered \
+                or lowered.endswith("fml.class"):
+            return True
+    return False
+
+
 def is_forge_mod(path: Path) -> bool:
     """Heuristica: el jar parece un mod de Forge/FML (mcmod.info o clases
     de MinecraftForge/FML en el interior). Solo lectura del zip."""
     try:
         with zipfile.ZipFile(path) as jar:
-            names = jar.namelist()
-            if "mcmod.info" in names:
-                return True
-            for name in names:
-                lowered = name.lower()
-                if "minecraftforge" in lowered or "/fml/" in lowered \
-                        or lowered.endswith("fml.class"):
-                    return True
+            return _names_look_forge(jar.namelist())
     except Exception:  # noqa: BLE001
         return False
-    return False
 
 
 def describe_mod(path: Path) -> tuple[str, str]:
     """Devuelve (titulo, version) de un jar; nunca lanza excepciones."""
     try:
         with zipfile.ZipFile(path) as jar:
-            return _read_mod_metadata(jar, path.stem)
+            return _read_mod_metadata(set(jar.namelist()), jar, path.stem)
     except Exception:  # noqa: BLE001
         return path.stem, ""
 
@@ -94,12 +98,20 @@ def list_mods() -> list[ModInfo]:
     folder = mods_dir()
     mods = []
     for item in folder.iterdir():
-        if item.is_file() and item.suffix.lower() == ".jar":
-            title, version = describe_mod(item)
-            mods.append(ModInfo(name=item.name, path=item,
-                                size=item.stat().st_size,
-                                title=title, version=version,
-                                forge=is_forge_mod(item)))
+        if not (item.is_file() and item.suffix.lower() == ".jar"):
+            continue
+        try:
+            # Una sola apertura del zip: metadatos + deteccion Forge.
+            with zipfile.ZipFile(item) as jar:
+                names = jar.namelist()
+                title, version = _read_mod_metadata(set(names), jar,
+                                                    item.stem)
+                forge = _names_look_forge(names)
+        except Exception:  # noqa: BLE001 - jar ilegible: datos minimos
+            title, version, forge = item.stem, "", False
+        mods.append(ModInfo(name=item.name, path=item,
+                            size=item.stat().st_size,
+                            title=title, version=version, forge=forge))
     mods.sort(key=lambda mod: mod.name.lower())
     return mods
 

@@ -5,7 +5,8 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, fields
 
 from . import hardware, paths
-from .constants import DEFAULT_MEMORY_MB
+from .constants import (DEFAULT_MEMORY_MB, MAX_MEMORY_MB,
+                        MIN_MEMORY_MB)
 from .util import read_json, write_json
 
 _INT_FIELDS = {
@@ -13,7 +14,7 @@ _INT_FIELDS = {
 }
 _BOOL_FIELDS = {
     "auto_close", "show_all_versions", "auto_download_java", "gpu_accel",
-    "hw_defaults_applied",
+    "hw_defaults_applied", "offline_mode",
 }
 _STR_FIELDS = {
     "username", "active_account", "version", "java_path",
@@ -73,6 +74,9 @@ class Settings:
     # Raices .minecraft adicionales detectadas por el escaner (una por
     # linea). Sus perfiles de version se reconocen junto a los oficiales.
     extra_mc_dirs: str = ""
+    # Modo sin conexion: solo usa la cache local, no verifica hashes
+    # (SHA-1/SHA-256) ni exige manifiesto/indices descargados.
+    offline_mode: bool = False
 
     @classmethod
     def load(cls) -> "Settings":
@@ -84,6 +88,16 @@ class Settings:
         settings = cls(**data)
         if settings.ui_theme not in ("light", "dark"):
             settings.ui_theme = "light"
+        # Un settings.json editado a mano no debe poder pedir una heap
+        # imposible: la JVM abortaria con -Xmx fuera de rango.
+        settings.memory_mb = min(
+            max(settings.memory_mb, MIN_MEMORY_MB), MAX_MEMORY_MB)
+        if settings.game_priority not in (
+                "idle", "below_normal", "normal", "above_normal", "high"):
+            settings.game_priority = "normal"
+        if settings.gc_preset not in ("auto", "g1", "serial", "parallel"):
+            settings.gc_preset = "auto"
+        settings.cpu_cores = max(0, settings.cpu_cores)
         # Ajuste unico al hardware real en el primer arranque (equipo modesto:
         # menos RAM para el juego y GC de un solo hilo). Solo toca valores que
         # siguen en su default antiguo; una eleccion manual posterior se respeta.

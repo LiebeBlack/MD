@@ -9,7 +9,7 @@ from pathlib import Path
 from PyQt6.QtCore import QThread, pyqtSignal
 
 from . import forge, launch, manifest, msauth, optifine
-from .install import TaskContext, prepare
+from .install import TaskContext
 from .util import CancelledError
 
 
@@ -17,13 +17,14 @@ class ManifestWorker(QThread):
     ready = pyqtSignal(object)
     failed = pyqtSignal(str)
 
-    def __init__(self, show_all: bool, parent=None):
+    def __init__(self, show_all: bool, offline: bool = False, parent=None):
         super().__init__(parent)
         self.show_all = show_all
+        self.offline = offline
 
     def run(self) -> None:
         try:
-            data = manifest.fetch_manifest()
+            data = manifest.fetch_manifest(offline=self.offline)
             entries = manifest.merge_local_and_manifest(data, self.show_all)
             self.ready.emit(entries)
         except Exception as error:  # noqa: BLE001 - se informa en la UI
@@ -183,12 +184,12 @@ class ForgeInstallWorker(QThread):
 
     def run(self) -> None:
         try:
-            self.stage.emit(f"Preparando Minecraft {self.version_id}")
-            prepare(self.version_id, self._context(), with_assets=False)
             version = forge.install_forge(
                 self.version_id,
                 java_path=getattr(self.settings, "java_path", ""),
-                log=self.log.emit)
+                log=self.log.emit,
+                ctx=self._context(),
+                offline=bool(getattr(self.settings, "offline_mode", False)))
         except CancelledError:
             self.log.emit("Instalacion de Forge cancelada.")
             self.cancelled.emit()

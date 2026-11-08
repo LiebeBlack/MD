@@ -64,6 +64,9 @@ def maven_path(name: str) -> str:
     return "/".join((*group.split("."), artifact, version, filename))
 
 
+_FORGE_MAVEN_URL = "https://maven.minecraftforge.net/"
+
+
 def _synthesized_download(library: dict) -> DownloadTask | None:
     """Librerias sin bloque downloads (perfiles OptiFine/Forge)."""
     name = library.get("name")
@@ -73,7 +76,11 @@ def _synthesized_download(library: dict) -> DownloadTask | None:
         relative = maven_path(name)
     except ValueError:
         return None
-    base_url = library.get("url") or LIBRARIES_URL
+    base_url = library.get("url")
+    if not base_url:
+        # Artefactos de Forge viven en su propio maven, no en el de Mojang.
+        base_url = (_FORGE_MAVEN_URL if name.startswith("net.minecraftforge:")
+                    else LIBRARIES_URL)
     if not base_url.endswith("/"):
         base_url += "/"
     dest = paths.LIBRARIES_DIR / relative
@@ -127,6 +134,10 @@ def build_library_plan(version_json: dict, features: dict[str, bool] | None = No
 
     for library in version_json.get("libraries", []):
         if not rules_allow(library.get("rules"), features):
+            continue
+        # Forge marca clientreq:false en librerias exclusivas del servidor
+        # (p. ej. jline): no deben entrar al classpath del cliente.
+        if library.get("clientreq") is False:
             continue
         if not _classifier_platform_ok(library.get("name", "")):
             continue

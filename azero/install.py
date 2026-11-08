@@ -10,7 +10,7 @@ from typing import Callable
 
 from . import assets, libraries, manifest, paths
 from .util import (CancelledError, DownloadTask, download_many, human_size,
-                   task_satisfied)
+                   read_json, task_satisfied)
 
 
 @dataclass
@@ -42,7 +42,8 @@ class PreparedGame:
 
 
 def ensure_profile_chain(version_id: str,
-                         manifest_data: dict | None = None) -> None:
+                         manifest_data: dict | None = None,
+                         offline: bool = False) -> None:
     """Garantiza el json de la version y de toda su cadena inheritsFrom.
 
     Los perfiles Forge/OptiFine heredan de la version vanilla; si el json
@@ -50,7 +51,8 @@ def ensure_profile_chain(version_id: str,
     fallaba aunque el perfil hijo existiera. Los padres siempre son
     versiones oficiales localizables en el manifiesto de Mojang.
     """
-    manifest_data = manifest_data or manifest.fetch_manifest()
+    if manifest_data is None:
+        manifest_data = manifest.fetch_manifest(offline=offline)
     current = version_id
     seen: set[str] = set()
     while current and current not in seen:
@@ -58,12 +60,21 @@ def ensure_profile_chain(version_id: str,
         payload = manifest.load_version_profile(current)
         if payload is None:
             entry = manifest.version_entry(manifest_data, current)
-            if entry is None:
-                raise FileNotFoundError(
-                    f"El perfil '{current}' no existe localmente ni en "
-                    "el manifiesto de Mojang.")
-            payload = manifest.fetch_version_json(current, entry["url"])
-            manifest.write_version_profile(current, payload)
+            if entry is None and offline:
+                # Sin manifiesto se puede recuperar el json desde la
+                # cache del launcher si ya se descargo antes.
+                cached = read_json(
+                    paths.CACHE_DIR / f"version-{current}.json")
+                if cached:
+                    manifest.write_version_profile(current, cached)
+                    payload = cached
+            if payload is None:
+                if entry is None:
+                    raise FileNotFoundError(
+                        f"El perfil '{current}' no existe localmente ni en "
+                        "el manifiesto de Mojang.")
+                payload = manifest.fetch_version_json(current, entry["url"])
+                manifest.write_version_profile(current, payload)
         current = payload.get("inheritsFrom")
 
 
@@ -103,15 +114,26 @@ def _logging_task(version_json: dict) -> tuple[DownloadTask | None, Path | None]
     return task, dest
 
 
-def prepare(version_id: str, ctx: TaskContext, with_assets: bool = True) -> PreparedGame:
-    """Descarga y verifica todo lo necesario para lanzar la version."""
+def prepare(version_id: str, ctx: TaskContext, with_assets: bool = True,
+            offline: bool = False) -> PreparedGame:
+    """Descarga y verifica todo lo necesario para lanzar la version.
+
+    Con ``offline=True`` no se exigen manifiesto, indices ni hashes:
+    se usan los archivos locales tal cual y las descargas que fallen se
+    toleran (el chequeo final de classpath sigue siendo estricto).
+    """
     ctx.check()
     ctx.stage("Leyendo manifiesto oficial")
-    manifest_data = manifest.fetch_manifest()
+    try:
+        manifest_data = manifest.fetch_manifest(offline=offline)
+    except Exception as error:  # noqa: BLE001 - se intenta con perfiles
+        ctx.log(f"Manifiesto no disponible ({error}); "
+                "se usaran los perfiles locales.")
+        manifest_data = {}
 
     if manifest.load_version_profile(version_id) is None:
         ctx.log(f"Descargando definicion de {version_id}...")
-    ensure_profile_chain(version_id, manifest_data)
+    ensure_profile_chain(version_id, manifest_data, offline=offline)
     version_json = manifest.resolve_version(version_id)
     ctx.check()
 
@@ -130,7 +152,8 @@ def prepare(version_id: str, ctx: TaskContext, with_assets: bool = True) -> Prep
         tasks.append(logging_task)
 
     asset_index = version_json["assetIndex"]
-    index_payload = assets.ensure_asset_index(asset_index, log=ctx.log)
+    index_payload = assets.ensure_asset_index(
+        asset_index, log=ctx.log, offline=offline)
     ctx.log(f"Indice de assets {asset_index['id']}: "
             f"{len(index_payload.get('objects') or {})} objetos")
 
@@ -140,42 +163,67 @@ def prepare(version_id: str, ctx: TaskContext, with_assets: bool = True) -> Prep
     else:
         asset_total = 0
 
+    if offline:
+        # Sin verificacion de hashes: los archivos locales se aceptan por
+        # tamano y una descarga corrupta no debe impedir el lanzamiento.
+        for task in tasks:
+            task.sha1 = None
+            task.sha256 = None
+
     pending = [task for task in tasks if not task_satisfied(task)]
     total_bytes = sum(task.size or 0 for task in pending)
-    if pending:
+    if offline and pending:
+        # Sin internet no se intenta descargar nada: cada intento
+        # tardaria decenas de segundos en timeouts. Se continua solo
+        # con lo que ya esta en el .minecraft local; el chequeo final
+        # de classpath sigue siendo estricto para no lanzar a ciegas.
+        ctx.log(f"{len(pending)} archivo(s) no estan en la cache local; "
+                "se omitiran en este lanzamiento.")
+        ctx.progress(1, 1)
+    elif pending:
         ctx.stage(f"Descargando Minecraft {version_json['base_id']} "
                   f"({human_size(total_bytes)})")
-        download_many(pending, on_progress=ctx.progress, workers=12,
-                      cancel=ctx.cancel_event.is_set, log=ctx.log)
+        try:
+            download_many(pending, on_progress=ctx.progress, workers=12,
+                          cancel=ctx.cancel_event.is_set, log=ctx.log)
+        except CancelledError:
+            raise
+        ctx.check()
     else:
         ctx.stage("Archivos del juego al dia")
         ctx.progress(1, 1)
         ctx.log("No hay descargas pendientes.")
     ctx.check()
 
-    # Verificacion SHA-1 pre-lanzamiento: detecta jars corruptos a medias
-    # y los repara re-descargandolos (rapido, ~1 MB por lectura).
-    ctx.stage("Verificando integridad de archivos")
-    client_sha1 = ((version_json.get("downloads") or {})
-                   .get("client") or {}).get("sha1")
-    extra = ([(client_jar, client_sha1)] if client_sha1 else [])
-    corrupt = libraries.verify_checksums(version_json, extra=extra)
-    if corrupt:
-        ctx.log(f"{len(corrupt)} archivo(s) corrupto(s); reparando…")
-        for target in corrupt:
-            target.unlink(missing_ok=True)
-        repair = [task for task in tasks if not task_satisfied(task)]
-        if repair:
-            download_many(repair, on_progress=ctx.progress, workers=8,
-                          cancel=ctx.cancel_event.is_set, log=ctx.log)
+    if not offline:
+        # Verificacion SHA-1 pre-lanzamiento: detecta jars y objetos de
+        # assets corruptos y los repara re-descargandolos.
+        ctx.stage("Verificando integridad de archivos")
+        client_sha1 = ((version_json.get("downloads") or {})
+                       .get("client") or {}).get("sha1")
+        extra = ([(client_jar, client_sha1)] if client_sha1 else [])
+        corrupt = libraries.verify_checksums(version_json, extra=extra)
+        if with_assets:
+            corrupt += assets.corrupt_objects(index_payload)
+        if corrupt:
+            ctx.log(f"{len(corrupt)} archivo(s) corrupto(s); reparando…")
+            for target in corrupt:
+                target.unlink(missing_ok=True)
+            repair = [task for task in tasks if not task_satisfied(task)]
+            if repair:
+                download_many(repair, on_progress=ctx.progress, workers=8,
+                              cancel=ctx.cancel_event.is_set, log=ctx.log)
+            ctx.check()
+            remaining = libraries.verify_checksums(version_json,
+                                                   extra=extra)
+            if with_assets:
+                remaining += assets.corrupt_objects(index_payload)
+            if remaining:
+                raise RuntimeError(
+                    f"No se pudieron reparar {len(remaining)} archivo(s). "
+                    "Revisa tu conexion e intentalo de nuevo.")
+            ctx.log("Archivos reparados correctamente.")
         ctx.check()
-        remaining = libraries.verify_checksums(version_json, extra=extra)
-        if remaining:
-            raise RuntimeError(
-                f"No se pudieron reparar {len(remaining)} archivo(s). "
-                "Revisa tu conexion e intentalo de nuevo.")
-        ctx.log("Archivos reparados correctamente.")
-    ctx.check()
 
     ctx.stage("Extrayendo librerias nativas")
     natives_target = paths.natives_dir(version_id)
@@ -185,7 +233,8 @@ def prepare(version_id: str, ctx: TaskContext, with_assets: bool = True) -> Prep
     ctx.check()
 
     if asset_total == 0 and with_assets:
-        ctx.log("Assets al dia")
+        ctx.log("Assets al dia" if index_payload.get("objects")
+                else "Sin indice de assets: se omitio la verificacion.")
 
     classpath: list[Path] = []
     seen: set[str] = set()

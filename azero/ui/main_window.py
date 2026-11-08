@@ -47,9 +47,11 @@ def _java_major_for(version_id: str) -> int:
     return 8
 
 
-def _java_major_display(version_id: str) -> int:
+def _java_major_display(version_id: str,
+                        payload: dict | None = None) -> int:
     """Java real que usara el launcher, leido del perfil si existe."""
-    payload = load_version_profile(version_id) or {}
+    if payload is None:
+        payload = load_version_profile(version_id) or {}
     candidates = [payload]
     parent = payload.get("inheritsFrom")
     if parent:
@@ -477,6 +479,7 @@ class MainWindow(QMainWindow):
             page.play_button.setText("JUGAR")
             page.play_button.setEnabled(
                 self._identity_valid() and has_version)
+            page.stage_label.setText("Esperando acción.")
             self.header_status.setText("LISTO")
             self.header_status.set_dim(True)
 
@@ -588,7 +591,9 @@ class MainWindow(QMainWindow):
             return
         self.play_page.version_meta.setText(
             "Actualizando el manifiesto oficial…")
-        worker = ManifestWorker(self.settings.show_all_versions, self)
+        worker = ManifestWorker(self.settings.show_all_versions,
+                                getattr(self.settings, "offline_mode", False),
+                                self)
         worker.ready.connect(self._on_manifest_ready)
         worker.failed.connect(self._on_manifest_failed)
         worker.finished.connect(self._on_manifest_finished)
@@ -667,8 +672,8 @@ class MainWindow(QMainWindow):
         if not version_id:
             self.play_page.version_meta.setText("Sin versiones cargadas.")
             return
-        base = self._selected_base()
         payload = load_version_profile(version_id) or {}
+        base = payload.get("inheritsFrom") or version_id
         lower_id = version_id.lower()
         is_optifine = "optifine" in lower_id
         is_forge = "forge" in lower_id
@@ -680,21 +685,29 @@ class MainWindow(QMainWindow):
             state = "instalada"
         else:
             state = "se descargará al jugar"
+        # El picker ya muestra el id; aqui solo va el resumen util.
         self.play_page.version_meta.setText(
-            f"{base} · Java {_java_major_display(version_id)} · {kind} · {state}"
+            f"Java {_java_major_display(version_id, payload)} · "
+            f"{kind} · {state}"
         )
         self._update_optifine_row(base)
 
+    def _local_profile_ids(self) -> list[str]:
+        """Ids de perfiles locales; usa los entries ya cargados si hay."""
+        entries = getattr(self, "_entries", None)
+        if entries:
+            return [entry["id"] for entry in entries if entry.get("local")]
+        return local_profiles()
+
     def _update_optifine_row(self, base: str) -> None:
-        profiles = [pid for pid in local_profiles()
+        profiles = [pid for pid in self._local_profile_ids()
                     if base and pid.startswith(f"{base}-OptiFine_")]
         if profiles:
             edition = profiles[0].split("OptiFine_", 1)[-1].replace("_", " ")
             self.play_page.optifine_status.setText(f"Instalado · {edition}")
             self.play_page.optifine_button.setText("Reinstalar…")
         else:
-            self.play_page.optifine_status.setText(
-                "No instalado · más FPS y shaders")
+            self.play_page.optifine_status.setText("No instalado")
             self.play_page.optifine_button.setText("Instalar…")
 
     # --------------------------------------------------------------- juego
