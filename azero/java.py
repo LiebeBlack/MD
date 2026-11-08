@@ -286,6 +286,11 @@ def ensure_java(major: int, java_path: str = "", allow_download: bool = True,
                 stage: Callable[[str], None] = lambda text: None,
                 log: Callable[[str], None] = lambda text: None,
                 cancel: Callable[[], bool] | None = None) -> JavaRuntime:
+    manual = manual_runtime(java_path)
+    if manual is not None and not _major_compatible(manual.major, major):
+        log(f"El Java configurado en Ajustes ({manual.version or manual.major}) "
+            f"no es compatible con esta version (requiere Java {major}+); "
+            "se usara otro runtime detectado.")
     runtime = select_runtime(major, java_path)
     if runtime:
         return runtime

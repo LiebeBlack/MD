@@ -16,7 +16,8 @@ from azero.auth import (OnlineProfile, create_profile, offline_uuid,
                         validate_username)
 from azero.install import PreparedGame
 from azero.launch import build_command
-from azero.libraries import build_library_plan, maven_path
+from azero.libraries import (build_library_plan, fix_authlib_session,
+                             maven_path)
 from azero.manifest import (_version_key, in_supported_range,
                             parse_version_key, resolve_version,
                             version_family_label)
@@ -173,6 +174,30 @@ class TestMavenPath(unittest.TestCase):
         self.assertTrue(any("b-1.jar" in name for name in names))
         self.assertTrue(any("f-3.jar" in name for name in names))
         self.assertFalse(any("d-2.jar" in name for name in names))
+
+
+class TestAuthlibFix(unittest.TestCase):
+    def _version_json(self, base_id: str, name: str =
+                      "com.mojang:authlib:2.1.28") -> dict:
+        return {"base_id": base_id, "libraries": [
+            {"name": name, "downloads": {"artifact": {
+                "path": "com/mojang/authlib/2.1.28/authlib-2.1.28.jar",
+                "sha1": "ad54da276bf59983d02d5ed16fc14541354c71fd",
+                "size": 76328}}}]}
+
+    def test_swaps_authlib_on_1165(self) -> None:
+        vj = self._version_json("1.16.5")
+        self.assertTrue(fix_authlib_session(vj))
+        lib = vj["libraries"][0]
+        self.assertEqual(lib["name"], "com.mojang:authlib:2.3.31")
+        self.assertIn("2.3.31", lib["downloads"]["artifact"]["path"])
+        self.assertTrue(fix_authlib_session(vj))  # idempotente
+
+    def test_ignores_other_versions(self) -> None:
+        vj = self._version_json("1.17.1")
+        self.assertFalse(fix_authlib_session(vj))
+        self.assertEqual(vj["libraries"][0]["name"],
+                         "com.mojang:authlib:2.1.28")
 
 
 class TestResolveVersion(unittest.TestCase):

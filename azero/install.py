@@ -135,6 +135,9 @@ def prepare(version_id: str, ctx: TaskContext, with_assets: bool = True,
         ctx.log(f"Descargando definicion de {version_id}...")
     ensure_profile_chain(version_id, manifest_data, offline=offline)
     version_json = manifest.resolve_version(version_id)
+    if libraries.fix_authlib_session(version_json, offline=offline):
+        ctx.log("Authlib 2.1.28 -> 2.3.31 "
+                "(multijugador corregido para 1.16.4/1.16.5)")
     ctx.check()
 
     ctx.stage("Calculando archivos necesarios")

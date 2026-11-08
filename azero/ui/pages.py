@@ -1839,6 +1839,11 @@ class SettingsPage(ScrollPage):
             "Importar", "ghost",
             "Restaurar una configuración exportada",
             self._import_settings))
+        actions.addWidget(make_button(
+            "Vaciar datos", "danger",
+            "Borrar todo el contenido de las carpetas de datos del "
+            "launcher (ajustes y .minecraft se conservan)",
+            self._wipe_data))
         actions.addStretch(1)
         card.body.addLayout(actions)
 
@@ -1889,6 +1894,58 @@ class SettingsPage(ScrollPage):
         cache.mkdir(parents=True, exist_ok=True)
         self.shell._set_status(
             f"Caché limpiada ({human_size(freed)} liberados).", "ok")
+
+    def _wipe_data(self) -> None:
+        """Borra el contenido de todas las carpetas de datos del launcher.
+
+        Se conservan settings.json (ajustes) y todo .minecraft (versiones,
+        mundos, mods). Java tendra que volver a descargarse si hace falta.
+        """
+        data_dir = paths.DATA_DIR
+        if not data_dir.exists():
+            self.shell._set_status("No hay datos que borrar.", "ok")
+            return
+        items = [item for item in data_dir.iterdir()
+                 if item.name != paths.SETTINGS_FILE.name]
+        if not items:
+            self.shell._set_status("Las carpetas de datos ya están vacías.",
+                                   "ok")
+            return
+        names = ", ".join(sorted(item.name for item in items))
+        answer = QMessageBox.question(
+            self, "Vaciar datos",
+            f"Se borrará TODO el contenido de:\n{data_dir}\n\n"
+            f"Carpetas/archivos afectados: {names}\n\n"
+            "Se conservan los ajustes (settings.json) y tu .minecraft "
+            "(versiones, mundos y mods). Java se redescargará si hace "
+            "falta. ¿Continuar?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+        freed = 0
+        errors = 0
+        for item in items:
+            try:
+                if item.is_dir():
+                    freed += sum(f.stat().st_size for f in item.rglob("*")
+                                 if f.is_file())
+                    shutil.rmtree(item)
+                else:
+                    freed += item.stat().st_size
+                    item.unlink()
+            except OSError:
+                errors += 1
+        data_dir.mkdir(parents=True, exist_ok=True)
+        paths.ensure_dirs()
+        if errors:
+            self.shell._set_status(
+                f"Datos borrados con {errors} errores "
+                f"({human_size(freed)} liberados).", "error")
+        else:
+            self.shell._set_status(
+                f"Datos borrados ({human_size(freed)} liberados).", "ok")
 
     def _export_settings(self) -> None:
         """Exporta settings.json a una ubicación elegida por el usuario."""

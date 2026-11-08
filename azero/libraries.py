@@ -12,6 +12,50 @@ from .constants import LIBRARIES_URL
 from .rules import default_features, os_arch, os_name, rules_allow
 from .util import DownloadTask, extract_zip
 
+# Bug de Mojang: authlib 2.1.28 (solo 1.16.4/1.16.5) no detecta el HTTP
+# 401 del servidor de sesiones, asi que el juego desactiva Multijugador,
+# Realms y chat para cuentas offline. La 2.3.31 usa la misma API y si
+# maneja bien el error; otros launchers (PCL2, CmlLib) aplican este
+# mismo reemplazo.
+_AUTHLIB_OLD = "com.mojang:authlib:2.1.28"
+_AUTHLIB_NEW = "com.mojang:authlib:2.3.31"
+_AUTHLIB_NEW_ARTIFACT = {
+    "path": "com/mojang/authlib/2.3.31/authlib-2.3.31.jar",
+    "sha1": "bbd00ca33b052f73a6312254780fc580d2da3535",
+    "size": 87662,
+    "url": ("https://libraries.minecraft.net/com/mojang/authlib/"
+            "2.3.31/authlib-2.3.31.jar"),
+}
+_AUTHLIB_AFFECTED = {(1, 16, 4), (1, 16, 5)}
+
+
+def fix_authlib_session(version_json: dict, offline: bool = False) -> bool:
+    """Sustituye authlib 2.1.28 por 2.3.31 en perfiles de 1.16.4/1.16.5.
+
+    Devuelve True si se aplico el cambio. En modo offline solo se aplica
+    si el jar nuevo ya esta descargado: si no, se conserva el original
+    para no dejar la version sin poder arrancar.
+    """
+    from .manifest import parse_version_key
+    base_id = version_json.get("base_id") or version_json.get("id") or ""
+    if parse_version_key(base_id) not in _AUTHLIB_AFFECTED:
+        return False
+    for library in version_json.get("libraries") or []:
+        name = library.get("name")
+        if name == _AUTHLIB_NEW:
+            return True  # resolve_version comparte los dicts del cache
+        if name != _AUTHLIB_OLD:
+            continue
+        if offline and not (
+                paths.LIBRARIES_DIR / _AUTHLIB_NEW_ARTIFACT["path"]
+        ).is_file():
+            return False
+        library["name"] = _AUTHLIB_NEW
+        downloads = library.setdefault("downloads", {})
+        downloads["artifact"] = dict(_AUTHLIB_NEW_ARTIFACT)
+        return True
+    return False
+
 _NATIVE_CLASSIFIER = re.compile(r":natives-[A-Za-z0-9_-]+$")
 
 # Clasificadores de los manifiestos modernos codifican SO/arquitectura
