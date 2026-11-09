@@ -384,3 +384,58 @@ def remove_mod(name: str) -> None:
     if not target.is_file():
         raise FileNotFoundError(f"Mod no encontrado: {name}")
     target.unlink()
+
+
+# ------------------------------------------------------- cuarentena de mods
+def quarantine_dir() -> Path:
+    """Subcarpeta donde se apartan los mods incompatibles.
+
+    Forge y Fabric solo escanean los .jar del nivel superior de mods/;
+    una subcarpeta los ignora por completo, asi que el juego arranca
+    limpio sin borrar nada del usuario."""
+    return mods_dir() / ".azero-disabled"
+
+
+def quarantine_mods(mod_paths: list[Path]) -> list[Path]:
+    """Mueve jars a mods/.azero-disabled/. Devuelve los destinos ok."""
+    folder = quarantine_dir()
+    folder.mkdir(parents=True, exist_ok=True)
+    moved = []
+    for path in mod_paths:
+        source = Path(path)
+        if not source.is_file():
+            continue
+        target = folder / source.name
+        try:
+            shutil.move(str(source), str(target))
+        except OSError:
+            continue
+        moved.append(target)
+    return moved
+
+
+def restore_quarantined() -> int:
+    """Devuelve a mods/ los jars en cuarentena. Devuelve cuantos movio.
+
+    Nunca pisa un jar que el usuario haya instalado con el mismo nombre
+    mientras tanto: ese se queda en cuarentena."""
+    folder = quarantine_dir()
+    if not folder.is_dir():
+        return 0
+    restored = 0
+    for path in sorted(folder.iterdir()):
+        if not (path.is_file() and path.suffix.lower() == ".jar"):
+            continue
+        target = mods_dir() / path.name
+        if target.exists():
+            continue
+        try:
+            shutil.move(str(path), str(target))
+        except OSError:
+            continue
+        restored += 1
+    try:
+        folder.rmdir()
+    except OSError:
+        pass
+    return restored

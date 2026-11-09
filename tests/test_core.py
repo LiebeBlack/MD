@@ -1,10 +1,11 @@
-"""Tests unitarios del nucleo del launcher (sin red ni GUI)."""
+﻿"""Tests unitarios del nucleo del launcher (sin red ni GUI)."""
 
 from __future__ import annotations
 
 import sys
 import tempfile
 import unittest
+from unittest import mock
 import zipfile
 from pathlib import Path
 from types import SimpleNamespace
@@ -323,6 +324,59 @@ class TestLoaderHelpers(unittest.TestCase):
             ["f.jar"])
         # Vanilla/OptiFine: mods/ se ignora, nada que bloquear.
         self.assertEqual(incompatible_loader_mods(mods_list, ""), [])
+
+
+class TestModQuarantine(unittest.TestCase):
+    def _mods_dir(self, tmp: str) -> "Path":
+        folder = Path(tmp) / "mods"
+        folder.mkdir()
+        return folder
+
+    def test_quarantine_and_restore(self) -> None:
+        import azero.mods as mods_module
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = self._mods_dir(tmp)
+            jar = folder / "test-mod.jar"
+            jar.write_bytes(b"fake jar")
+            with mock.patch.object(
+                    mods_module, "mods_dir", return_value=folder):
+                moved = mods_module.quarantine_mods([jar])
+                self.assertEqual(len(moved), 1)
+                self.assertFalse(jar.exists())
+                self.assertTrue(moved[0].is_file())
+                # list_mods no debe ver el jar en cuarentena.
+                self.assertEqual(mods_module.list_mods(), [])
+                self.assertEqual(mods_module.restore_quarantined(), 1)
+                self.assertTrue(jar.exists())
+                self.assertFalse(mods_module.quarantine_dir().exists())
+
+    def test_restore_never_overwrites_same_name(self) -> None:
+        import azero.mods as mods_module
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = self._mods_dir(tmp)
+            old = folder / "mod.jar"
+            old.write_bytes(b"old")
+            with mock.patch.object(
+                    mods_module, "mods_dir", return_value=folder):
+                mods_module.quarantine_mods([old])
+                # El usuario instala otro jar con el mismo nombre.
+                new = folder / "mod.jar"
+                new.write_bytes(b"new")
+                self.assertEqual(mods_module.restore_quarantined(), 0)
+                self.assertEqual(new.read_bytes(), b"new")
+                self.assertTrue(
+                    (mods_module.quarantine_dir() / "mod.jar").exists())
+
+    def test_quarantine_ignores_missing_files(self) -> None:
+        import azero.mods as mods_module
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = self._mods_dir(tmp)
+            with mock.patch.object(
+                    mods_module, "mods_dir", return_value=folder):
+                self.assertEqual(
+                    mods_module.quarantine_mods(
+                        [folder / "no-existe.jar"]), [])
+                self.assertEqual(mods_module.restore_quarantined(), 0)
 
 
 class TestAuthlibFix(unittest.TestCase):

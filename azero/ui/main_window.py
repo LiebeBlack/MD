@@ -90,6 +90,7 @@ class MainWindow(QMainWindow):
         self._titlebar_done = False
         self._allow_close = False
         self._launch_notices_shown: set[str] = set()
+        self._quarantined_mods: list[str] = []
         self._page_specs = (
             ("Jugar", "play"),
             ("Versiones", "versions"),
@@ -121,6 +122,9 @@ class MainWindow(QMainWindow):
         self._apply_settings()
         self._refresh_account()
         self._reload_versions()
+        # Si la sesion anterior cerro con mods en cuarentena (p. ej. por
+        # autocierre), se devuelven a mods/ ahora que la UI esta lista.
+        self._restore_quarantined_mods()
 
         shortcut = QShortcut(QKeySequence("Ctrl+,"), self)
         shortcut.activated.connect(self._go_settings)
@@ -430,37 +434,68 @@ class MainWindow(QMainWindow):
         payload = load_version_profile(version_id) or {}
         return payload.get("inheritsFrom") or version_id
 
-    def _mods_launch_problems(self, version_id: str) -> list[str]:
-        """Mods instalados que harian fallar el arranque de esta version.
+    def _mods_launch_issues(self, version_id: str) -> list[tuple]:
+        """(mod, motivo) de mods que no cargarian en esta version.
 
         Solo aplica a perfiles con loader de mods: en vanilla/OptiFine
-        el juego ignora mods/ y no hay crash que prevenir."""
+        el juego ignora mods/ y no hay nada que desactivar."""
         kind = mod_loader_kind(version_id)
         if not kind:
             return []
         installed = mods.list_mods()
         if not installed:
             return []
-        problems = []
-        wrong_loader = mods.incompatible_loader_mods(installed, kind)
-        if wrong_loader:
-            names = ", ".join(
-                mod.title or mod.name for mod in wrong_loader[:4])
-            extra = (f" +{len(wrong_loader) - 4}"
-                     if len(wrong_loader) > 4 else "")
-            problems.append(
-                f"{len(wrong_loader)} para otro loader "
-                f"({names}{extra}); este perfil usa {kind}.")
+        issues = [
+            (mod, f"requiere {mod.loader}; este perfil usa {kind}")
+            for mod in mods.incompatible_loader_mods(installed, kind)]
         base = self._selected_base() or version_id
-        bad = mods.incompatible_mods(installed, base)
-        if bad:
-            names = ", ".join(
-                mod.title or mod.name for mod, _dep in bad[:4])
-            extra = f" +{len(bad) - 4}" if len(bad) > 4 else ""
-            problems.append(
-                f"{len(bad)} no compatibles con MC {base} "
-                f"({names}{extra}).")
-        return problems
+        issues.extend(
+            (mod, f"declara MC {dep}; incompatible con {base}")
+            for mod, dep in mods.incompatible_mods(installed, base))
+        return issues
+
+    def _quarantine_incompatible_mods(self, version_id: str) -> bool:
+        """Aparta los mods incompatibles para esta sesion de juego.
+
+        Devuelve False si algun mod no se pudo mover: en ese caso el
+        lanzamiento se aborta porque el juego podria fallar igual."""
+        issues = self._mods_launch_issues(version_id)
+        if not issues:
+            return True
+        moved = mods.quarantine_mods([mod.path for mod, _ in issues])
+        moved_names = {path.name for path in moved}
+        active = [(mod, reason) for mod, reason in issues
+                  if mod.name in moved_names]
+        failed = [(mod, _reason) for mod, _reason in issues
+                  if mod.name not in moved_names]
+        if failed:
+            # Los que si se movieron vuelven a mods/: no se lanza nada.
+            mods.restore_quarantined()
+            names = ", ".join(mod.title or mod.name for mod, _ in failed[:3])
+            extra = f" +{len(failed) - 3}" if len(failed) > 3 else ""
+            QMessageBox.warning(
+                self, "Mods incompatibles",
+                f"No se pudieron desactivar temporalmente: "
+                f"{names}{extra}.\n\nEl juego podria fallar al arrancar; "
+                "revisa la carpeta mods/ en Ajustes > Mods.")
+            return False
+        if active:
+            self._quarantined_mods.extend(path.name for path in moved)
+            self.console.append(
+                "Mods desactivados para esta sesión: " + "; ".join(
+                    f"{mod.title or mod.name} ({reason})"
+                    for mod, reason in active))
+            self.play_page._refresh_mods_status()
+        return True
+
+    def _restore_quarantined_mods(self) -> None:
+        """Devuelve a mods/ los jars apartados para la sesion anterior."""
+        restored = mods.restore_quarantined()
+        self._quarantined_mods = []
+        if restored:
+            self.console.append(
+                f"{restored} mod(s) reactivados en la carpeta mods/.")
+            self.play_page._refresh_mods_status()
 
     def _active_identity(self) -> tuple[str, str, str, bool]:
         """(nombre, uuid, tipo_cuenta, online) de la cuenta activa."""
@@ -804,14 +839,10 @@ class MainWindow(QMainWindow):
                                 "Selecciona una versión de Minecraft.")
             return
 
-        problems = self._mods_launch_problems(version_id)
-        if problems:
-            QMessageBox.warning(
-                self, "Mods incompatibles",
-                "Estos mods harían fallar el juego al arrancar:\n\n"
-                + "\n".join(f"• {problem}" for problem in problems)
-                + "\n\nQuita los mods en Ajustes > Mods o elige "
-                  "otra versión.")
+        # Mods incompatibles se apartan un momento (mods/.azero-disabled/)
+        # y se restauran al terminar el juego: el arranque no falla.
+        mods.restore_quarantined()
+        if not self._quarantine_incompatible_mods(version_id):
             return
 
         self.settings.version = version_id
@@ -918,6 +949,7 @@ class MainWindow(QMainWindow):
             database.session_end(self._session_id, exit_code=code)
             self._session_id = None
             self.versions_page.refresh_all()
+        self._restore_quarantined_mods()
         if not self._allow_close:
             self._set_status(f"Minecraft se cerró (código {code}).", "normal")
 
@@ -932,6 +964,7 @@ class MainWindow(QMainWindow):
         if self._session_id is not None:
             database.session_end(self._session_id, detail="error")
             self._session_id = None
+        self._restore_quarantined_mods()
         first_line = (message.strip().splitlines()[0]
                       if message.strip() else "Error desconocido")
         self._set_status("No se pudo iniciar el juego.", "error")
@@ -952,6 +985,7 @@ class MainWindow(QMainWindow):
         if self._session_id is not None:
             database.session_end(self._session_id, detail="cancelado")
             self._session_id = None
+        self._restore_quarantined_mods()
         self._set_progress(0, 1)
         self._set_status("Operación cancelada.", "normal")
 
