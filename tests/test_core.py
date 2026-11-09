@@ -17,10 +17,11 @@ from azero.auth import (OnlineProfile, create_profile, offline_uuid,
 from azero.install import PreparedGame
 from azero.launch import build_command
 from azero.loaders import (_choose_stable, _neoforge_short_prefix,
-                           loader_kind)
+                           loader_kind, mod_loader_kind)
 from azero.libraries import (build_library_plan, fix_authlib_session,
                              maven_path)
-from azero.mods import _loader_of, dep_matches, incompatible_mods
+from azero.mods import (_loader_of, dep_matches, incompatible_loader_mods,
+                        incompatible_mods)
 from azero.java import _major_compatible
 from azero.manifest import (_version_key, in_supported_range,
                             parse_version_key, preferred_java_major,
@@ -290,6 +291,38 @@ class TestLoaderHelpers(unittest.TestCase):
         ]
         bad = incompatible_mods(mods_list, "1.21.1")
         self.assertEqual([m.name for m, _ in bad], ["a.jar"])
+
+    def test_mod_loader_kind(self) -> None:
+        self.assertEqual(mod_loader_kind("fabric-loader-0.16.9-1.21.1"),
+                         "fabric")
+        self.assertEqual(mod_loader_kind("neoforge-21.1.95"), "neoforge")
+        self.assertEqual(mod_loader_kind("1.21.1-forge-52.0.0"), "forge")
+        self.assertEqual(mod_loader_kind("1.12.2-OptiFine_HD_U_G5"), "")
+        self.assertEqual(mod_loader_kind("1.12.1-forge-14.23.5.2860"
+                                         "-OptiFine_HD_U_M5"), "forge")
+        self.assertEqual(mod_loader_kind("1.21.1"), "")
+
+    def test_incompatible_loader_mods(self) -> None:
+        mods_list = [
+            SimpleNamespace(loader="fabric", name="f.jar", title="F"),
+            SimpleNamespace(loader="forge", name="o.jar", title="O"),
+            SimpleNamespace(loader="neoforge", name="n.jar", title="N"),
+            SimpleNamespace(loader="", name="x.jar", title="X"),
+        ]
+        # Fabric solo admite mods Fabric.
+        self.assertEqual(
+            [m.name for m in incompatible_loader_mods(mods_list, "fabric")],
+            ["o.jar", "n.jar"])
+        # Forge solo admite mods Forge.
+        self.assertEqual(
+            [m.name for m in incompatible_loader_mods(mods_list, "forge")],
+            ["f.jar", "n.jar"])
+        # NeoForge admite mods Forge y NeoForge.
+        self.assertEqual(
+            [m.name for m in incompatible_loader_mods(mods_list, "neoforge")],
+            ["f.jar"])
+        # Vanilla/OptiFine: mods/ se ignora, nada que bloquear.
+        self.assertEqual(incompatible_loader_mods(mods_list, ""), [])
 
 
 class TestAuthlibFix(unittest.TestCase):
