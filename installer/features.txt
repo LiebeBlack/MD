@@ -1,13 +1,11 @@
 ﻿AZeroCraft Launcher — Funciones
 
-- Minecraft Java Edition 1.8 a 1.15.2 con descargas oficiales.
-- Forge y OptiFine integrados; mods en la carpeta del juego.
-- Cuentas Microsoft con código de dispositivo y perfil offline.
-- Java automático: detecta runtimes y descarga Temurin si falta.
+- Minecraft Java Edition 1.7 hasta la versión actual, con descargas oficiales.
+- Loaders: Forge, Fabric, NeoForge y OptiFine, varios perfiles por versión.
+- Cuentas Microsoft (código de dispositivo) y perfiles offline.
+- Java automático: detecta runtimes y descarga Microsoft OpenJDK (LTS) si falta.
+- Mods de Fabric/Forge/NeoForge con aviso de incompatibilidades.
 - Rendimiento: RAM, prioridad, recolector GC y núcleos.
-- Servidor directo, historial de descargas y registros.
-- Datos compartidos con el .minecraft oficial de Mojang.
-- Pestañas, temas claro/oscuro y atajos de teclado.
+- Comparte versiones, mundos, mods y resourcepacks con .minecraft.
 
-Instalación por usuario o para todo el equipo, con accesos directos
-opcionales y actualizaciones desde GitHub.
+Instalación por usuario o para todo el equipo, con accesos directos opcionales.

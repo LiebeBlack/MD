@@ -8,6 +8,7 @@ import os
 import shutil
 import threading
 import time
+import tarfile
 import urllib.error
 import urllib.request
 import zipfile
@@ -255,3 +256,41 @@ def extract_zip(zip_path: Path, dest: Path, excludes: Iterable[str] = ()) -> int
                 shutil.copyfileobj(source, out)
             count += 1
     return count
+
+
+def _safe_member_name(name: str, dest_resolved: Path) -> Path | None:
+    """Ruta de destino validada contra path traversal; None si es invalida."""
+    target = (dest_resolved / name).resolve()
+    try:
+        target.relative_to(dest_resolved)
+    except ValueError:
+        return None
+    return target
+
+
+def extract_archive(archive_path: Path, dest: Path) -> int:
+    """Extrae .zip o .tar.gz/.tgz sin permitir rutas fuera del destino."""
+    dest.mkdir(parents=True, exist_ok=True)
+    dest_resolved = dest.resolve()
+    suffix = archive_path.suffix.lower()
+    name = archive_path.name.lower()
+    count = 0
+    if suffix == ".zip":
+        return extract_zip(archive_path, dest)
+    if suffix in (".gz", ".tgz") or name.endswith((".tar.gz", ".tgz")):
+        with tarfile.open(archive_path, "r:gz") as archive:
+            for member in archive.getmembers():
+                if not member.isfile():
+                    continue
+                target = _safe_member_name(member.name, dest_resolved)
+                if target is None:
+                    continue
+                target.parent.mkdir(parents=True, exist_ok=True)
+                source = archive.extractfile(member)
+                if source is None:
+                    continue
+                with source, target.open("wb") as out:
+                    shutil.copyfileobj(source, out)
+                count += 1
+        return count
+    raise DownloadError(f"Formato de archivo no soportado: {archive_path.name}")

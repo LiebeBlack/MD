@@ -12,10 +12,14 @@ from __future__ import annotations
 import json
 import re
 import shutil
-import tomllib
 import zipfile
 from dataclasses import dataclass, field
 from pathlib import Path
+
+try:  # Python 3.11+; en versiones anteriores los .toml se ignoran.
+    import tomllib
+except ImportError:  # pragma: no cover
+    tomllib = None
 
 from . import paths
 
@@ -140,6 +144,8 @@ def _read_depends(names: set[str], jar: zipfile.ZipFile) -> dict:
         actual = next((n for n in names if n.lower() == toml_name), None)
         if actual is None:
             return depends
+        if tomllib is None:
+            return depends
         data = tomllib.loads(jar.read(actual).decode("utf-8", "replace"))
         for dep in data.get("dependencies") or []:
             mod_id = str(dep.get("modId") or "").lower()
@@ -157,17 +163,18 @@ def _read_depends(names: set[str], jar: zipfile.ZipFile) -> dict:
     return depends
 
 
-_VERSION_PART = re.compile(r"\d+")
 _PREDICATE = re.compile(
     r"^\s*(~|>=|<=|>|<|=)?\s*v?(\d+(?:\.\d+){0,3})"
     r"(?:-[0-9A-Za-z.-]+)?\s*$")
 
 
 def _version_tuple(text: str) -> tuple[int, ...]:
-    parts = [int(p) for p in _VERSION_PART.findall(text)][:4]
+    # Solo el prefijo numerado: "1.21.1-pre4" -> (1,21,1,0), no (1,21,1,4).
+    head = re.match(r"^v?(\d+(?:\.\d+)*)", text.strip())
+    parts = [int(p) for p in head.group(1).split(".")] if head else []
     while len(parts) < 4:
         parts.append(0)
-    return tuple(parts)
+    return tuple(parts[:4])
 
 
 def _predicate_ok(operator: str, dep: tuple[int, ...],

@@ -1,4 +1,4 @@
-AZeroCraft Launcher - Aviso legal y condiciones de uso
+﻿AZeroCraft Launcher - Aviso legal y condiciones de uso
 Desarrollado por Liebe Black (https://github.com/LiebeBlack)
 
 1. NATURALEZA DEL SOFTWARE
@@ -38,7 +38,7 @@ de uso del software, incluida la perdida de datos o de mundos de juego.
 6. PRIVACIDAD
 AZeroCraft no recopila datos personales, telemetria ni estadisticas de uso.
 Las unicas conexiones de red del launcher son:
-  - Descargas de los servidores oficiales de Mojang/Adoptium.
+  - Descargas de los servidores oficiales de Mojang/Microsoft.
   - Conexiones a servidores de Minecraft iniciadas por el propio usuario.
 
 7. ACEPTACION

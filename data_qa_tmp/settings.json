@@ -1,0 +1,23 @@
+{
+  "username": "Player",
+  "active_account": "",
+  "version": "",
+  "memory_mb": 1536,
+  "java_path": "",
+  "auto_close": true,
+  "show_all_versions": false,
+  "auto_download_java": true,
+  "extra_jvm_args": "",
+  "server": "",
+  "optifine_profile": "",
+  "last_optifine": "",
+  "game_priority": "normal",
+  "cpu_cores": 0,
+  "gc_preset": "serial",
+  "gpu_accel": true,
+  "hw_defaults_applied": true,
+  "win_geometry": "",
+  "ui_theme": "light",
+  "extra_mc_dirs": "",
+  "offline_mode": false
+}

@@ -1,4 +1,4 @@
-<p align="center">
+﻿<p align="center">
   <img src="assets/banner.png" alt="AZeroCraft Launcher">
 </p>
 
@@ -12,13 +12,13 @@ Repositorio: [github.com/LiebeBlack/MD](https://github.com/LiebeBlack/MD)
 
 Launcher ligero para Minecraft Java Edition (1.7 – la versión más reciente,
 incluido el versionado de calendario 26.x) con soporte de
-OptiFine, modo offline, Java automático (Temurin) y ajustes de rendimiento.
+OptiFine, modo offline, Java automático (Microsoft OpenJDK) y ajustes de rendimiento.
 
 ## Características
 
 - Descarga e instalación completa de cualquier versión del manifiesto oficial
   de Mojang: cliente, librerías, nativos y assets (con verificación SHA-1/SHA-256).
-- Java automático: detecta JREs instalados y descarga Temurin (Adoptium) si falta
+- Java automático: detecta JREs instalados y descarga Microsoft OpenJDK LTS si falta
   la versión requerida.
 - OptiFine: instala el parche oficial sin GUI y crea un perfil propio.
 - Mods: gestor de `.jar` en Ajustes → Mods. Permite añadir varios mods a la
@@ -56,7 +56,8 @@ OptiFine, modo offline, Java automático (Temurin) y ajustes de rendimiento.
 
 - Windows 10/11 (probado en Windows 11; el código también contempla Linux/macOS
   en el núcleo, la UI está pensada para Windows).
-- Python 3.11+ para desarrollo, o el ejecutable/instalador compilado.
+- Python 3.15 para desarrollo (compilación normal con GIL, no `3.15t`), o el
+  ejecutable/instalador compilado.
 
 ## Uso en desarrollo
 
@@ -82,7 +83,7 @@ descarga responden.
 
 ```powershell
 .\build.ps1              # genera dist\AZeroCraft\AZeroCraft.exe
-.\build.ps1 -Installer   # además genera dist\AZeroCraft-Setup-1.0.0.exe (requiere Inno Setup 6)
+.\build.ps1 -Installer   # además genera dist\AZeroCraft-Setup-4.37.58.exe (requiere Inno Setup 6)
 ```
 
 También se puede compilar el instalador directamente con Inno Setup:
@@ -101,13 +102,13 @@ El workflow `.github/workflows/release.yml` compila todo automáticamente
 en Windows al hacer push de un tag `v*`:
 
 ```powershell
-git tag v1.0.0
-git push origin v1.0.0
+git tag v4.37.58
+git push origin v4.37.58
 ```
 
 El workflow genera y publica como assets del release:
 
-- `AZeroCraft-Setup-1.0.0.exe` — instalador Inno Setup.
+- `AZeroCraft-Setup-4.37.58.exe` — instalador Inno Setup.
 - `AZeroCraft-windows-x64.zip` — carpeta portable completa
   (`dist\AZeroCraft\` con el exe y todos los DLL de Qt/Python).
 
@@ -129,7 +130,7 @@ azero/                # núcleo + UI
   install.py          # descarga e instalación de versiones
   libraries.py        # classpath, reglas y nativos
   assets.py           # índice y objetos de assets
-  java.py             # detección y descarga de Java (Temurin)
+  java.py             # detección y descarga de Java (Microsoft OpenJDK)
   launch.py           # línea de comandos, spawn y tuning de proceso
   optifine.py         # instalación de OptiFine headless
   msauth.py           # cuenta Microsoft (device code → Minecraft Services)

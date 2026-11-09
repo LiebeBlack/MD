@@ -268,6 +268,7 @@ def prepare(version_id: str, ctx: TaskContext, with_assets: bool = True,
         assets_dir=paths.ASSETS_DIR,
         game_dir=paths.MC_DIR,
         version_json=version_json,
-        java_major=manifest.required_java_major(version_json),
+        java_major=manifest.preferred_java_major(
+            version_id, version_json.get("base_id") or ""),
         logging_path=logging_path,
     )

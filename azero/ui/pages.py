@@ -23,7 +23,7 @@ from PyQt6.QtWidgets import (QApplication, QButtonGroup, QCheckBox, QComboBox,
                              QHBoxLayout, QHeaderView, QLabel, QLineEdit,
                              QListWidget, QListWidgetItem, QMessageBox,
                              QProgressBar, QPushButton, QSizePolicy,
-                             QSpinBox, QSlider, QTableWidget,
+                             QSpinBox, QTableWidget,
                              QTableWidgetItem, QTreeWidget,
                              QTreeWidgetItem, QVBoxLayout, QWidget)
 
@@ -169,6 +169,11 @@ class PlayPage(ScrollPage):
         stage_row.addWidget(self.stage_label, 1)
         console_card.body.addLayout(stage_row)
 
+        self.launch_notice = muted_label("")
+        self.launch_notice.setWordWrap(True)
+        self.launch_notice.setVisible(False)
+        console_card.body.addWidget(self.launch_notice)
+
         right = QWidget()
         right_layout = QVBoxLayout(right)
         right_layout.setContentsMargins(0, 0, 0, 0)
@@ -190,7 +195,7 @@ class PlayPage(ScrollPage):
 
         row = QHBoxLayout()
         row.setSpacing(14)
-        self.avatar = Avatar(56)
+        self.avatar = Avatar(54)
         column = QVBoxLayout()
         column.setContentsMargins(0, 0, 0, 0)
         column.setSpacing(3)
@@ -219,8 +224,6 @@ class PlayPage(ScrollPage):
         card.body.addLayout(row)
 
         footer = QHBoxLayout()
-        self.mode_pill = Pill("OFFLINE", dim=True)
-        footer.addWidget(self.mode_pill)
         footer.addStretch(1)
         footer.addWidget(make_button(
             "Cambiar", "ghost", "Elegir otra cuenta",
@@ -235,7 +238,7 @@ class PlayPage(ScrollPage):
         self.version_picker = VersionPicker()
         self.version_picker.set_placeholder("Cargando versiones…")
         self.version_picker.setToolTip(
-            "Versiones agrupadas por familia y version base")
+            "Versiones agrupadas por loader, familia y versión base")
         self.version_picker.selectionChanged.connect(
             self.shell._on_version_changed)
         card.body.addWidget(self.version_picker)
@@ -313,7 +316,8 @@ class PlayPage(ScrollPage):
                    and not loaders.has_loader_profile(kind)]
         if missing:
             names = ", ".join(kind.capitalize() for kind in missing)
-            text += (f" · AVISO: requieren {names} — instálalo en "
+            verb = "instálalo" if len(missing) == 1 else "instálalos"
+            text += (f" · AVISO: requieren {names} — {verb} en "
                      "Ajustes > Mods")
         # Mods que declaran una version de Minecraft incompatible.
         base = self.shell._selected_base() or ""
@@ -449,6 +453,17 @@ class PlayPage(ScrollPage):
         self.auto_close_check.toggled.connect(
             self.shell._on_auto_close_changed)
         card.body.addWidget(self.auto_close_check)
+
+        card.body.addWidget(Divider())
+        tips_row = QHBoxLayout()
+        tips_row.addWidget(faint_label(
+            "Consejos para mejorar el rendimiento."))
+        tips_row.addStretch(1)
+        tips_row.addWidget(make_button(
+            "Ver consejos", "ghost",
+            "Mostrar recomendaciones de RAM, GC y mods",
+            lambda: TipsDialog(self).exec()))
+        card.body.addLayout(tips_row)
         self._sync_ram_presets()
         return card
 
@@ -485,8 +500,6 @@ class PlayPage(ScrollPage):
                                 else "UUID pendiente")
         self.head_pill.setText(kind)
         self.head_pill.set_dim(not online)
-        self.mode_pill.setText("CUENTA MICROSOFT" if online else "OFFLINE")
-        self.mode_pill.set_dim(not online)
         self.name_edit.setVisible(not online)
         self.account_label.setVisible(online)
         if online:
@@ -520,7 +533,7 @@ class VersionsPage(ScrollPage):
     def _build(self) -> None:
         header = PageHeader(
             "Versiones",
-            "Instaladas, descargas y registros.")
+            "Versiones instaladas, descargas y registros.")
         header.add_action(make_button(
             "Actualizar", "accent", "Volver a leer versiones e historial (F5)",
             self.refresh_all))
@@ -608,7 +621,8 @@ class VersionsPage(ScrollPage):
         self.body.addWidget(installed_card)
 
         downloads_card = Card()
-        downloads_card.body.addWidget(section_label("Historial de descargas"))
+        downloads_card.body.addWidget(
+            section_label("Historial de operaciones"))
         self.downloads_table = self._make_table(
             ["Fecha", "Tipo", "Detalle", "Versión", "Tamaño", "Estado"], 2)
         self.downloads_table.setMinimumHeight(130)
@@ -900,10 +914,10 @@ class VersionsPage(ScrollPage):
     def _refresh_downloads(self) -> None:
         table = self.downloads_table
         table.setRowCount(0)
-        rows = database.list_downloads(limit=150)
+        rows = database.list_downloads(limit=500)
         if not rows:
             set_empty_table_message(
-                table, "Sin descargas registradas.")
+                table, "Sin operaciones registradas.")
             return
         for row in rows:
             r = table.rowCount()
@@ -912,7 +926,7 @@ class VersionsPage(ScrollPage):
                 _fmt_time(row["ts"]),
                 row["kind"],
                 row["label"],
-                row["version_id"],
+                row["version_id"] or "-",
                 human_size(row["size_bytes"]) if row["size_bytes"] else "-",
                 row["status"],
             ]
@@ -927,11 +941,13 @@ class VersionsPage(ScrollPage):
                              else theme.COLORS["TEXT_FAINT"])
                     item.setForeground(QColor(color))
                 table.setItem(r, c, item)
+            table.item(r, 0).setToolTip(
+                f"id {row['id']} · {row['kind']} · {row['status']}")
 
     def _refresh_sessions(self) -> None:
         table = self.sessions_table
         table.setRowCount(0)
-        rows = database.list_sessions(limit=150)
+        rows = database.list_sessions(limit=500)
         if not rows:
             set_empty_table_message(table, "Aún no has jugado ninguna partida.")
             return
@@ -948,6 +964,8 @@ class VersionsPage(ScrollPage):
             else:
                 state = f"código {row['exit_code']}"
                 state_color = theme.COLORS["DANGER"]
+            if row["detail"]:
+                state += f" · {row['detail']}"
             values = [
                 _fmt_time(row["started"]),
                 row["username"],
@@ -966,7 +984,8 @@ class VersionsPage(ScrollPage):
         self.logs_list.clear()
         try:
             logs = sorted(paths.LOGS_DIR.glob("*.log"),
-                          key=lambda p: p.stat().st_mtime, reverse=True)[:30]
+                          key=lambda p: p.stat().st_mtime,
+                          reverse=True)[:100]
         except OSError:
             logs = []
         for log in logs:
@@ -1015,7 +1034,7 @@ class AccountPage(ScrollPage):
     def _build(self) -> None:
         header = PageHeader(
             "Cuenta",
-            "Perfil activo; Microsoft solo para servidores online-mode.")
+            "Perfil activo y cuentas de jugador.")
         self.body.addWidget(header)
 
         self.body.addWidget(self._active_card())
@@ -1040,7 +1059,7 @@ class AccountPage(ScrollPage):
 
         row = QHBoxLayout()
         row.setSpacing(14)
-        self.active_avatar = Avatar(50)
+        self.active_avatar = Avatar(54)
         column = QVBoxLayout()
         column.setContentsMargins(0, 0, 0, 0)
         column.setSpacing(2)
@@ -1226,7 +1245,7 @@ class AccountPage(ScrollPage):
             layout.addLayout(info, 1)
 
             if key == active:
-                layout.addWidget(Pill("ACTIVA"))
+                layout.addWidget(Pill("ACTIVA", accent=True))
             else:
                 layout.addWidget(make_button(
                     "Usar", "primary", "Jugar con esta cuenta",
@@ -1263,6 +1282,42 @@ class AccountPage(ScrollPage):
             self.shell._save_settings()
         self.refresh_accounts()
         self.shell._refresh_account()
+
+
+class TipsDialog(QDialog):
+    """Consejos de rendimiento para el equipo del usuario."""
+
+    def __init__(self, parent: QWidget | None = None):
+        super().__init__(parent)
+        self.setWindowTitle("Consejos de rendimiento")
+        self.setWindowIcon(theme.app_icon())
+        self.setModal(True)
+        self.setMinimumWidth(440)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(18, 16, 18, 14)
+        layout.setSpacing(8)
+
+        title = QLabel("Consejos de rendimiento")
+        title.setObjectName("pageTitle")
+        layout.addWidget(title)
+
+        body = QLabel(
+            "• RAM: 2–4 GB; más no siempre mejora los FPS.\n"
+            "• GC Serial en equipos modestos; G1 en potentes.\n"
+            "• Cierra el launcher al jugar para liberar memoria.\n"
+            "• Actualiza los drivers de la GPU.\n"
+            "• En Fabric, Sodium + Lithium + FerriteCore mejoran FPS.")
+        body.setWordWrap(True)
+        body.setTextFormat(Qt.TextFormat.PlainText)
+        layout.addWidget(body)
+
+        buttons = QHBoxLayout()
+        buttons.addStretch(1)
+        buttons.addWidget(make_button(
+            "Entendido", "primary", "Cerrar este diálogo",
+            self.accept))
+        layout.addLayout(buttons)
 
 
 class MSLoginDialog(QDialog):
@@ -1493,7 +1548,7 @@ class SettingsPage(ScrollPage):
         form.addRow("Ruta de Java", java_row)
 
         self.auto_java = QCheckBox(
-            "Descargar Temurin automáticamente si falta Java")
+            "Descargar Microsoft OpenJDK automáticamente si falta Java")
         self.auto_java.setChecked(settings.auto_download_java)
         form.addRow("", self.auto_java)
 
@@ -1715,7 +1770,7 @@ class SettingsPage(ScrollPage):
                 parts.append(f"{kind.capitalize()} {shown}{extra}")
         if parts:
             self.mods_loader_label.setText(
-                " · ".join(parts) + " · los mods usan ese perfil.")
+                " · ".join(parts) + " · perfiles de loader instalados.")
         else:
             self.mods_loader_label.setText(
                 "Ningún loader instalado · la mayoría de mods lo "
@@ -1822,10 +1877,11 @@ class SettingsPage(ScrollPage):
                 found = forge._find_forge_profile(base)
             else:
                 found = loaders.find_loader_profile(kind, base)
-        if found or profile:
-            shown = found or profile
+        if found:
+            # El worker emite la version del loader, no el id del perfil:
+            # solo se celebra exito cuando el perfil existe de verdad.
             self.shell._set_status(
-                f"{name} instalado: perfil '{shown}'.", "ok")
+                f"{name} instalado: perfil '{found}'.", "ok")
             self.shell._reload_versions()
             self._refresh_mods()
             return
@@ -1904,13 +1960,18 @@ class SettingsPage(ScrollPage):
             "Importar", "ghost",
             "Restaurar una configuración exportada",
             self._import_settings))
-        actions.addWidget(make_button(
+        actions.addStretch(1)
+        card.body.addLayout(actions)
+
+        danger_row = QHBoxLayout()
+        danger_row.setSpacing(8)
+        danger_row.addWidget(make_button(
             "Vaciar datos", "danger",
             "Borrar todo el contenido de las carpetas de datos del "
             "launcher (ajustes y .minecraft se conservan)",
             self._wipe_data))
-        actions.addStretch(1)
-        card.body.addLayout(actions)
+        danger_row.addStretch(1)
+        card.body.addLayout(danger_row)
 
         card.body.addWidget(Divider())
         reset_row = QHBoxLayout()
@@ -2333,7 +2394,7 @@ class AboutPage(ScrollPage):
         self.update_button.setText(
             "Descargar instalador" if asset_url else "Ver releases")
         self.update_button.setVisible(True)
-        self.update_notes_button.setVisible(bool(asset_url))
+        self.update_notes_button.setVisible(True)
 
     def _open_update_download(self) -> None:
         url = self.update_asset_url or self.update_page_url

@@ -83,7 +83,8 @@ def main() -> int:
     prepared.assets_dir = paths.ASSETS_DIR
     prepared.game_dir = paths.MC_DIR
     prepared.version_json = resolved
-    prepared.java_major = manifest.required_java_major(resolved)
+    prepared.java_major = manifest.preferred_java_major(
+        version_id, resolved.get("base_id") or "")
     prepared.logging_path = None
 
     class _Runtime:

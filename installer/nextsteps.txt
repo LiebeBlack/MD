@@ -3,8 +3,8 @@
 1. Abre AZeroCraft desde el menú Inicio o el escritorio.
 2. Elige tu jugador: cuenta Microsoft o perfil offline.
 3. Selecciona la versión y pulsa Jugar; se descarga lo que falte.
-4. Ajusta la RAM y el servidor en Ajustes rápidos.
-5. Para Forge u OptiFine, usa las opciones de la tarjeta de versión.
+4. Para Forge, Fabric, NeoForge u OptiFine, instálalos en Ajustes → Mods.
+5. Ajusta la RAM y el servidor en Ajustes.
 
 El launcher comparte versiones, mundos, mods y resourcepacks con
 %APPDATA%\.minecraft. Tus ajustes, Java y registros quedan en la

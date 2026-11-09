@@ -307,8 +307,13 @@ def install_forge(mc_version: str, java_path: str = "", log=print,
     # los de 1.17+ exigen 17, los antiguos Java 8.
     payload = load_version_profile(mc_version) or {}
     java_major = required_java_major(payload) if payload else 8
-    runtime = (select_runtime(java_major, java_path)
-               or select_runtime(8, java_path))
+    # El instalador no es el juego: admite cualquier Java igual o mas
+    # reciente que el declarado (max_major=99) y prefiere el major mas
+    # cercano al que pedia el instalador.
+    runtime = (select_runtime(java_major, java_path, max_major=99,
+                              prefer_newest=False)
+               or select_runtime(8, java_path, max_major=99,
+                                 prefer_newest=False))
     if runtime is None:
         raise RuntimeError(
             f"No se encontro Java {java_major}+ para ejecutar el "

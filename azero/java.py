@@ -1,4 +1,4 @@
-"""Gestion del runtime de Java: deteccion local y descarga de Temurin."""
+"""Gestion del runtime de Java: deteccion local y descarga de Microsoft OpenJDK."""
 
 from __future__ import annotations
 
@@ -13,8 +13,9 @@ from pathlib import Path
 from typing import Callable
 
 from . import paths
-from .constants import ADOPTIUM_ASSET_URL
-from .util import DownloadTask, download_many, extract_zip, fetch_json, human_size
+from .constants import MICROSOFT_JDK_URL
+from .util import (DownloadTask, download_many, extract_archive,
+                   human_size, open_url)
 
 
 class JavaNotFound(RuntimeError):
@@ -139,6 +140,14 @@ def _candidate_homes() -> list[tuple[Path, str]]:
     return candidates
 
 
+def _version_sort_key(version: str) -> tuple[int, ...]:
+    """Clave de orden para '21.0.13+9' / '1.8.0_504' -> tupla numerica."""
+    numbers = [int(part) for part in re.findall(r"\d+", version)[:4]]
+    while len(numbers) < 4:
+        numbers.append(0)
+    return tuple(numbers)
+
+
 def find_runtimes() -> list[JavaRuntime]:
     runtimes: dict[str, JavaRuntime] = {}
     for home, source in _candidate_homes():
@@ -150,64 +159,120 @@ def find_runtimes() -> list[JavaRuntime]:
             key = str(runtime.java).lower()
             if key not in runtimes or runtimes[key].source == "PATH":
                 runtimes[key] = runtime
-    return sorted(runtimes.values(), key=lambda item: item.major, reverse=True)
+    # Mayor primero; a igual major, el parche mas reciente (los JDK de
+    # Microsoft se instalan como microsoft-jdk-<major>-<version>).
+    return sorted(runtimes.values(),
+                  key=lambda item: (item.major, _version_sort_key(item.version)),
+                  reverse=True)
 
 
 def manual_runtime(java_path: str) -> JavaRuntime | None:
     if not java_path:
         return None
     path = Path(java_path).expanduser()
+    java_name = "java.exe" if sys.platform.startswith("win") else "java"
     if path.is_file():
         home = path.parent.parent
     elif path.is_dir():
         home = path
+        # El usuario puede señalar la carpeta bin/ o el JDK raiz; ambas
+        # deben resolver al home que contiene bin/java.
+        if not (home / "bin" / java_name).exists() \
+                and (home / java_name).exists():
+            home = home.parent
     else:
         return None
     return _runtime_from_home(home, "manual")
 
 
-def _major_compatible(major: int, required: int) -> bool:
-    """Compatibilidad practica entre el Java instalado y el que pide el perfil.
+# Java 16 introdujo la encapsulacion fuerte de modulos (JEP 396): los
+# nativos LWJGL2 de Minecraft <= 1.12.2 fallan con IllegalAccessError.
+# Por eso el objetivo "legacy" (11) admite como maximo Java 15.
+_LEGACY_JAVA_MAX = 15
+# Para objetivos 17+ se acepta cualquier LTS igual o mas reciente
+# razonable; mas alla de eso el perfil oficial manda.
+_MODERN_JAVA_MAX = 21
 
-    Minecraft <= 1.16.5 (javaVersion 8) funciona con Java 8-16, pero no con
-    17+ por el encapsulamiento de modulos. Las versiones nuevas aceptan un
-    Java igual o mas reciente.
+
+def _major_compatible(major: int, required: int,
+                      max_major: int = 0) -> bool:
+    """Compatibilidad practica entre el Java instalado y el objetivo.
+
+    El objetivo ya es el LTS moderno elegido por `preferred_java_major`:
+    legacy (8-11) admite 8-15, 17 admite 17-21, y 21/25 admiten cualquier
+    major igual o posterior. `max_major` permite ampliar el techo (los
+    instaladores de loaders no son el juego y toleran Java mas reciente).
     """
-    if required <= 8:
-        return 8 <= major <= 16
+    ceiling = max_major or 0
+    if required <= 11:
+        return 8 <= major <= (ceiling or _LEGACY_JAVA_MAX)
+    if required <= 17:
+        return required <= major <= (ceiling or _MODERN_JAVA_MAX)
     return major >= required
 
 
-def _major_rank(major: int, required: int) -> tuple[int, int]:
-    """Orden de preferencia: primero el major exacto, luego el mas cercano."""
-    return (major != required, abs(major - required), major)
+def _major_rank(major: int, required: int,
+                prefer_newest: bool = True) -> tuple[int, int, int]:
+    """Orden de preferencia entre runtimes compatibles.
+
+    Para el juego (`prefer_newest`) gana el major exacto y luego el mas
+    nuevo dentro de la ventana; para instaladores de loaders conviene el
+    mas cercano al declarado, no el mas nuevo posible.
+    """
+    if prefer_newest:
+        return (major != required, -major, major)
+    return (major != required, abs(major - required), -major)
 
 
-def select_runtime(major: int, java_path: str = "") -> JavaRuntime | None:
+def select_runtime(major: int, java_path: str = "",
+                   max_major: int = 0,
+                   prefer_newest: bool = True) -> JavaRuntime | None:
     manual = manual_runtime(java_path)
-    if manual and _major_compatible(manual.major, major):
+    if manual and _major_compatible(manual.major, major, max_major):
         return manual
 
     runtimes = [item for item in find_runtimes()
-                if _major_compatible(item.major, major)]
+                if _major_compatible(item.major, major, max_major)]
     if not runtimes:
         return None
-    return min(runtimes, key=lambda item: _major_rank(item.major, major))
+    return min(runtimes,
+               key=lambda item: _major_rank(item.major, major,
+                                            prefer_newest))
 
 
-def _adoptium_arch() -> str:
+def _jdk_platform() -> str:
+    """Plataforma para las URLs oficiales de Microsoft OpenJDK."""
     machine = platform.machine().lower()
-    if machine in ("arm64", "aarch64"):
-        return "aarch64"
-    return "x64"
-
-
-def _adoptium_os() -> str:
+    arch = "aarch64" if machine in ("arm64", "aarch64") else "x64"
     if sys.platform.startswith("win"):
-        return "windows"
+        return f"windows-{arch}.zip"
     if sys.platform == "darwin":
-        return "mac"
-    return "linux"
+        return f"macOS-{arch}.tar.gz"
+    return f"linux-{arch}.tar.gz"
+
+
+def _microsoft_jdk_url(major: int) -> str:
+    return MICROSOFT_JDK_URL.format(major=major,
+                                    platform=_jdk_platform())
+
+
+def _jdk_package_info(url: str) -> tuple[int | None, str]:
+    """Tamano y version real del paquete via headers (sin descargar)."""
+    size: int | None = None
+    release = ""
+    try:
+        with open_url(url, timeout=30) as response:
+            length = response.headers.get("Content-Length")
+            if length and length.isdigit():
+                size = int(length)
+            disposition = response.headers.get("Content-Disposition", "")
+            match = re.search(r"microsoft-jdk-([0-9]+\.[0-9.]+)",
+                              disposition)
+            if match:
+                release = match.group(1)
+    except Exception:  # noqa: BLE001 - los headers son best-effort
+        pass
+    return size, release
 
 
 def _find_java_home(root: Path) -> Path | None:
@@ -230,47 +295,42 @@ def _find_java_home(root: Path) -> Path | None:
 def download_java(major: int, progress: Callable[[int, int], None],
                   stage: Callable[[str], None], log: Callable[[str], None],
                   cancel: Callable[[], bool] | None = None) -> JavaRuntime:
-    """Descarga Temurin (JRE) desde la API de Adoptium y lo extrae."""
+    """Descarga Microsoft Build of OpenJDK (LTS) y lo extrae.
+
+    Usa las URLs oficiales por major (aka.ms/download-jdk) que siempre
+    apuntan al ultimo parche de ese LTS: Java 11, 17, 21 y 25.
+    """
     paths.ensure_dirs()
-    api_url = ADOPTIUM_ASSET_URL.format(
-        major=major, arch=_adoptium_arch(), os=_adoptium_os()
-    )
-    payload = fetch_json(api_url)
-    if not payload:
-        # Algunos majors (p. ej. 8) no publican JRE separado: reintentar
-        # sin el filtro image_type=jre para aceptar el JDK completo.
-        fallback = ADOPTIUM_ASSET_URL.format(
-            major=major, arch=_adoptium_arch(), os=_adoptium_os()
-        ).replace("&image_type=jre", "")
-        payload = fetch_json(fallback)
-    if not payload:
-        raise JavaNotFound(f"No hay builds de Java {major} disponibles para este sistema.")
-    asset = payload[0]
-    package = asset["binary"]["package"]
-    release = asset.get("release_name", str(major))
+    url = _microsoft_jdk_url(major)
+    size, release = _jdk_package_info(url)
+    if not release:
+        release = str(major)
 
     downloads_dir = paths.JAVA_DIR / "downloads"
     downloads_dir.mkdir(parents=True, exist_ok=True)
-    archive = downloads_dir / package["name"]
-    log(f"Descargando {package['name']} ({human_size(package.get('size', 0))})")
+    archive_ext = ".zip" if url.endswith(".zip") else ".tar.gz"
+    archive = downloads_dir / (f"microsoft-jdk-{major}-{release}"
+                               f"{archive_ext}")
+    log(f"Descargando Microsoft OpenJDK {major}"
+        + (f" ({human_size(size)})" if size else ""))
 
     download_many(
         [DownloadTask(
-            url=package["link"],
+            url=url,
             dest=archive,
-            sha256=package.get("checksum"),
-            size=package.get("size"),
-            label=package["name"],
+            size=size,
+            label=f"Microsoft OpenJDK {major}",
         )],
         on_progress=progress, workers=1, cancel=cancel, log=log,
     )
 
     stage(f"Instalando Java {major}")
-    target = paths.JAVA_DIR / f"temurin-{major}-{release}"
+    target = paths.JAVA_DIR / f"microsoft-jdk-{major}-{release}"
     if target.exists():
         shutil.rmtree(target, ignore_errors=True)
     target.mkdir(parents=True, exist_ok=True)
-    extract_zip(archive, target)
+    extract_archive(archive, target)
+    archive.unlink(missing_ok=True)  # el paquete pesa ~200 MB: no conservarlo
     home = _find_java_home(target)
     if home is None:
         raise JavaNotFound("El paquete de Java descargado no contiene un binario valido.")
@@ -296,8 +356,8 @@ def ensure_java(major: int, java_path: str = "", allow_download: bool = True,
         return runtime
     if not allow_download:
         raise JavaNotFound(
-            f"No se encontro Java {major}. Instala un JRE {major} o activa la "
-            "descarga automatica en Ajustes."
+            f"No se encontro Java {major}. Instala un Java {major} o activa "
+            "la descarga automatica en Ajustes."
         )
     stage(f"Descargando Java {major} (no instalado)")
     return download_java(major, progress, stage, log, cancel)

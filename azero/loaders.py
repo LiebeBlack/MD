@@ -170,12 +170,18 @@ def _find_profile(mc_version: str, needles: tuple[str, ...],
 
 def _installer_java(mc_version: str, java_path: str,
                     log) -> JavaRuntime:
-    """Runtime para el instalador: el de la version de MC o el mas nuevo."""
+    """Runtime para el instalador: el declarado o el compatible mas cercano."""
     payload = load_version_profile(mc_version) or {}
     java_major = required_java_major(payload) if payload else 17
-    runtime = (select_runtime(java_major, java_path)
-               or select_runtime(17, java_path)
-               or select_runtime(8, java_path))
+    # El instalador no es el juego: admite cualquier Java igual o mas
+    # reciente que el declarado (max_major=99) y prefiere el major mas
+    # cercano, p. ej. un instalador que pide 17 no salta a Java 25.
+    runtime = (select_runtime(java_major, java_path, max_major=99,
+                              prefer_newest=False)
+               or select_runtime(17, java_path, max_major=99,
+                                 prefer_newest=False)
+               or select_runtime(8, java_path, max_major=99,
+                                 prefer_newest=False))
     if runtime is None:
         raise RuntimeError(
             "No se encontro Java para ejecutar el instalador. Activa "

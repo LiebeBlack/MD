@@ -268,6 +268,48 @@ def required_java_major(version_json: dict) -> int:
     return 8
 
 
+def preferred_java_major(version_id: str, base_id: str = "") -> int:
+    """Java LTS moderno optimo para lanzar la version.
+
+    Los perfiles oficiales declaran el minimo historico (Java 8 en las
+    versiones antiguas); el launcher prefiere el LTS mas reciente que el
+    juego tolera:
+
+    - 1.7 - 1.12.2 (LWJGL2): Java 11 — Java 16+ rompe sus nativos por
+      la encapsulacion fuerte de modulos.
+    - 1.13 - 1.20.4:        Java 17.
+    - 1.20.5 - 1.21.x:      Java 21.
+    - 26.x (calendario):   Java 25.
+
+    `base_id` permite resolver perfiles de loader (p. ej.
+    "fabric-loader-0.20.1-1.21.1") que no empiezan por la version base.
+    """
+    key = parse_version_key(base_id) if base_id else (0, 0, 0)
+    if key == (0, 0, 0):
+        key = parse_version_key(version_id)
+    first = key[0]
+    if first >= 26:
+        # Versiones de calendario (26.x) y sus snapshots (26wNNa).
+        return 25
+    if first >= 2:
+        # Snapshots semanales "NwN": las versiones reales son 1.x o >=26,
+        # asi que cualquier otra clave >=2 solo puede venir de "NwN".
+        # 25w ~ 1.21.x (Java 21); 18w-24w ~ 1.13-1.20.4 (Java 17);
+        # anteriores ~ <=1.12 (LWJGL2, Java 11).
+        if first >= 25:
+            return 21
+        if first >= 18:
+            return 17
+        return 11
+    if key >= (1, 20, 5):
+        return 21
+    if key >= (1, 13, 0):
+        return 17
+    if key >= MIN_VERSION:
+        return 11
+    return 8
+
+
 def merge_local_and_manifest(manifest: dict, show_all: bool) -> list[dict]:
     """Lista de versiones: oficiales + perfiles locales (OptiFine)."""
     entries: list[dict] = []

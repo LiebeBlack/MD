@@ -2,7 +2,7 @@
 ; Compilar con: ISCC installer\setup.iss  (o build.ps1 -Installer)
 
 #define AppName "AZeroCraft"
-#define AppVersion "1.0.0"
+#define AppVersion "4.37.58"
 #define AppPublisher "Liebe Black"
 #define AppExeName "AZeroCraft.exe"
 #define AppURL "https://github.com/LiebeBlack/MD"
@@ -35,7 +35,6 @@ UsePreviousAppDir=yes
 AllowNoIcons=yes
 PrivilegesRequired=lowest
 PrivilegesRequiredOverridesAllowed=dialog commandline
-UsePreviousLanguage=yes
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 OutputDir=..\dist
@@ -56,7 +55,6 @@ RestartApplications=no
 
 [Languages]
 Name: "spanish"; MessagesFile: "compiler:Languages\Spanish.isl"
-Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked

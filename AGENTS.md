@@ -7,7 +7,7 @@ Python + PyQt6. Repositorio: https://github.com/LiebeBlack/MD
 ## Comandos
 
 ```powershell
-# Tests unitarios (28 tests en tests/test_core.py)
+# Tests unitarios (40 tests en tests/test_core.py)
 .\.venv-build\Scripts\python.exe -m unittest discover -s tests
 
 # Compilar todo el paquete (chequeo de sintaxis)
@@ -43,6 +43,17 @@ py -3.15 main.py
   importados/editados a mano no deben romper el arranque.
 - El launcher NO escribe `options.txt`: los ajustes de video se
   descontinuaron; las opciones del juego se gestionan dentro de Minecraft.
+- Java del juego: `manifest.preferred_java_major(version_id, base_id)`
+  elige el LTS moderno optimo (1.7-1.12.2 → 11, 1.13-1.20.4 → 17,
+  1.20.5-1.21.x → 21, 26.x → 25); `java._major_compatible` limita la
+  ventana (legacy <=15 por LWJGL2). `required_java_major` (javaVersion
+  declarado) se reserva para los instaladores de loaders en forge.py y
+  loaders.py, que si deben usar el Java que pide el instalador.
+- Los JDK descargados son **Microsoft Build of OpenJDK** via las URLs
+  oficiales `aka.ms/download-jdk/microsoft-jdk-{major}-{platform}`
+  (`constants.MICROSOFT_JDK_URL`); `java.download_java` lee tamano y
+  version real de los headers y extrae con `util.extract_archive`
+  (zip/tar.gz). Los Temurin ya instalados se siguen detectando.
 - Los workers QThread se cancelan y esperan en `MainWindow.closeEvent`;
   cualquier QThread nuevo debe registrarse ahi para evitar crashes al
   cerrar.
@@ -73,3 +84,25 @@ py -3.15 main.py
   tamano, tolera descargas fallidas y no descarga Java. La lista de
   versiones muestra solo perfiles locales si no hay cache del
   manifiesto. `CancelledError` nunca se traga en la tolerancia.
+- Fabric y NeoForge se instalan en `azero/loaders.py`
+  (`install_fabric`/`install_neoforge`, despachados por
+  `LoaderInstallWorker` en `workers.py`). Fabric usa el instalador
+  oficial `client -dir -mcversion -loader` tras `prepare()` del cliente
+  base; NeoForge usa `--installClient` con las dos APIs de
+  maven.neoforged.net (legacy `net.neoforged:forge` con versiones
+  `MC-build`, nueva `net.neoforged:neoforge` con prefijo corto
+  `minor.patch.` para MC 1.x y `major.minor.` para 26.x). Los perfiles
+  resultantes aparecen solos en Versiones via `local_profiles()`.
+- `loaders.loader_kind()` clasifica perfiles por nombre
+  (neoforge antes que forge); `mods.detect_loader()`/`ModInfo.loader`
+  clasifican jars por contenido (`fabric.mod.json`,
+  `META-INF/neoforge.mods.toml`, `META-INF/mods.toml`, `mcmod.info`).
+- `mods.dep_matches()`/`incompatible_mods()` evaluan
+  `depends.minecraft` de los jars (sintaxis Fabric `~`, `>=a <b`,
+  `x.y.z`, wildcards `x.y.x` y rangos Maven `[a,b)`) contra la version
+  base seleccionada; la UI avisa en Jugar y muestra los requisitos en
+  el tooltip de cada mod.
+- authlib 2.1.28 -> 2.3.31 se aplica en `libraries.fix_authlib_session()`
+  para 1.16.4/1.16.5 (bug de Mojang que desactiva Multijugador en
+  offline); en modo offline solo si el jar nuevo ya existe en
+  `.minecraft/libraries`.

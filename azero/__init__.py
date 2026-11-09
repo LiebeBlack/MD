@@ -1,4 +1,5 @@
 """AZeroCraft Launcher - nucleo del launcher."""
 
-APP_NAME = "AZeroCraft"
-APP_VERSION = "1.0.0"
+from .constants import APP_NAME, APP_VERSION
+
+__all__ = ["APP_NAME", "APP_VERSION"]

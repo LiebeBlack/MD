@@ -6,6 +6,19 @@ from pathlib import Path
 ROOT = Path(SPECPATH).resolve()
 ICON = ROOT / "assets" / "azero.ico"
 
+# La version del ejecutable se lee de azero/constants.py para que el
+# binario nunca quede desincronizado de APP_VERSION.
+import re
+
+_const = (ROOT / "azero" / "constants.py").read_text(encoding="utf-8")
+_match = re.search(r'^APP_VERSION\s*=\s*"([^"]+)"', _const, re.M)
+if not _match:
+    raise SystemExit("No se encontro APP_VERSION en azero/constants.py")
+VERSION = _match.group(1)
+_VER_TUPLE = tuple(int(p) for p in VERSION.split("."))
+while len(_VER_TUPLE) < 4:
+    _VER_TUPLE += (0,)
+
 from PyInstaller.utils.win32.versioninfo import (FixedFileInfo, StringFileInfo,
                                                  StringStruct, StringTable,
                                                  VarFileInfo, VarStruct,
@@ -14,11 +27,11 @@ from PyInstaller.utils.win32.versioninfo import (FixedFileInfo, StringFileInfo,
 block_cipher = None
 
 # Metadatos del ejecutable (propiedades del archivo en Windows).
-file_version = "1.0.0.0"
-prod_version = "1.0.0"
+file_version = f"{VERSION}.0"
+prod_version = VERSION
 verinfo = VSVersionInfo(
     ffi=FixedFileInfo(
-        filevers=(1, 0, 0, 0), prodvers=(1, 0, 0, 0),
+        filevers=_VER_TUPLE[:4], prodvers=_VER_TUPLE[:4],
         mask=0x3F, flags=0x0, OS=0x40004, fileType=0x1, subtype=0x0,
         date=(0, 0),
     ),

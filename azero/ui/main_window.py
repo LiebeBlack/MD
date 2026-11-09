@@ -15,6 +15,8 @@ from PyQt6.QtWidgets import (QApplication, QFileDialog, QHBoxLayout, QLabel,
 from .. import APP_NAME, APP_VERSION, database, paths
 from ..auth import offline_uuid, validate_username
 from ..constants import MEMORY_STEP_MB, SPONSORS_URL
+from ..loaders import loader_kind
+from .. import manifest
 from ..manifest import load_version_profile, local_profiles, parse_version_key
 from ..optifine import inspect_installer
 from ..settings import Settings
@@ -35,23 +37,17 @@ def _center_window(window: QWidget) -> None:
     window.move(frame.topLeft())
 
 
-def _java_major_for(version_id: str) -> int:
-    """Java recomendado si el perfil aun no esta descargado (heuristica)."""
-    key = parse_version_key(version_id)
-    if key[0] >= 26:
-        return 25
-    if key >= (1, 20, 5):
-        return 21
-    if key >= (1, 17, 0):
-        return 17
-    return 8
-
-
 def _java_major_display(version_id: str,
                         payload: dict | None = None) -> int:
     """Java real que usara el launcher, leido del perfil si existe."""
     if payload is None:
         payload = load_version_profile(version_id) or {}
+    base = payload.get("inheritsFrom") or version_id
+    preferred = manifest.preferred_java_major(version_id, base)
+    if preferred > 8:
+        return preferred
+    # Version no parseable (p. ej. id de loader sin base): fiarse del
+    # javaVersion declarado por el perfil.
     candidates = [payload]
     parent = payload.get("inheritsFrom")
     if parent:
@@ -60,7 +56,7 @@ def _java_major_display(version_id: str,
         major = (item.get("javaVersion") or {}).get("majorVersion")
         if isinstance(major, int) and major > 0:
             return major
-    return _java_major_for(version_id)
+    return preferred
 
 
 def _apply_titlebar_theme(window: QWidget, dark: bool) -> None:
@@ -93,6 +89,7 @@ class MainWindow(QMainWindow):
         self._session_account = "offline"
         self._titlebar_done = False
         self._allow_close = False
+        self._launch_notices_shown: set[str] = set()
         self._page_specs = (
             ("Jugar", "play"),
             ("Versiones", "versions"),
@@ -337,6 +334,10 @@ class MainWindow(QMainWindow):
         self._refresh_theme_button()
         # Las vistas que fijan QColor en tiempo de construccion (arbol de
         # versiones, fechas) deben reconstruirse con la nueva paleta.
+        picker = getattr(getattr(self, "play_page", None),
+                         "version_picker", None)
+        if picker is not None:
+            picker.invalidate()
         if hasattr(self, "versions_page"):
             self.versions_page.refresh_all()
         settings_page = getattr(self, "settings_page", None)
@@ -674,13 +675,11 @@ class MainWindow(QMainWindow):
             return
         payload = load_version_profile(version_id) or {}
         base = payload.get("inheritsFrom") or version_id
-        lower_id = version_id.lower()
-        is_optifine = "optifine" in lower_id
-        is_forge = "forge" in lower_id
-        kind = ("OptiFine" if is_optifine
-                else "Forge" if is_forge
-                else ("Perfil local" if payload.get("inheritsFrom")
-                      else "Vanilla"))
+        loader = loader_kind(version_id)
+        kind = {"optifine": "OptiFine", "neoforge": "NeoForge",
+                "fabric": "Fabric", "forge": "Forge"}.get(
+                    loader, "Perfil local" if payload.get("inheritsFrom")
+                    else "Vanilla")
         if paths.find_version_jar(base) is not None:
             state = "instalada"
         else:
@@ -742,7 +741,7 @@ class MainWindow(QMainWindow):
         try:
             shutil.rmtree(target)
         except OSError as error:
-            QMessageBox.warning(self, "No se pudo eliminar",
+            QMessageBox.warning(self, "No se pudo eliminar la versión",
                                 str(error))
             return
         self.console.append(f"Version eliminada: {version_id}")
@@ -777,6 +776,29 @@ class MainWindow(QMainWindow):
         self._save_settings()
         shown_name = name if online else self.settings.username.strip()
         self.console.append(f"=== {version_id} · {shown_name} ===")
+
+        # Aviso de primera ejecución: descarga + arranque pueden tardar.
+        base = self._selected_base() or version_id
+        needs_download = paths.find_version_jar(base) is None
+        if needs_download and base not in self._launch_notices_shown:
+            self._launch_notices_shown.add(base)
+            box = QMessageBox(self)
+            box.setIcon(QMessageBox.Icon.Information)
+            box.setWindowTitle("Primera ejecución")
+            box.setText(
+                f"Primera vez con Minecraft {base}: se descargarán "
+                "el cliente, librerías y assets.\n\n"
+                "Esto puede tardar varios minutos según tu conexión, "
+                "y el juego un poco más en abrir según tu equipo.")
+            box.setStandardButtons(QMessageBox.StandardButton.Ok)
+            # No modal: el lanzamiento continúa mientras se lee.
+            box.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+            box.show()
+        self._set_launch_notice(
+            "La descarga puede tardar varios minutos y el juego un "
+            "poco más en abrir, según tu equipo."
+            if needs_download else
+            "El juego puede tardar un poco en abrir según tu equipo.")
         self._session_name = shown_name
         self._session_uuid = uuid_
         self._session_account = "microsoft" if online else "offline"
@@ -804,9 +826,20 @@ class MainWindow(QMainWindow):
     def _on_progress(self, done: int, total: int) -> None:
         self._set_progress(done, total)
 
+    def _set_launch_notice(self, text: str) -> None:
+        """Muestra/oculta el aviso contextual bajo la etapa de arranque."""
+        label = getattr(self.play_page, "launch_notice", None)
+        if label is None:
+            return
+        label.setText(text)
+        label.setVisible(bool(text))
+
     def _on_launched(self, pid: int, log_path: str, auto_close: bool) -> None:
         self._set_progress(1, 1)
         self._set_status(f"Minecraft iniciado (PID {pid}).", "ok")
+        self._set_launch_notice(
+            "El juego está arrancando; puede tardar un poco en "
+            "mostrar el menú según tu equipo.")
         self.console.append(f"Minecraft iniciado · PID {pid}")
         self.console.append(f"Log del juego: {log_path}")
         self.stage_label.setText(
@@ -837,6 +870,7 @@ class MainWindow(QMainWindow):
         QApplication.instance().quit()
 
     def _on_game_exit(self, code: int) -> None:
+        self._set_launch_notice("")
         self.console.append(f"Minecraft finalizó (código {code}).")
         if self._session_id is not None:
             database.session_end(self._session_id, exit_code=code)
@@ -846,6 +880,7 @@ class MainWindow(QMainWindow):
             self._set_status(f"Minecraft se cerró (código {code}).", "normal")
 
     def _on_failed(self, message: str) -> None:
+        self._set_launch_notice("")
         self.console.append(f"ERROR: {message}")
         database.log_download(
             "error", message.strip().splitlines()[0]
@@ -870,6 +905,7 @@ class MainWindow(QMainWindow):
         box.exec()
 
     def _on_cancelled(self) -> None:
+        self._set_launch_notice("")
         self.console.append("Operación cancelada.")
         if self._session_id is not None:
             database.session_end(self._session_id, detail="cancelado")
@@ -908,7 +944,7 @@ class MainWindow(QMainWindow):
                 self, "Versión incompatible",
                 f"El instalador es para Minecraft {info.mc_version} y tienes "
                 f"{base} seleccionado.\n\nSelecciona {info.mc_version} en la lista "
-                "y vuelve a intentarlo.",
+                "de versiones y vuelve a intentarlo.",
             )
             return
 

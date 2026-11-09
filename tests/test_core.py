@@ -21,9 +21,10 @@ from azero.loaders import (_choose_stable, _neoforge_short_prefix,
 from azero.libraries import (build_library_plan, fix_authlib_session,
                              maven_path)
 from azero.mods import _loader_of, dep_matches, incompatible_mods
+from azero.java import _major_compatible
 from azero.manifest import (_version_key, in_supported_range,
-                            parse_version_key, resolve_version,
-                            version_family_label)
+                            parse_version_key, preferred_java_major,
+                            resolve_version, version_family_label)
 from azero.optifine import _parse_version_string, _split_edition_release
 from azero.rules import expand_arguments, rules_allow
 from azero.util import _Progress, extract_zip, human_size, write_json
@@ -84,6 +85,58 @@ class TestManifestKeys(unittest.TestCase):
         self.assertEqual(version_family_label("26.4-snapshot-7"), "26.x")
         self.assertEqual(version_family_label("23w13a"), "23w")
         self.assertEqual(version_family_label("raro"), "Otras")
+
+
+class TestJavaSelection(unittest.TestCase):
+    """El launcher prefiere el LTS moderno compatible por version."""
+
+    def test_preferred_java_per_version(self) -> None:
+        self.assertEqual(preferred_java_major("1.7.10"), 11)
+        self.assertEqual(preferred_java_major("1.8.9"), 11)
+        self.assertEqual(preferred_java_major("1.12.2"), 11)
+        self.assertEqual(preferred_java_major("1.13.2"), 17)
+        self.assertEqual(preferred_java_major("1.16.5"), 17)
+        self.assertEqual(preferred_java_major("1.20.4"), 17)
+        self.assertEqual(preferred_java_major("1.20.5"), 21)
+        self.assertEqual(preferred_java_major("1.21.1"), 21)
+        self.assertEqual(preferred_java_major("26.3"), 25)
+
+    def test_preferred_java_weekly_snapshots(self) -> None:
+        # "NwN" no es una version 1.x ni 26.x: hay que mapearla por era.
+        self.assertEqual(preferred_java_major("23w13a"), 17)   # ~1.20
+        self.assertEqual(preferred_java_major("25w31a"), 21)   # ~1.21.x
+        self.assertEqual(preferred_java_major("26w14a"), 25)   # calendario
+        self.assertEqual(preferred_java_major("14w02a"), 11)   # ~1.7-1.12
+
+    def test_preferred_java_loader_profiles(self) -> None:
+        # Los ids de loader no empiezan por la version base: hay que
+        # resolverla via base_id / inheritsFrom.
+        self.assertEqual(
+            preferred_java_major("fabric-loader-0.20.1-1.21.1",
+                                 "1.21.1"),
+            21)
+        self.assertEqual(
+            preferred_java_major("1.16.5-OptiFine_HD_U_G8"), 17)
+        self.assertEqual(
+            preferred_java_major("1.7.10-forge-10.13.4.1614"), 11)
+
+    def test_compatibility_windows(self) -> None:
+        # Legacy (objetivo <=11): Java 8-15; 16+ rompe LWJGL2.
+        self.assertTrue(_major_compatible(8, 11))
+        self.assertTrue(_major_compatible(11, 11))
+        self.assertTrue(_major_compatible(15, 11))
+        self.assertFalse(_major_compatible(16, 11))
+        self.assertFalse(_major_compatible(17, 11))
+        # Objetivo 17: acepta 17-21.
+        self.assertTrue(_major_compatible(17, 17))
+        self.assertTrue(_major_compatible(21, 17))
+        self.assertFalse(_major_compatible(8, 17))
+        self.assertFalse(_major_compatible(25, 17))
+        # Objetivo 21/25: cualquier major igual o posterior.
+        self.assertTrue(_major_compatible(21, 21))
+        self.assertTrue(_major_compatible(25, 21))
+        self.assertFalse(_major_compatible(17, 21))
+        self.assertTrue(_major_compatible(25, 25))
 
 
 class TestOptiFineParsing(unittest.TestCase):
@@ -221,6 +274,11 @@ class TestLoaderHelpers(unittest.TestCase):
         self.assertIs(dep_matches("~26.3-", "1.21.1"), False)
         self.assertIs(dep_matches(">=1.21 <=1.21.1", "26.3"), False)
         self.assertIsNone(dep_matches("rara.version", "1.21.1"))
+        # Sufijos de snapshot/pre-release no deben contaminar el numero.
+        self.assertIs(dep_matches("~1.21.1", "1.21.1-pre4"), True)
+        self.assertIs(dep_matches("1.21.x", "1.21.9"), True)
+        self.assertIs(dep_matches("1.21.x", "1.22.0"), False)
+        self.assertIs(dep_matches("[1.21,1.22)", "1.21.1-pre4"), True)
 
     def test_incompatible_mods(self) -> None:
         mods_list = [
@@ -557,17 +615,60 @@ class TestSettingsSanitize(unittest.TestCase):
 class TestJavaCompatibility(unittest.TestCase):
     def test_major_compatible(self) -> None:
         from azero.java import _major_compatible
-        # 1.12.1 pide Java 8: acepta 8-16, rechaza 17+
+        # Objetivo legacy (<=11): acepta 8-15; 16+ rompe LWJGL2.
         self.assertTrue(_major_compatible(8, 8))
         self.assertTrue(_major_compatible(11, 8))
-        self.assertTrue(_major_compatible(16, 8))
+        self.assertTrue(_major_compatible(15, 8))
+        self.assertFalse(_major_compatible(16, 8))
         self.assertFalse(_major_compatible(17, 8))
         self.assertFalse(_major_compatible(21, 8))
-        # Versiones nuevas: igual o mas reciente
-        self.assertTrue(_major_compatible(21, 21))
+        # Objetivo 17: acepta 17-21.
+        self.assertTrue(_major_compatible(17, 17))
         self.assertTrue(_major_compatible(21, 17))
         self.assertFalse(_major_compatible(8, 17))
+        self.assertFalse(_major_compatible(16, 17))
+        self.assertFalse(_major_compatible(25, 17))
+        # Objetivo 21: igual o mas reciente.
+        self.assertTrue(_major_compatible(21, 21))
+        self.assertTrue(_major_compatible(25, 21))
         self.assertFalse(_major_compatible(16, 21))
+        self.assertFalse(_major_compatible(8, 21))
+
+
+class TestManualRuntime(unittest.TestCase):
+    """La ruta de Java personalizada debe resolver en cualquiera de sus
+    formas: javaw.exe, carpeta bin/ o raiz del JDK."""
+
+    def _fake_jdk(self, root: Path, version: str = "21.0.1") -> Path:
+        home = root / "jdk-test"
+        (home / "bin").mkdir(parents=True)
+        (home / "bin" / "java.exe").write_bytes(b"MZ")
+        (home / "bin" / "javaw.exe").write_bytes(b"MZ")
+        (home / "release").write_text(
+            f'JAVA_VERSION="{version}"\n', encoding="utf-8")
+        return home
+
+    def test_manual_runtime_paths(self) -> None:
+        from azero.java import manual_runtime
+        with tempfile.TemporaryDirectory() as tmp:
+            home = self._fake_jdk(Path(tmp))
+            # 1) Ruta al ejecutable (javaw.exe o java.exe)
+            for exe in ("java.exe", "javaw.exe"):
+                runtime = manual_runtime(str(home / "bin" / exe))
+                self.assertIsNotNone(runtime, exe)
+                self.assertEqual(runtime.major, 21)
+                self.assertEqual(runtime.home, home)
+            # 2) Ruta a la carpeta bin/
+            runtime = manual_runtime(str(home / "bin"))
+            self.assertIsNotNone(runtime)
+            self.assertEqual(runtime.home, home)
+            # 3) Ruta a la raiz del JDK
+            runtime = manual_runtime(str(home))
+            self.assertIsNotNone(runtime)
+            self.assertEqual(runtime.home, home)
+            # 4) Ruta inexistente -> None (cae a deteccion automatica)
+            self.assertIsNone(manual_runtime(str(home / "nope")))
+            self.assertIsNone(manual_runtime(""))
 
 
 class TestOnlineProfile(unittest.TestCase):

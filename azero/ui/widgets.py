@@ -375,9 +375,12 @@ def faint_label(text: str = "") -> QLabel:
 
 class Pill(QLabel):
     def __init__(self, text: str, dim: bool = False,
+                 accent: bool = False,
                  parent: QWidget | None = None):
         super().__init__(parent)
-        self.setObjectName("pillDim" if dim else "pill")
+        name = ("pillAccent" if accent
+                else "pillDim" if dim else "pill")
+        self.setObjectName(name)
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.setText(text)
 
@@ -386,6 +389,12 @@ class Pill(QLabel):
 
     def set_dim(self, dim: bool) -> None:
         name = "pillDim" if dim else "pill"
+        if self.objectName() != name:
+            self.setObjectName(name)
+            repolish(self)
+
+    def set_accent(self, accent: bool) -> None:
+        name = "pillAccent" if accent else "pill"
         if self.objectName() != name:
             self.setObjectName(name)
             repolish(self)
@@ -458,10 +467,11 @@ class ConsoleView(QPlainTextEdit):
 class _VersionPopup(QFrame):
     """Panel desplegable del selector de versiones.
 
-    Muestra las versiones en un arbol agrupado por familia (1.12.x,
-    26.x...) y, dentro, por version base: cada perfil OptiFine/Forge
-    cuelga de su version madre. QTreeWidget solo pinta las filas
-    visibles, asi que el scroll no renderiza la lista completa.
+    Muestra las versiones en un arbol agrupado por loader (Vanilla,
+    OptiFine, Forge, Fabric, NeoForge), luego por familia (1.12.x,
+    26.x...) y, dentro, por version base: cada perfil cuelga de su
+    version madre. QTreeWidget solo pinta las filas visibles, asi que
+    el scroll no renderiza la lista completa.
     """
 
     picked = pyqtSignal(str)
@@ -487,6 +497,7 @@ class _VersionPopup(QFrame):
         self.tree.setRootIsDecorated(True)
         self.tree.setUniformRowHeights(True)
         self.tree.setAnimated(False)
+        self.tree.setIndentation(16)
         layout.addWidget(self.tree, 1)
 
         self._entries: list[dict] = []
@@ -523,23 +534,38 @@ class _VersionPopup(QFrame):
             return payload.get("inheritsFrom") or vid
         return vid
 
+    _KIND_ORDER = ("Vanilla", "OptiFine", "Forge", "Fabric", "NeoForge")
+    _KIND_FALLBACK = "Otros perfiles"
+
+    def _category_of(self, vid: str, base_id: str) -> str:
+        """Categoria raiz del arbol segun el loader del perfil."""
+        kind = self._kind_of(vid, base_id)
+        if kind == "":
+            return "Vanilla"
+        if kind == "perfil":
+            return self._KIND_FALLBACK
+        return kind
+
     def _group(self) -> dict:
-        families: dict[str, dict] = {}
+        categories: dict[str, dict] = {}
         for entry in self._entries:
             vid = entry.get("id", "")
             if not vid:
                 continue
             base = self._base_of(entry)
+            category = self._category_of(vid, base)
             key = parse_version_key(base)
             label = version_family_label(base)
-            family = families.setdefault(label, {"key": key, "bases": {}})
+            cat = categories.setdefault(category, {"families": {}})
+            family = cat["families"].setdefault(
+                label, {"key": key, "bases": {}})
             node = family["bases"].setdefault(
                 base, {"entry": None, "children": []})
             if base == vid:
                 node["entry"] = entry
             else:
                 node["children"].append(entry)
-        return families
+        return categories
 
     @staticmethod
     def _kind_of(vid: str, base_id: str) -> str:
@@ -556,17 +582,28 @@ class _VersionPopup(QFrame):
             return "perfil"
         return ""
 
-    def _display_text(self, vid: str, base_id: str) -> str:
+    def _display_text(self, vid: str, base_id: str,
+                      category: str = "") -> str:
         label = vid
-        if vid != base_id and vid.startswith(base_id + "-"):
-            label = vid[len(base_id) + 1:]
-        label = label.replace("_", " ")
+        if vid != base_id:
+            if vid.startswith(base_id + "-"):
+                label = vid[len(base_id) + 1:]
+            elif vid.endswith("-" + base_id):
+                # fabric-loader-0.20.1-1.16.5 -> fabric-loader-0.20.1
+                label = vid[: -(len(base_id) + 1)]
+            label = label.replace("_", " ").replace("-", " ")
         kind = self._kind_of(vid, base_id)
-        return f"{label}   ·   {kind}" if kind else label
+        # El sufijo de loader sobra cuando la rama ya es esa categoria.
+        if kind and kind != "perfil" and kind != category:
+            return f"{label}   ·   {kind}"
+        if kind == "perfil":
+            return f"{label}   ·   perfil"
+        return label
 
     def _version_item(self, vid: str, entry: dict | None,
-                      base_id: str) -> QTreeWidgetItem:
-        item = QTreeWidgetItem([self._display_text(vid, base_id)])
+                      base_id: str, category: str = "") -> QTreeWidgetItem:
+        item = QTreeWidgetItem(
+            [self._display_text(vid, base_id, category)])
         item.setData(0, self._ROLE_ID, vid)
         item.setFlags(Qt.ItemFlag.ItemIsEnabled
                       | Qt.ItemFlag.ItemIsSelectable)
@@ -576,40 +613,57 @@ class _VersionPopup(QFrame):
 
     def _rebuild(self) -> None:
         self.tree.clear()
-        for label, family in sorted(
-                self._group().items(),
-                key=lambda item: item[1]["key"], reverse=True):
-            total = sum((1 if node["entry"] else 0) + len(node["children"])
-                        for node in family["bases"].values())
-            fam_item = QTreeWidgetItem([f"{label}   ({total})"])
-            fam_item.setFlags(Qt.ItemFlag.ItemIsEnabled)
-            font = fam_item.font(0)
+        categories = self._group()
+        order = [cat for cat in self._KIND_ORDER if cat in categories]
+        order += sorted(cat for cat in categories
+                        if cat not in self._KIND_ORDER)
+        for category in order:
+            families = categories[category]["families"]
+            total = sum(
+                (1 if node["entry"] else 0) + len(node["children"])
+                for family in families.values()
+                for node in family["bases"].values())
+            cat_item = QTreeWidgetItem([f"{category}   ({total})"])
+            cat_item.setFlags(Qt.ItemFlag.ItemIsEnabled)
+            font = cat_item.font(0)
             font.setBold(True)
-            fam_item.setFont(0, font)
-            self.tree.addTopLevelItem(fam_item)
+            cat_item.setFont(0, font)
+            self.tree.addTopLevelItem(cat_item)
 
-            bases = sorted(family["bases"].items(),
-                           key=lambda item: parse_version_key(item[0]),
-                           reverse=True)
-            for base_id, node in bases:
-                base_item = self._version_item(base_id, node["entry"],
-                                               base_id)
-                if node["entry"] is None:
-                    # La version madre no esta en la lista: rama sin selector.
-                    base_item.setFlags(Qt.ItemFlag.ItemIsEnabled)
-                    base_item.setData(0, self._ROLE_ID, None)
-                    base_item.setText(
-                        0, f"{base_id}   ·   version base no listada")
-                fam_item.addChild(base_item)
+            for label, family in sorted(
+                    families.items(),
+                    key=lambda item: item[1]["key"], reverse=True):
+                fam_count = sum(
+                    (1 if node["entry"] else 0) + len(node["children"])
+                    for node in family["bases"].values())
+                fam_item = QTreeWidgetItem([f"{label}   ({fam_count})"])
+                fam_item.setFlags(Qt.ItemFlag.ItemIsEnabled)
+                fam_item.setForeground(0, QColor(theme.COLORS["TEXT_DIM"]))
+                cat_item.addChild(fam_item)
 
-                children = sorted(
-                    node["children"],
-                    key=lambda e: (parse_version_key(e.get("id", "")),
-                                   e.get("id", "")),
-                    reverse=True)
-                for child in children:
-                    base_item.addChild(self._version_item(
-                        child["id"], child, base_id))
+                bases = sorted(family["bases"].items(),
+                               key=lambda item: parse_version_key(item[0]),
+                               reverse=True)
+                for base_id, node in bases:
+                    base_item = self._version_item(
+                        base_id, node["entry"], base_id, category)
+                    if node["entry"] is None:
+                        # Sin entrada propia en esta categoria: es solo
+                        # la etiqueta de la version madre de los perfiles.
+                        base_item.setFlags(Qt.ItemFlag.ItemIsEnabled)
+                        base_item.setData(0, self._ROLE_ID, None)
+                        base_item.setForeground(
+                            0, QColor(theme.COLORS["TEXT_FAINT"]))
+                    fam_item.addChild(base_item)
+
+                    children = sorted(
+                        node["children"],
+                        key=lambda e: (parse_version_key(e.get("id", "")),
+                                       e.get("id", "")),
+                        reverse=True)
+                    for child in children:
+                        base_item.addChild(self._version_item(
+                            child["id"], child, base_id, category))
         self._restore_expansion()
         self._highlight()
 
@@ -632,11 +686,14 @@ class _VersionPopup(QFrame):
             parent = parent.parent()
 
     def _restore_expansion(self) -> None:
-        """Colapsa todas las familias salvo la que contiene la eleccion."""
+        """Colapsa categorias y familias salvo el camino a la eleccion."""
         root = self.tree.invisibleRootItem()
         self._set_hidden_recursive(root, False)
         for i in range(self.tree.topLevelItemCount()):
-            self.tree.topLevelItem(i).setExpanded(False)
+            top = self.tree.topLevelItem(i)
+            top.setExpanded(False)
+            for j in range(top.childCount()):
+                top.child(j).setExpanded(False)
         if self._selected:
             target = self._find_item(root, self._selected)
             if target is not None:
@@ -657,11 +714,9 @@ class _VersionPopup(QFrame):
             self._restore_expansion()
             return
         for i in range(self.tree.topLevelItemCount()):
-            family = self.tree.topLevelItem(i)
-            visible = self._filter_node(family, query)
-            family.setHidden(not visible)
-            if visible:
-                family.setExpanded(True)
+            category = self.tree.topLevelItem(i)
+            visible = self._filter_node(category, query)
+            category.setHidden(not visible)
 
     def _filter_node(self, item: QTreeWidgetItem, query: str) -> bool:
         vid = item.data(0, self._ROLE_ID)
@@ -673,6 +728,8 @@ class _VersionPopup(QFrame):
                 child_visible = True
         visible = own or child_visible
         item.setHidden(not visible)
+        if visible and item.childCount():
+            item.setExpanded(True)
         return visible
 
     def _set_hidden_recursive(self, item: QTreeWidgetItem,
@@ -752,6 +809,10 @@ class VersionPicker(QToolButton):
 
     def count(self) -> int:
         return len(self._entries)
+
+    def invalidate(self) -> None:
+        """Fuerza la reconstruccion del arbol (p. ej. cambio de tema)."""
+        self._popup_synced = False
 
     def set_placeholder(self, text: str) -> None:
         self._placeholder = text

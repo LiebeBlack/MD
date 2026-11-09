@@ -18,10 +18,10 @@ from ..branding import brand_icon
 # margenes, separaciones y anchos sean consistentes entre pantallas.
 # --------------------------------------------------------------------------
 PAGE_MARGIN = 16
-PAGE_SPACING = 12
-CARD_MARGIN = 14
-CARD_SPACING = 8
-COLUMN_GAP = 14
+PAGE_SPACING = 14
+CARD_MARGIN = 16
+CARD_SPACING = 10
+COLUMN_GAP = 16
 CONTENT_MAX_WIDTH = 1200
 
 # Paletas Office 365 / Fluent. Cada tema define todos los tokens del QSS,
@@ -305,12 +305,15 @@ QStackedWidget, QScrollArea {
 QFrame#card {
     background-color: $SURFACE;
     border: 1px solid $BORDER_SOFT;
-    border-radius: 8px;
+    border-radius: 10px;
+}
+QFrame#card:hover {
+    border-color: $BORDER;
 }
 QFrame#softPanel {
     background-color: $SURFACE;
     border: 1px solid $BORDER_SOFT;
-    border-radius: 8px;
+    border-radius: 10px;
 }
 
 /* ---- etiquetas ---- */
@@ -387,6 +390,16 @@ QLabel#pillDim {
     background-color: $SURFACE_ALT;
     color: $TEXT_DIM;
     border: 1px solid $BORDER;
+    border-radius: 10px;
+    padding: 2px 10px;
+    font-size: 7.5pt;
+    font-weight: 700;
+    letter-spacing: 0.7px;
+}
+QLabel#pillAccent {
+    background-color: rgba($ACCENT_RGB, 0.14);
+    color: $ACCENT;
+    border: 1px solid rgba($ACCENT_RGB, 0.40);
     border-radius: 10px;
     padding: 2px 10px;
     font-size: 7.5pt;
@@ -545,13 +558,17 @@ QFrame#versionPopup {
 }
 QTreeWidget#versionTree {
     background-color: transparent;
-    border: none;
+    border: 1px solid transparent;
+    border-radius: 6px;
     outline: none;
 }
+QTreeWidget#versionTree:focus {
+    border-color: $ACCENT;
+}
 QTreeWidget#versionTree::item {
-    padding: 5px 8px;
+    padding: 6px 10px;
     border-radius: 5px;
-    min-height: 20px;
+    min-height: 22px;
 }
 QTreeWidget#versionTree::item:hover {
     background-color: $SURFACE_HOVER;
@@ -953,7 +970,8 @@ QProgressBar {
     color: transparent;
 }
 QProgressBar::chunk {
-    background-color: $ACCENT;
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+        stop:0 $ACCENT, stop:1 $ACCENT_HI);
     border-radius: 3px;
 }
 
@@ -1150,12 +1168,16 @@ QTableWidget {
     alternate-background-color: $SURFACE_ALT;
 }
 QTableWidget::item, QListWidget::item, QTreeWidget::item {
-    padding: 4px 8px;
+    padding: 5px 10px;
     border: none;
 }
 QTableWidget::item:hover, QListWidget::item:hover,
 QTreeWidget::item:hover {
     background-color: $SURFACE_HOVER;
+}
+QTableWidget::item:focus, QListWidget::item:focus,
+QTreeWidget::item:focus {
+    border: 1px solid rgba($ACCENT_RGB, 0.45);
 }
 QTableWidget::item:selected {
     background-color: rgba($ACCENT_RGB, 0.12);
@@ -1190,7 +1212,10 @@ QTreeWidget::branch {
 QFrame#statCard {
     background-color: $SURFACE;
     border: 1px solid $BORDER_SOFT;
-    border-radius: 8px;
+    border-radius: 10px;
+}
+QFrame#statCard:hover {
+    border-color: $BORDER;
 }
 QLabel#statValue {
     color: $TEXT;

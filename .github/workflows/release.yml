@@ -1,6 +1,6 @@
 name: Release
 
-# Se ejecuta al publicar un tag v* (p. ej. v1.0.0) o manualmente.
+# Se ejecuta al publicar un tag v* (p. ej. v4.37.58) o manualmente.
 # Genera el ejecutable nativo, el zip portable y el instalador, y los
 # publica como assets del GitHub Release.
 
@@ -24,12 +24,26 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: "3.15"
+          cache: pip
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt -r requirements-build.txt
+
+      - name: Tests y sintaxis
+        run: |
+          python -m compileall -q azero main.py
+          python -m unittest discover -s tests
+
+      - name: Read APP_VERSION
+        id: ver
+        shell: pwsh
+        run: |
+          $v = python -c "from azero.constants import APP_VERSION; print(APP_VERSION)".Trim()
+          if (-not $v) { throw "No se pudo leer APP_VERSION" }
+          "tag=v$v" >> $env:GITHUB_OUTPUT
 
       - name: Generate icon
         run: python packaging/make_icon.py
@@ -58,8 +72,8 @@ jobs:
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || 'v1.0.0' }}
-          name: AZeroCraft ${{ github.ref_type == 'tag' && github.ref_name || 'v1.0.0' }}
+          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || steps.ver.outputs.tag }}
+          name: AZeroCraft ${{ github.ref_type == 'tag' && github.ref_name || steps.ver.outputs.tag }}
           generate_release_notes: true
           files: |
             dist/AZeroCraft-Setup-*.exe
