@@ -90,7 +90,6 @@ class MainWindow(QMainWindow):
         self._titlebar_done = False
         self._allow_close = False
         self._launch_notices_shown: set[str] = set()
-        self._quarantined_mods: list[str] = []
         self._page_specs = (
             ("Jugar", "play"),
             ("Versiones", "versions"),
@@ -480,7 +479,6 @@ class MainWindow(QMainWindow):
                 "revisa la carpeta mods/ en Ajustes > Mods.")
             return False
         if active:
-            self._quarantined_mods.extend(path.name for path in moved)
             self.console.append(
                 "Mods desactivados para esta sesión: " + "; ".join(
                     f"{mod.title or mod.name} ({reason})"
@@ -491,7 +489,6 @@ class MainWindow(QMainWindow):
     def _restore_quarantined_mods(self) -> None:
         """Devuelve a mods/ los jars apartados para la sesion anterior."""
         restored = mods.restore_quarantined()
-        self._quarantined_mods = []
         if restored:
             self.console.append(
                 f"{restored} mod(s) reactivados en la carpeta mods/.")
@@ -1134,4 +1131,13 @@ class MainWindow(QMainWindow):
             if worker is not None and worker.isRunning():
                 worker.setParent(None)
                 worker.finished.connect(worker.deleteLater)
+        # Si habia mods en cuarentena y NO hay partida en curso, vuelven
+        # a mods/. Con partida activa se espera: restaurar demasiado
+        # pronto (p. ej. autocierre nada mas spawnear) podria hacer que
+        # el loader lea los mods incompatibles al escanear mods/.
+        if self._session_id is None:
+            try:
+                mods.restore_quarantined()
+            except Exception:  # noqa: BLE001 - nunca impedir el cierre
+                pass
         super().closeEvent(event)
