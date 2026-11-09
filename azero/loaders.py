@@ -77,6 +77,19 @@ def has_loader_profile(kind: str) -> bool:
     return bool(installed_loader_profiles().get(kind))
 
 
+def mod_loader_kind(version_id: str) -> str:
+    """Loader que cargara los mods en este perfil: forge/fabric/neoforge.
+
+    OptiFine no es un mod loader (un perfil OptiFine+Forge si usa Forge),
+    y un perfil vanilla ignora mods/ por completo — en ambos casos no hay
+    loader que validar."""
+    lower = version_id.lower()
+    for kind in ("neoforge", "fabric", "forge"):
+        if kind in lower:
+            return kind
+    return ""
+
+
 def _all_local_profiles() -> list[str]:
     from .manifest import local_profiles
     return local_profiles()

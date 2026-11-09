@@ -295,6 +295,28 @@ def incompatible_mods(mods_list: list[ModInfo], mc_version: str
     return bad
 
 
+# NeoForge es compatible con mods Forge (lee mods.toml igual que Forge).
+_ALLOWED_MOD_LOADERS = {
+    "neoforge": {"forge", "neoforge"},
+    "forge": {"forge"},
+    "fabric": {"fabric"},
+}
+
+
+def incompatible_loader_mods(mods_list: list[ModInfo],
+                             loader_kind: str) -> list[ModInfo]:
+    """Mods cuyo loader no coincide con el del perfil elegido.
+
+    Solo aplica cuando el perfil tiene loader: en vanilla/OptiFine el
+    juego ignora mods/ y no hay crash que evitar. Los jars sin loader
+    detectado (sin metadatos de mod) los ignoran ambos loaders."""
+    if not loader_kind:
+        return []
+    allowed = _ALLOWED_MOD_LOADERS.get(loader_kind, {loader_kind})
+    return [mod for mod in mods_list
+            if mod.loader and mod.loader not in allowed]
+
+
 def describe_mod(path: Path) -> tuple[str, str]:
     """Devuelve (titulo, version) de un jar; nunca lanza excepciones."""
     try:

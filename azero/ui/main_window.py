@@ -12,10 +12,10 @@ from PyQt6.QtWidgets import (QApplication, QFileDialog, QHBoxLayout, QLabel,
                              QMainWindow, QMessageBox, QSizePolicy,
                              QStackedWidget, QTabBar, QVBoxLayout, QWidget)
 
-from .. import APP_NAME, APP_VERSION, database, paths
+from .. import APP_NAME, APP_VERSION, database, mods, paths
 from ..auth import offline_uuid, validate_username
 from ..constants import MEMORY_STEP_MB, SPONSORS_URL
-from ..loaders import loader_kind
+from ..loaders import loader_kind, mod_loader_kind
 from .. import manifest
 from ..manifest import load_version_profile, local_profiles, parse_version_key
 from ..optifine import inspect_installer
@@ -430,6 +430,38 @@ class MainWindow(QMainWindow):
         payload = load_version_profile(version_id) or {}
         return payload.get("inheritsFrom") or version_id
 
+    def _mods_launch_problems(self, version_id: str) -> list[str]:
+        """Mods instalados que harian fallar el arranque de esta version.
+
+        Solo aplica a perfiles con loader de mods: en vanilla/OptiFine
+        el juego ignora mods/ y no hay crash que prevenir."""
+        kind = mod_loader_kind(version_id)
+        if not kind:
+            return []
+        installed = mods.list_mods()
+        if not installed:
+            return []
+        problems = []
+        wrong_loader = mods.incompatible_loader_mods(installed, kind)
+        if wrong_loader:
+            names = ", ".join(
+                mod.title or mod.name for mod in wrong_loader[:4])
+            extra = (f" +{len(wrong_loader) - 4}"
+                     if len(wrong_loader) > 4 else "")
+            problems.append(
+                f"{len(wrong_loader)} para otro loader "
+                f"({names}{extra}); este perfil usa {kind}.")
+        base = self._selected_base() or version_id
+        bad = mods.incompatible_mods(installed, base)
+        if bad:
+            names = ", ".join(
+                mod.title or mod.name for mod, _dep in bad[:4])
+            extra = f" +{len(bad) - 4}" if len(bad) > 4 else ""
+            problems.append(
+                f"{len(bad)} no compatibles con MC {base} "
+                f"({names}{extra}).")
+        return problems
+
     def _active_identity(self) -> tuple[str, str, str, bool]:
         """(nombre, uuid, tipo_cuenta, online) de la cuenta activa."""
         key = (self.settings.active_account or "").strip()
@@ -770,6 +802,16 @@ class MainWindow(QMainWindow):
         if not version_id:
             QMessageBox.warning(self, "Sin versión",
                                 "Selecciona una versión de Minecraft.")
+            return
+
+        problems = self._mods_launch_problems(version_id)
+        if problems:
+            QMessageBox.warning(
+                self, "Mods incompatibles",
+                "Estos mods harían fallar el juego al arrancar:\n\n"
+                + "\n".join(f"• {problem}" for problem in problems)
+                + "\n\nQuita los mods en Ajustes > Mods o elige "
+                  "otra versión.")
             return
 
         self.settings.version = version_id
