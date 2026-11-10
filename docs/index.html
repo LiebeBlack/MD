@@ -1,847 +1,2314 @@
-﻿<!DOCTYPE html>
-<html lang="es">
+<!DOCTYPE html>
+<html lang="es" data-theme="dark">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AZeroCraft Launcher — Minecraft 1.7 y versiones actuales</title>
-<meta name="description" content="Launcher ligero de Minecraft Java para Windows: instalación automática, OptiFine, Microsoft OpenJDK y control total de recursos.">
+<meta name="description" content="AZeroCraft Launcher: instala y ejecuta Minecraft Java Edition desde 1.7 hasta 26.x en Windows. Java automático, Forge, Fabric, NeoForge, OptiFine, mods y control de recursos.">
+<meta name="theme-color" content="#070B12">
+<title>AZeroCraft Launcher — Minecraft Java Edition para Windows</title>
+
+<script>
+/* Aplica el tema guardado antes de pintar para evitar destellos. */
+(function () {
+  var theme = "dark";
+  try {
+    theme = localStorage.getItem("azero-theme") ||
+      (window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark");
+  } catch (_) { /* Almacenamiento local no disponible. */ }
+  document.documentElement.dataset.theme = theme;
+})();
+</script>
+
 <style>
-  :root,
-  [data-theme="dark"]{
-    color-scheme:dark;
-    --bg:#0A0D13; --surface:#111722; --surface-alt:#161E2C; --surface-hover:#1C2636;
-    --border:#232D3F; --border-soft:#1B2432;
-    --text:#E7EEF9; --dim:#93A1B7; --faint:#5F6C81;
-    --accent:#3DE0A0; --accent-dim:#2BB57F; --accent-text:#062018;
-    --danger:#FF6B6B; --warn:#F2C14E;
-    --radius:14px;
-  }
-  [data-theme="light"]{
-    color-scheme:light;
-    --bg:#F5F7FA; --surface:#FFFFFF; --surface-alt:#EDF2F7; --surface-hover:#E4EBF3;
-    --border:#CBD5E1; --border-soft:#E2E8F0;
-    --text:#172033; --dim:#46556B; --faint:#64748B;
-    --accent:#087A55; --accent-dim:#066344; --accent-text:#FFFFFF;
-    --danger:#B42332; --warn:#8A5A00;
-  }
-  *{margin:0;padding:0;box-sizing:border-box}
-  html{scroll-behavior:smooth}
-  :focus-visible{outline:3px solid var(--accent);outline-offset:3px}
-  .skip-link{position:fixed;top:10px;left:10px;z-index:1000;transform:translateY(-160%);background:var(--surface);color:var(--text);padding:10px 14px;border:1px solid var(--border);border-radius:8px}
-  .skip-link:focus{transform:translateY(0)}
-  body{
-    background:var(--bg); color:var(--text);
-    font-family:"Segoe UI","Inter","Noto Sans",system-ui,sans-serif;
-    font-size:16px; line-height:1.6;
-  }
-  .wrap{max-width:1080px;margin:0 auto;padding:0 24px}
-  code,.mono{font-family:"Cascadia Mono","Consolas",monospace}
-  code{background:var(--surface-alt);border:1px solid var(--border-soft);
-      border-radius:6px;padding:2px 7px;font-size:.88em;color:var(--accent)}
-  pre{
-    background:#0A0F17;border:1px solid var(--border-soft);border-radius:10px;
-    padding:16px 18px;overflow-x:auto;font-size:13.5px;line-height:1.55;
-    color:#B9C6D8;margin:14px 0;
-  }
-  pre code{background:none;border:none;padding:0;color:inherit}
+/* =====================================================================
+   Tokens
+   ===================================================================== */
+:root,
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #070B12;
+  --bg-2: #0A1019;
+  --surface: #0F1724;
+  --surface-2: #141E2D;
+  --elev: #182335;
+  --border: #223047;
+  --border-soft: #1A2638;
+  --text: #EAF0F8;
+  --muted: #A3B2C7;
+  --faint: #71829B;
+  --accent: #3ED598;
+  --accent-2: #26B8E8;
+  --accent-ink: #04140E;
+  --ok: #3ED598;
+  --warn: #F0C36B;
+  --danger: #FF7B8A;
+  --ring: rgba(62, 213, 152, .42);
+  --glow: rgba(62, 213, 152, .14);
+  --shadow: 0 24px 60px rgba(0, 0, 0, .45);
+  --header: rgba(7, 11, 18, .78);
+  --radius: 16px;
+  --radius-sm: 10px;
+  --max: 1120px;
+}
 
-  /* ---------- header ---------- */
-  header{
-    position:sticky;top:0;z-index:50;
-    background:var(--bg);
-    border-bottom:1px solid var(--border-soft);
-  }
-  .nav{display:flex;align-items:center;gap:12px;height:60px;position:relative}
-  .logo{display:flex;align-items:center;gap:10px;font-weight:800;font-size:18px;text-decoration:none;color:var(--text)}
-  .logo .mark{
-    width:30px;height:30px;border-radius:9px;display:grid;place-items:center;
-    background:linear-gradient(135deg,#4BF0B2,#1FAE86);color:var(--accent-text);
-    font-weight:800;font-size:15px;
-  }
-  .logo b{color:var(--accent)}
-  nav.links{margin-left:auto;display:flex;gap:4px;align-items:center}
-  .nav-actions{display:flex;align-items:center;gap:8px}
-  nav.links a{
-    color:var(--dim);text-decoration:none;font-size:14px;font-weight:600;
-    padding:8px 12px;border-radius:8px;transition:.15s;
-  }
-  nav.links a:hover{color:var(--text);background:var(--surface-alt)}
-  .theme-toggle{display:inline-flex;align-items:center;gap:7px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:7px 10px;font-size:13px;font-weight:600;font-family:inherit;cursor:pointer}
-  .theme-toggle:hover{background:var(--surface-hover)}
-  .mobile-nav-toggle{display:none;align-items:center;justify-content:center;width:36px;height:36px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:8px;font-size:18px;cursor:pointer}
-  .mobile-nav-toggle:hover{background:var(--surface-hover)}
-  .btn{
-    display:inline-flex;align-items:center;gap:8px;text-decoration:none;
-    font-weight:700;font-size:14px;border-radius:10px;padding:10px 18px;
-    transition:.15s;border:1px solid transparent;cursor:pointer;
-  }
-  .btn-primary{background:var(--accent);color:var(--accent-text)}
-  .btn-primary:hover{background:#58F0B6;transform:translateY(-1px)}
-  .btn-ghost{background:transparent;border-color:var(--border);color:var(--text)}
-  .btn-ghost:hover{background:var(--surface-alt);border-color:#2E3B51}
-  .btn-sm{padding:7px 14px;font-size:13px;border-radius:8px}
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #F5F8FC;
+  --bg-2: #ECF2F9;
+  --surface: #FFFFFF;
+  --surface-2: #F3F7FC;
+  --elev: #FFFFFF;
+  --border: #D9E2EE;
+  --border-soft: #E6EDF5;
+  --text: #0D1A2B;
+  --muted: #46586F;
+  --faint: #6A7C93;
+  --accent: #0A7A54;
+  --accent-2: #0E6FA8;
+  --accent-ink: #FFFFFF;
+  --ok: #0A7A54;
+  --warn: #8A5A00;
+  --danger: #B42332;
+  --ring: rgba(10, 122, 84, .35);
+  --glow: rgba(10, 122, 84, .10);
+  --shadow: 0 18px 44px rgba(15, 35, 60, .12);
+  --header: rgba(245, 248, 252, .82);
+  --radius: 16px;
+  --radius-sm: 10px;
+  --max: 1120px;
+}
 
-  /* ---------- hero ---------- */
-  .hero{padding:88px 0 64px;text-align:center;position:relative;overflow:hidden}
-  .hero::before{
-    content:"";position:absolute;inset:0;pointer-events:none;
-    background:
-      radial-gradient(600px 300px at 20% 0%,rgba(61,224,160,.08),transparent),
-      radial-gradient(700px 350px at 80% 10%,rgba(61,224,160,.06),transparent);
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html {
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Segoe UI Variable Text", "Segoe UI", Inter, "Noto Sans", system-ui, sans-serif;
+  font-size: 16px;
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+img, svg { display: block; }
+a { color: inherit; }
+button { font: inherit; }
+::selection { background: var(--ring); color: var(--text); }
+
+:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+
+.skip-link {
+  position: fixed;
+  top: 10px;
+  left: 12px;
+  z-index: 200;
+  transform: translateY(-180%);
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-weight: 600;
+  text-decoration: none;
+}
+.skip-link:focus { transform: translateY(0); }
+
+.wrap {
+  width: 100%;
+  max-width: var(--max);
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+section { padding: 88px 0; scroll-margin-top: 84px; }
+
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 1.6px;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.eyebrow::before {
+  content: "";
+  width: 22px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--accent);
+}
+
+.sec-head { max-width: 680px; margin-bottom: 40px; }
+.sec-head.center { margin-left: auto; margin-right: auto; text-align: center; }
+.sec-head.center .eyebrow::before { display: none; }
+
+.sec-head h2 {
+  margin: 14px 0 12px;
+  font-size: clamp(26px, 3.2vw, 38px);
+  line-height: 1.16;
+  letter-spacing: -.02em;
+  font-weight: 800;
+}
+
+.sec-head p { color: var(--muted); font-size: 16.5px; }
+
+/* =====================================================================
+   Botones e iconos
+   ===================================================================== */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  padding: 12px 22px;
+  border-radius: 11px;
+  border: 1px solid transparent;
+  font-size: 14.5px;
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+  transition: transform .18s ease, box-shadow .18s ease, background .18s ease, border-color .18s ease;
+  white-space: nowrap;
+}
+
+.btn:hover { transform: translateY(-2px); }
+.btn:active { transform: translateY(0); }
+
+.btn-primary {
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  color: var(--accent-ink);
+  box-shadow: 0 10px 26px var(--glow);
+}
+.btn-primary:hover { box-shadow: 0 16px 34px var(--glow); }
+
+:root[data-theme="light"] .btn-primary {
+  background: linear-gradient(135deg, #0A7A54, #0E6FA8);
+}
+
+.btn-ghost {
+  background: var(--surface);
+  border-color: var(--border);
+  color: var(--text);
+}
+.btn-ghost:hover { border-color: var(--accent); background: var(--surface-2); }
+
+.btn-sm { padding: 9px 16px; font-size: 13.5px; border-radius: 9px; }
+
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--muted);
+  cursor: pointer;
+  transition: background .18s ease, color .18s ease, border-color .18s ease;
+}
+.icon-btn:hover { color: var(--text); border-color: var(--accent); background: var(--surface-2); }
+.icon-btn svg { width: 18px; height: 18px; }
+.icon-btn .ico-sun { display: none; }
+:root[data-theme="dark"] .icon-btn .ico-moon { display: none; }
+:root[data-theme="dark"] .icon-btn .ico-sun { display: block; }
+
+/* =====================================================================
+   Cabecera
+   ===================================================================== */
+.progress {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 2px;
+  width: 100%;
+  transform: scaleX(0);
+  transform-origin: 0 50%;
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+  z-index: 120;
+}
+
+header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: var(--header);
+  backdrop-filter: saturate(160%) blur(14px);
+  -webkit-backdrop-filter: saturate(160%) blur(14px);
+  border-bottom: 1px solid transparent;
+  transition: border-color .2s ease, box-shadow .2s ease;
+}
+header.is-scrolled {
+  border-bottom-color: var(--border-soft);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .12);
+}
+
+.nav {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  height: 64px;
+}
+
+.logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 11px;
+  text-decoration: none;
+  font-weight: 800;
+  letter-spacing: -.01em;
+  font-size: 18px;
+  flex: 0 0 auto;
+}
+
+.logo-mark {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  display: grid;
+  place-items: center;
+  color: var(--accent-ink);
+  box-shadow: 0 8px 20px var(--glow);
+}
+.logo-mark svg { width: 20px; height: 20px; }
+.logo b { color: var(--accent); font-weight: 800; }
+
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+.nav-links a {
+  position: relative;
+  padding: 8px 12px;
+  border-radius: 8px;
+  color: var(--muted);
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 600;
+  transition: color .16s ease, background .16s ease;
+}
+.nav-links a:hover { color: var(--text); background: var(--surface-2); }
+.nav-links a::after {
+  content: "";
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 3px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--accent);
+  transform: scaleX(0);
+  transition: transform .2s ease;
+}
+.nav-links a[aria-current="true"] { color: var(--text); }
+.nav-links a[aria-current="true"]::after { transform: scaleX(1); }
+
+.nav-actions { display: flex; align-items: center; gap: 8px; }
+#menu-btn { display: none; }
+
+/* =====================================================================
+   Héroe
+   ===================================================================== */
+.hero {
+  position: relative;
+  padding: 92px 0 72px;
+  overflow: hidden;
+}
+.hero::before {
+  content: "";
+  position: absolute;
+  inset: -20% -10% auto;
+  height: 640px;
+  background:
+    radial-gradient(560px 300px at 18% 22%, var(--glow), transparent 70%),
+    radial-gradient(520px 280px at 82% 8%, rgba(38, 184, 232, .12), transparent 72%);
+  pointer-events: none;
+}
+.hero::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(to right, var(--border-soft) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--border-soft) 1px, transparent 1px);
+  background-size: 64px 64px;
+  opacity: .35;
+  mask-image: radial-gradient(ellipse 70% 60% at 50% 0%, #000 20%, transparent 76%);
+  -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 0%, #000 20%, transparent 76%);
+  pointer-events: none;
+}
+.hero > .wrap { position: relative; z-index: 1; }
+
+.hero-grid {
+  display: grid;
+  grid-template-columns: 1.03fr .97fr;
+  gap: 52px;
+  align-items: center;
+}
+
+.hero h1 {
+  margin: 18px 0 18px;
+  font-size: clamp(36px, 5vw, 58px);
+  line-height: 1.06;
+  letter-spacing: -.035em;
+  font-weight: 800;
+}
+.hero h1 .grad {
+  background: linear-gradient(100deg, var(--accent), var(--accent-2));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.hero-copy { color: var(--muted); font-size: 17.5px; max-width: 540px; }
+
+.hero-cta { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 28px; }
+
+.hero-checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  margin-top: 26px;
+  color: var(--faint);
+  font-size: 13.5px;
+}
+.hero-checks span { display: inline-flex; align-items: center; gap: 7px; }
+.hero-checks svg { width: 15px; height: 15px; color: var(--accent); }
+
+/* =====================================================================
+   Demo de la aplicación
+   ===================================================================== */
+.app-shell {
+  position: relative;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  animation: float-in .7s cubic-bezier(.2, .7, .2, 1) both;
+}
+@keyframes float-in {
+  from { opacity: 0; transform: translateY(18px) scale(.985); }
+  to { opacity: 1; transform: none; }
+}
+
+.window-bar {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--border-soft);
+  background: var(--surface-2);
+}
+.window-bar i {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--border);
+}
+.window-bar i:nth-child(1) { background: #FF5F57; }
+.window-bar i:nth-child(2) { background: #FEBC2E; }
+.window-bar i:nth-child(3) { background: #28C840; }
+.window-bar .window-title {
+  margin-left: 8px;
+  font-size: 11px;
+  color: var(--faint);
+  font-weight: 600;
+}
+
+.app-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--border-soft);
+}
+.app-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  font-weight: 800;
+}
+.app-brand span {
+  width: 17px;
+  height: 17px;
+  border-radius: 5px;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  color: var(--accent-ink);
+  font-size: 10px;
+}
+.app-brand b { color: var(--accent); }
+
+.app-tabs { display: flex; gap: 2px; margin-left: 6px; overflow-x: auto; }
+.app-tab {
+  border: 0;
+  background: transparent;
+  color: var(--faint);
+  font-size: 10px;
+  font-weight: 700;
+  padding: 5px 7px;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background .15s ease, color .15s ease;
+}
+.app-tab:hover { color: var(--text); background: var(--surface-2); }
+.app-tab[aria-selected="true"] { color: var(--accent); background: var(--glow); }
+
+.app-theme {
+  margin-left: auto;
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  display: grid;
+  place-items: center;
+  color: var(--faint);
+  background: var(--surface-2);
+  font-size: 10px;
+}
+
+.app-body { padding: 12px; min-height: 334px; }
+.app-panel { display: none; }
+.app-panel.is-active { display: block; animation: panel-in .28s ease both; }
+@keyframes panel-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+
+.app-cols { display: grid; grid-template-columns: 1fr 1.12fr; gap: 10px; }
+.app-stack { display: grid; gap: 9px; align-content: start; }
+
+.mini-card {
+  border: 1px solid var(--border-soft);
+  background: var(--surface-2);
+  border-radius: 10px;
+  padding: 10px;
+}
+.mini-label {
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 1.1px;
+  text-transform: uppercase;
+  color: var(--faint);
+  margin-bottom: 7px;
+}
+.mini-row { display: flex; align-items: center; gap: 8px; }
+.mini-avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(135deg, #4C8DFF, #245FD0);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+}
+.mini-name { font-size: 11.5px; font-weight: 700; }
+.mini-sub {
+  font-size: 9px;
+  color: var(--faint);
+  font-family: "Cascadia Mono", Consolas, monospace;
+  overflow-wrap: anywhere;
+}
+.mini-btn {
+  margin-left: auto;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--muted);
+  border-radius: 6px;
+  font-size: 9px;
+  font-weight: 700;
+  padding: 4px 8px;
+}
+.mini-select {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 7px;
+  padding: 7px 9px;
+  font-size: 10.5px;
+  font-weight: 700;
+}
+.mini-select span { color: var(--faint); font-size: 8px; }
+.mini-meta { margin-top: 6px; font-size: 9px; color: var(--faint); }
+.mini-play {
+  border: 0;
+  border-radius: 8px;
+  padding: 10px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  color: var(--accent-ink);
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  text-align: center;
+}
+:root[data-theme="light"] .mini-play {
+  background: linear-gradient(135deg, #0A7A54, #0E6FA8);
+}
+.mini-slider {
+  position: relative;
+  height: 4px;
+  border-radius: 3px;
+  background: var(--border);
+  margin: 9px 0 8px;
+}
+.mini-slider::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 34%;
+  border-radius: 3px;
+  background: var(--accent);
+}
+.mini-slider::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 34%;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 2px solid var(--accent);
+  transform: translate(-50%, -50%);
+}
+.mini-chips { display: flex; gap: 4px; flex-wrap: wrap; }
+.mini-chip {
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 2px 6px;
+  font-size: 8px;
+  font-weight: 700;
+  color: var(--faint);
+}
+.mini-chip.on { color: var(--accent); border-color: var(--accent); background: var(--glow); }
+
+.console {
+  border: 1px solid var(--border-soft);
+  background: var(--surface);
+  border-radius: 9px;
+  padding: 9px;
+  font-family: "Cascadia Mono", Consolas, monospace;
+  font-size: 8.6px;
+  line-height: 1.75;
+  color: var(--faint);
+  min-height: 198px;
+  overflow: hidden;
+}
+.console .g { color: var(--accent); }
+.console .line { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.mini-list { display: grid; gap: 6px; }
+.mini-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: var(--surface-2);
+}
+.mini-item .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex: 0 0 auto;
+}
+.mini-item code {
+  font-family: "Cascadia Mono", Consolas, monospace;
+  font-size: 9px;
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--text);
+}
+.mini-pill {
+  margin-left: auto;
+  font-size: 7.5px;
+  font-weight: 800;
+  letter-spacing: .6px;
+  color: var(--faint);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 1px 7px;
+}
+.mock-note {
+  margin-top: 12px;
+  text-align: center;
+  font-size: 11.5px;
+  color: var(--faint);
+}
+
+/* =====================================================================
+   Métricas
+   ===================================================================== */
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius);
+  background: var(--surface);
+  overflow: hidden;
+}
+.metric {
+  padding: 24px 22px;
+  border-left: 1px solid var(--border-soft);
+}
+.metric:first-child { border-left: 0; }
+.metric b {
+  display: block;
+  font-size: clamp(21px, 2.4vw, 28px);
+  font-weight: 800;
+  letter-spacing: -.03em;
+}
+.metric span {
+  display: block;
+  margin-top: 4px;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: .9px;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+/* =====================================================================
+   Funciones
+   ===================================================================== */
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 26px;
+}
+.filter {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--muted);
+  border-radius: 999px;
+  padding: 7px 14px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: color .16s ease, border-color .16s ease, background .16s ease;
+}
+.filter:hover { color: var(--text); border-color: var(--accent); }
+.filter[aria-pressed="true"] {
+  color: var(--accent-ink);
+  background: var(--accent);
+  border-color: var(--accent);
+}
+:root[data-theme="light"] .filter[aria-pressed="true"] {
+  color: #fff;
+  background: var(--accent);
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+}
+.card {
+  position: relative;
+  background: var(--surface);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius);
+  padding: 22px;
+  transition: transform .2s ease, border-color .2s ease, box-shadow .2s ease, opacity .2s ease;
+}
+.card:hover {
+  transform: translateY(-4px);
+  border-color: var(--border);
+  box-shadow: var(--shadow);
+}
+.card.is-hidden { display: none; }
+.card .ico {
+  width: 40px;
+  height: 40px;
+  border-radius: 11px;
+  display: grid;
+  place-items: center;
+  background: var(--glow);
+  border: 1px solid var(--ring);
+  color: var(--accent);
+  margin-bottom: 15px;
+}
+.card .ico svg { width: 20px; height: 20px; }
+.card h3 { font-size: 15.5px; font-weight: 750; letter-spacing: -.01em; margin-bottom: 7px; }
+.card p { color: var(--muted); font-size: 13.8px; line-height: 1.6; }
+.card .tag {
+  display: inline-block;
+  margin-top: 12px;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: .8px;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+/* =====================================================================
+   Explorador de versiones
+   ===================================================================== */
+.explorer {
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius);
+  background: var(--surface);
+  overflow: hidden;
+}
+.explorer-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 16px;
+  border-bottom: 1px solid var(--border-soft);
+  background: var(--surface-2);
+}
+.era {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--muted);
+  border-radius: 9px;
+  padding: 8px 13px;
+  font-size: 13.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: color .16s ease, border-color .16s ease, background .16s ease;
+}
+.era:hover { color: var(--text); border-color: var(--accent); }
+.era[aria-selected="true"] {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--glow);
+}
+
+.explorer-body { padding: 26px; }
+.era-panel { display: none; }
+.era-panel.is-active { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; animation: panel-in .3s ease both; }
+.era-cell {
+  border-left: 2px solid var(--border-soft);
+  padding-left: 16px;
+}
+.era-cell:first-child { border-left: 0; padding-left: 0; }
+.era-cell .k {
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.era-cell .v {
+  margin-top: 7px;
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -.02em;
+}
+.era-cell .v small {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0;
+  color: var(--muted);
+  margin-top: 3px;
+}
+.era-cell code {
+  display: inline-block;
+  margin-top: 7px;
+  font-family: "Cascadia Mono", Consolas, monospace;
+  font-size: 12.5px;
+  color: var(--accent);
+  background: var(--glow);
+  border: 1px solid var(--ring);
+  border-radius: 6px;
+  padding: 3px 8px;
+}
+.explorer-foot {
+  padding: 14px 26px 20px;
+  border-top: 1px solid var(--border-soft);
+  color: var(--faint);
+  font-size: 13px;
+}
+
+/* =====================================================================
+   Manual
+   ===================================================================== */
+.steps {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+}
+.step {
+  border: 1px solid var(--border-soft);
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 22px;
+  transition: border-color .2s ease, transform .2s ease;
+}
+.step:hover { border-color: var(--accent); transform: translateY(-3px); }
+.step-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: var(--glow);
+  border: 1px solid var(--ring);
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 800;
+  margin-bottom: 12px;
+}
+.step h3 { font-size: 15px; font-weight: 750; margin-bottom: 6px; }
+.step p { color: var(--muted); font-size: 13.6px; }
+.step p + p { margin-top: 6px; }
+.step code, .legal code, p code, li code {
+  font-family: "Cascadia Mono", Consolas, monospace;
+  font-size: .88em;
+  color: var(--accent);
+  background: var(--glow);
+  border: 1px solid var(--ring);
+  border-radius: 5px;
+  padding: 1px 5px;
+}
+
+/* =====================================================================
+   Rendimiento
+   ===================================================================== */
+.perf-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+}
+.perf-card {
+  border: 1px solid var(--border-soft);
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 20px;
+}
+.perf-card h3 { font-size: 14.5px; font-weight: 750; }
+.perf-card .val {
+  margin: 6px 0 6px;
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--accent);
+  letter-spacing: -.02em;
+}
+.perf-card p { color: var(--muted); font-size: 13.4px; }
+
+.callout {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-top: 18px;
+  padding: 16px 18px;
+  border: 1px solid var(--ring);
+  border-radius: var(--radius-sm);
+  background: var(--glow);
+  color: var(--muted);
+  font-size: 13.8px;
+}
+.callout svg { width: 18px; height: 18px; color: var(--accent); flex: 0 0 auto; margin-top: 2px; }
+.callout b { color: var(--text); }
+
+/* =====================================================================
+   Arquitectura
+   ===================================================================== */
+.flow {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+}
+.node {
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius);
+  background: var(--surface);
+  padding: 22px;
+  position: relative;
+}
+.node .step-num { margin-bottom: 12px; }
+.node h3 { font-size: 15px; font-weight: 750; margin-bottom: 6px; }
+.node p { color: var(--muted); font-size: 13.5px; }
+
+.guarantees {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  margin-top: 18px;
+}
+.guarantee {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  color: var(--muted);
+  font-size: 13.6px;
+}
+.guarantee svg { width: 17px; height: 17px; color: var(--accent); flex: 0 0 auto; margin-top: 2px; }
+
+/* =====================================================================
+   Preguntas frecuentes
+   ===================================================================== */
+.faq { display: grid; gap: 10px; max-width: 860px; }
+details {
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  overflow: hidden;
+}
+summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 17px 20px;
+  font-size: 14.5px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  transition: background .16s ease;
+}
+summary::-webkit-details-marker { display: none; }
+summary:hover { background: var(--surface-2); }
+summary::after {
+  content: "+";
+  margin-left: auto;
+  font-size: 19px;
+  font-weight: 600;
+  color: var(--accent);
+  transition: transform .2s ease;
+}
+details[open] summary::after { transform: rotate(45deg); }
+details .answer {
+  padding: 0 20px 18px;
+  color: var(--muted);
+  font-size: 14px;
+  max-width: 78ch;
+}
+
+/* =====================================================================
+   Descargas y compilación
+   ===================================================================== */
+.dl-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+}
+.dl-card {
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius);
+  background: var(--surface);
+  padding: 26px;
+  transition: border-color .2s ease, transform .2s ease;
+}
+.dl-card:hover { border-color: var(--accent); transform: translateY(-3px); }
+.dl-card .k {
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.dl-card h3 { margin: 8px 0 6px; font-size: 21px; font-weight: 800; letter-spacing: -.02em; }
+.dl-card p { color: var(--muted); font-size: 14px; margin-bottom: 18px; }
+.dl-meta { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 18px; }
+.dl-meta span {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--faint);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 3px 10px;
+}
+.dl-card .btn { width: 100%; }
+
+.code-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+}
+.code-card {
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius);
+  background: var(--surface);
+  overflow: hidden;
+}
+.code-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-soft);
+  background: var(--surface-2);
+}
+.code-head h3 { font-size: 13.5px; font-weight: 750; }
+.copy {
+  margin-left: auto;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--muted);
+  border-radius: 6px;
+  font-size: 11.5px;
+  font-weight: 700;
+  padding: 3px 9px;
+  cursor: pointer;
+  transition: color .15s ease, border-color .15s ease;
+}
+.copy:hover { color: var(--text); border-color: var(--accent); }
+.copy.is-done { color: var(--accent); border-color: var(--accent); }
+pre {
+  margin: 0;
+  padding: 16px;
+  overflow-x: auto;
+  background: var(--bg-2);
+  color: var(--muted);
+  font-family: "Cascadia Mono", Consolas, monospace;
+  font-size: 12.5px;
+  line-height: 1.7;
+}
+pre code { font-family: inherit; }
+
+/* =====================================================================
+   Aviso legal
+   ===================================================================== */
+.legal-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+}
+.legal-block {
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius);
+  background: var(--surface);
+  padding: 22px;
+}
+.legal-block h3 {
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: .8px;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 8px;
+}
+.legal-block p, .legal-block li { color: var(--muted); font-size: 13.5px; }
+.legal-block ul { margin-left: 18px; margin-top: 6px; }
+.legal-block a { color: var(--accent); }
+
+/* =====================================================================
+   Pie de página
+   ===================================================================== */
+footer {
+  border-top: 1px solid var(--border-soft);
+  padding: 46px 0 34px;
+  color: var(--faint);
+  font-size: 13px;
+}
+.footer-grid {
+  display: grid;
+  grid-template-columns: 1.6fr 1fr 1fr 1fr;
+  gap: 28px;
+}
+.footer-grid h4 {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 10px;
+}
+.footer-grid a {
+  display: block;
+  color: var(--faint);
+  text-decoration: none;
+  padding: 3px 0;
+}
+.footer-grid a:hover { color: var(--accent); }
+.footer-brand p { max-width: 320px; color: var(--faint); }
+.footer-bottom {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 34px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border-soft);
+  font-size: 12.5px;
+}
+.footer-bottom .dot { color: var(--border); margin: 0 6px; }
+
+.to-top {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  width: 40px;
+  height: 40px;
+  border-radius: 11px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--muted);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  opacity: 0;
+  transform: translateY(12px);
+  pointer-events: none;
+  transition: opacity .2s ease, transform .2s ease, color .2s ease, border-color .2s ease;
+  z-index: 90;
+}
+.to-top.is-visible { opacity: 1; transform: none; pointer-events: auto; }
+.to-top:hover { color: var(--accent); border-color: var(--accent); }
+.to-top svg { width: 18px; height: 18px; }
+
+/* =====================================================================
+   Animaciones de entrada
+   ===================================================================== */
+.reveal {
+  opacity: 0;
+  transform: translateY(16px);
+  transition: opacity .6s ease, transform .6s cubic-bezier(.2, .7, .2, 1);
+  transition-delay: var(--d, 0ms);
+}
+.reveal.is-visible { opacity: 1; transform: none; }
+
+/* =====================================================================
+   Responsive
+   ===================================================================== */
+@media (max-width: 1024px) {
+  .hero-grid { grid-template-columns: 1fr; gap: 40px; }
+  .hero-copy { max-width: none; }
+  .cards { grid-template-columns: repeat(2, 1fr); }
+  .steps, .perf-grid, .flow, .guarantees { grid-template-columns: repeat(2, 1fr); }
+  .era-panel.is-active { grid-template-columns: 1fr; gap: 14px; }
+  .era-cell { border-left: 0; padding-left: 0; border-top: 1px solid var(--border-soft); padding-top: 14px; }
+  .era-cell:first-child { border-top: 0; padding-top: 0; }
+  .footer-grid { grid-template-columns: 1fr 1fr; }
+}
+
+@media (max-width: 860px) {
+  .nav-cta { display: none; }
+  #menu-btn { display: inline-flex; }
+  .nav-links {
+    position: fixed;
+    top: 64px;
+    left: 0;
+    right: 0;
+    margin: 0;
+    padding: 14px 24px 18px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    box-shadow: var(--shadow);
+    flex-direction: column;
+    align-items: stretch;
+    gap: 2px;
+    display: none;
+    z-index: 99;
   }
-  .hero .badge{
-    display:inline-block;font-size:12px;font-weight:700;letter-spacing:1.2px;
-    color:var(--accent);background:rgba(61,224,160,.1);
-    border:1px solid rgba(61,224,160,.28);border-radius:999px;
-    padding:5px 14px;margin-bottom:22px;
+  .nav-links.is-open { display: flex; animation: menu-in .2s ease both; }
+  @keyframes menu-in {
+    from { opacity: 0; transform: translateY(-8px); }
+    to { opacity: 1; transform: none; }
   }
-  .hero h1{font-size:clamp(34px,6vw,58px);font-weight:800;letter-spacing:-1px;line-height:1.08}
-  .hero h1 span{color:var(--accent)}
-  .hero p{color:var(--dim);font-size:18px;max-width:640px;margin:20px auto 0}
-  .hero .cta{display:flex;gap:12px;justify-content:center;margin-top:34px;flex-wrap:wrap}
-  .hero .stats{display:flex;gap:0;justify-content:center;margin-top:56px;flex-wrap:wrap}
-  .stat{padding:0 34px;border-left:1px solid var(--border-soft)}
-  .stat:first-child{border-left:none}
-  .stat b{display:block;font-size:26px;color:var(--text)}
-  .stat span{font-size:12.5px;color:var(--faint);font-weight:600;letter-spacing:.6px;text-transform:uppercase}
+  .nav-links a { padding: 11px 12px; font-size: 15px; }
+  .nav-links a::after { display: none; }
+  .nav-actions { margin-left: auto; }
+}
 
-  /* ---------- sections ---------- */
-  section{padding:72px 0}
-  .sec-head{max-width:640px;margin-bottom:40px}
-  .sec-head .kicker{font-size:12px;font-weight:700;letter-spacing:1.6px;color:var(--accent);text-transform:uppercase}
-  .sec-head h2{font-size:32px;font-weight:800;margin:10px 0 12px;letter-spacing:-.5px}
-  .sec-head p{color:var(--dim)}
+@media (max-width: 720px) {
+  section { padding: 64px 0; }
+  .hero { padding: 64px 0 48px; }
+  .metrics { grid-template-columns: repeat(2, 1fr); }
+  .metric { border-left: 0; border-top: 1px solid var(--border-soft); }
+  .metric:nth-child(1), .metric:nth-child(2) { border-top: 0; }
+  .metric:nth-child(even) { border-left: 1px solid var(--border-soft); }
+  .cards, .steps, .perf-grid, .flow, .guarantees, .dl-grid, .code-grid, .legal-grid { grid-template-columns: 1fr; }
+  .app-cols { grid-template-columns: 1fr; }
+  .console { min-height: 0; }
+  .app-body { min-height: 0; }
+  .footer-grid { grid-template-columns: 1fr; }
+  .explorer-head { overflow-x: auto; flex-wrap: nowrap; }
+  .era { white-space: nowrap; }
+  .hero-checks { flex-direction: column; gap: 6px; }
+}
 
-  .grid{display:grid;gap:16px}
-  .grid-3{grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}
-  .grid-2{grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}
+@media (max-width: 420px) {
+  .wrap { padding: 0 18px; }
+  .hero h1 { font-size: 34px; }
+  .metrics { grid-template-columns: 1fr; }
+  .metric { border-left: 0; border-top: 1px solid var(--border-soft); }
+  .metric:nth-child(2) { border-top: 1px solid var(--border-soft); }
+  .metric:first-child { border-top: 0; }
+  .app-tabs { max-width: 190px; }
+  .btn { width: 100%; }
+  .hero-cta { flex-direction: column; }
+}
 
-  .card{
-    background:var(--surface);border:1px solid var(--border-soft);
-    border-radius:var(--radius);padding:24px;transition:.2s;
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+    scroll-behavior: auto !important;
   }
-  .card:hover{border-color:var(--border);transform:translateY(-2px)}
-  .card .ico{
-    width:42px;height:42px;border-radius:11px;display:grid;place-items:center;
-    background:rgba(61,224,160,.1);border:1px solid rgba(61,224,160,.25);
-    font-size:20px;margin-bottom:16px;
-  }
-  .card h3{font-size:16.5px;font-weight:700;margin-bottom:8px}
-  .card p{color:var(--dim);font-size:14px}
-  .card ul{margin:10px 0 0 18px;color:var(--dim);font-size:14px}
-  .card li{margin:5px 0}
-
-  /* mockup del launcher */
-  .shot{
-    border:1px solid var(--border);border-radius:16px;overflow:hidden;
-    background:var(--surface);
-    box-shadow:0 30px 80px rgba(0,0,0,.5);
-  }
-  .shot .bar{display:flex;gap:7px;padding:12px 14px;border-bottom:1px solid var(--border-soft);background:var(--surface-alt)}
-  .shot .bar i{width:11px;height:11px;border-radius:50%;background:#2A3548}
-  .shot .bar i:nth-child(1){background:#FF5F57}.shot .bar i:nth-child(2){background:#FEBC2E}.shot .bar i:nth-child(3){background:#28C840}
-  .mock{display:grid;grid-template-columns:minmax(250px,320px) minmax(0,1fr);gap:14px;padding:18px}
-  @media(max-width:900px){.mock{grid-template-columns:1fr}}
-  @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important;transition-duration:.01ms!important}}
-  .mock .col{display:flex;flex-direction:column;gap:10px}
-  .mside{grid-column:1/-1;background:var(--surface);border:1px solid var(--border-soft);border-radius:12px;padding:10px;display:flex;align-items:center;gap:6px}
-  .mside .mnav{height:auto;min-height:32px;flex:0 0 auto}
-  .mside .sp{display:none}
-  .mnav{height:22px;border-radius:6px;background:var(--surface-alt);font-size:9px;font-weight:700;color:var(--faint);display:flex;align-items:center;padding:0 9px;letter-spacing:.8px}
-  .mnav.on{background:rgba(61,224,160,.12);color:var(--accent);border:1px solid rgba(61,224,160,.3)}
-  .mside .sp{flex:1}
-  .mcard{background:var(--surface);border:1px solid var(--border-soft);border-radius:12px;padding:12px 14px}
-  .mcard h4{font-size:10px;letter-spacing:1.4px;color:var(--faint);font-weight:700;margin-bottom:8px}
-  .mline{height:10px;border-radius:5px;background:var(--surface-alt);margin:7px 0}
-  .mline.w60{width:60%}.mline.w80{width:80%}.mline.w40{width:40%}
-  .mline.accent{background:linear-gradient(90deg,var(--accent-dim),var(--accent));width:70%}
-  .mplay{background:var(--accent);color:var(--accent-text);text-align:center;
-         font-weight:800;font-size:12px;letter-spacing:1px;border-radius:10px;padding:11px}
-  .mconsole{background:var(--bg);border:1px solid var(--border-soft);border-radius:10px;
-            padding:12px;font-family:"Cascadia Mono",monospace;font-size:10.5px;
-            color:var(--dim);line-height:1.7;min-height:120px}
-  .mconsole .g{color:var(--accent)}
-
-  /* architecture */
-  .arch{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:center}
-  .node{
-    background:var(--surface);border:1px solid var(--border);border-radius:10px;
-    padding:10px 16px;font-size:13px;font-weight:600;text-align:center;min-width:130px;
-  }
-  .node small{display:block;color:var(--faint);font-weight:400;font-size:11px;margin-top:2px}
-  .node.core{border-color:rgba(61,224,160,.4);background:rgba(61,224,160,.06)}
-  .arrow{color:var(--faint);font-size:18px}
-
-  /* versions table */
-  .table-scroll{overflow-x:auto;border-radius:var(--radius)}
-  table{width:100%;min-width:680px;border-collapse:collapse;font-size:14px}
-  th,td{text-align:left;padding:11px 14px;border-bottom:1px solid var(--border-soft)}
-  th{color:var(--faint);font-size:11px;letter-spacing:1px;text-transform:uppercase}
-  td{color:var(--dim)}
-  td b{color:var(--text)}
-  .tag{display:inline-block;font-size:11px;font-weight:700;padding:3px 9px;border-radius:6px;letter-spacing:.5px}
-  .tag.ok{background:rgba(61,224,160,.12);color:var(--accent);border:1px solid rgba(61,224,160,.3)}
-  .tag.info{background:rgba(242,193,78,.1);color:var(--warn);border:1px solid rgba(242,193,78,.3)}
-
-  /* perf */
-  .perf{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}
-  .perf .card{padding:20px}
-  .perf .val{font-size:22px;font-weight:800;color:var(--accent);margin:6px 0 4px}
-  .perf p{font-size:13px}
-
-  /* download */
-  .dl{display:flex;gap:14px;flex-wrap:wrap;justify-content:center}
-  .dl .file{
-    background:var(--surface);border:1px solid var(--border-soft);border-radius:12px;
-    padding:18px 22px;min-width:250px;text-align:left;
-  }
-  .dl .file b{display:block;font-size:14.5px}
-  .dl .file span{color:var(--faint);font-size:12.5px}
-  .dl .file .btn{margin-top:12px}
-
-  footer{border-top:1px solid var(--border-soft);padding:36px 0;color:var(--faint);font-size:13px}
-  footer .wrap{display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px}
-  footer a{color:var(--dim);text-decoration:none}
-  footer a:hover{color:var(--accent)}
-
-  @media(max-width:640px){
-    .hero{padding:60px 0 44px}
-    section{padding:52px 0}
-    .stat{padding:0 18px}
-    nav.links{position:absolute;display:none;top:60px;left:-24px;right:-24px;margin:0;padding:12px 24px;background:var(--surface);border-bottom:1px solid var(--border-soft);box-shadow:0 12px 24px rgba(0,0,0,.14);align-items:stretch;flex-direction:column;z-index:60}
-    header.menu-open nav.links{display:flex}
-    nav.links a{display:block}
-    nav.links>.btn{display:none}
-    .nav-actions{margin-left:auto}
-    .mobile-nav-toggle{display:inline-flex}
-    .theme-toggle .theme-label{display:none}
-    .theme-toggle{flex:0 0 36px;justify-content:center;width:36px;height:36px;padding:0}
-  }
+  .reveal { opacity: 1; transform: none; }
+}
 </style>
 </head>
+
 <body>
 <a class="skip-link" href="#main">Saltar al contenido principal</a>
+<div class="progress" id="progress" aria-hidden="true"></div>
 
-<header>
+<header id="topbar">
   <div class="wrap nav">
-    <a class="logo" href="#">
-      <span class="mark">A</span>AZero<b>Craft</b>
+    <a class="logo" href="#top" aria-label="AZeroCraft Launcher, inicio">
+      <span class="logo-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round">
+          <path d="M12 3 20 7.5v9L12 21l-8-4.5v-9L12 3Z"></path>
+          <path d="M12 3v9m0 0 8-4.5M12 12 4 7.5"></path>
+        </svg>
+      </span>
+      <span>AZero<b>Craft</b></span>
     </a>
-    <nav class="links" id="site-links" aria-label="Navegación principal">
-      <a href="#features">Funciones</a>
+
+    <nav class="nav-links" id="site-nav" aria-label="Navegación principal">
+      <a href="#funciones">Funciones</a>
+      <a href="#versiones">Versiones</a>
       <a href="#manual">Manual</a>
-      <a href="#versions">Versiones</a>
-      <a href="#performance">Rendimiento</a>
-      <a href="#download">Descargar</a>
-      <a href="#build">Compilar</a>
-      <a class="btn btn-primary btn-sm" href="https://github.com/LiebeBlack/MD" target="_blank" rel="noopener">GitHub ↗</a>
+      <a href="#rendimiento">Rendimiento</a>
+      <a href="#ayuda">Ayuda</a>
     </nav>
+
     <div class="nav-actions">
-      <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Cambiar al tema claro" aria-pressed="false"><span aria-hidden="true">☼</span><span class="theme-label">Tema claro</span></button>
-      <button class="mobile-nav-toggle" id="mobile-nav-toggle" type="button" aria-label="Abrir menú" aria-expanded="false" aria-controls="site-links">☰</button>
+      <a class="btn btn-primary btn-sm nav-cta" href="#descargar">Descargar</a>
+      <button class="icon-btn" id="theme-toggle" type="button" aria-label="Cambiar al tema claro" aria-pressed="false">
+        <svg class="ico-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+          <path d="M20.5 14.2A8.5 8.5 0 0 1 9.8 3.5a8.5 8.5 0 1 0 10.7 10.7Z"></path>
+        </svg>
+        <svg class="ico-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="4"></circle>
+          <path d="M12 2v2m0 16v2M2 12h2m16 0h2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M19.1 4.9l-1.4 1.4M6.3 17.7l-1.4 1.4"></path>
+        </svg>
+      </button>
+      <button class="icon-btn" id="menu-btn" type="button" aria-label="Abrir menú" aria-expanded="false" aria-controls="site-nav">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true">
+          <path d="M4 7h16M4 12h16M4 17h16"></path>
+        </svg>
+      </button>
     </div>
   </div>
 </header>
+
 <main id="main">
-
-<!-- ======================= HERO ======================= -->
-<div class="hero">
-  <div class="wrap">
-    <div class="badge">LANZADOR PARA MINECRAFT JAVA EDITION</div>
-    <h1>Juega <span>Minecraft</span> sin complicaciones</h1>
-    <p>
-      Instala y ejecuta Minecraft desde la versión 1.7 hasta las versiones actuales.
-      AZeroCraft gestiona las descargas oficiales, Java, Forge, Fabric, NeoForge y
-      OptiFine, organiza varios perfiles por versión y avisa de incompatibilidades
-      entre mods. Incluye inicio de sesión opcional con Microsoft, modo sin conexión
-      y un historial local de actividad.
-    </p>
-    <div class="cta">
-      <a class="btn btn-primary" href="#download">Descargar para Windows</a>
-      <a class="btn btn-ghost" href="#build">Compilar desde código</a>
-    </div>
-    <div class="stats">
-      <div class="stat"><b>1.7 – actual</b><span>Versiones soportadas</span></div>
-      <div class="stat"><b>Configuración sencilla</b><span>Java y recursos automáticos</span></div>
-      <div class="stat"><b>Perfil offline</b><span>UUID v3 compatible con Java</span></div>
-      <div class="stat"><b>~60 MB</b><span>Launcher portable</span></div>
-    </div>
-  </div>
-</div>
-
-<!-- ======================= MOCKUP ======================= -->
-<section id="features" style="padding-top:20px">
-  <div class="wrap">
-    <div class="sec-head" style="margin:0 auto 44px;text-align:center">
-      <div class="kicker">Interfaz</div>
-      <h2>Una interfaz clara y personalizable</h2>
-      <p>Navega por pestañas entre Jugar, Versiones, Cuenta, Ajustes y Acerca de. Elige entre los temas claro y oscuro, consulta el registro en tiempo real y accede a las acciones principales desde una sola ventana.</p>
-    </div>
-    <div class="shot">
-      <div class="bar"><i></i><i></i><i></i></div>
-      <div class="mock">
-        <div class="mside">
-          <div class="mnav on">▶ JUGAR</div>
-          <div class="mnav">▦ VERSIONES</div>
-          <div class="mnav">◉ CUENTA</div>
-          <div class="mnav">⚙ AJUSTES</div>
-          <div class="mnav">ℹ ACERCA DE</div>
-          <div class="sp"></div>
-          <div class="mnav" style="color:var(--accent);border:1px solid rgba(61,224,160,.3)">● LISTO</div>
+  <!-- ============================== HÉROE ============================== -->
+  <div class="hero" id="top">
+    <div class="wrap">
+      <div class="hero-grid">
+        <div>
+          <span class="eyebrow">Minecraft Java Edition · Windows</span>
+          <h1>Tu Minecraft,<br><span class="grad">listo en un clic</span></h1>
+          <p class="hero-copy">
+            Instala y ejecuta cualquier versión desde 1.7 hasta la actualidad,
+            incluidas las versiones de calendario 26.x. AZeroCraft gestiona las
+            descargas oficiales, Java, los loaders y tus mods con una interfaz
+            clara y sin configuración manual.
+          </p>
+          <div class="hero-cta">
+            <a class="btn btn-primary" href="#descargar">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M12 3v12m0 0 4-4m-4 4-4-4M4 19h16"></path>
+              </svg>
+              Descargar para Windows
+            </a>
+            <a class="btn btn-ghost" href="#funciones">Ver funciones</a>
+          </div>
+          <div class="hero-checks">
+            <span>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 4.5 4.5L19 7"></path></svg>
+              Sin cuenta obligatoria
+            </span>
+            <span>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 4.5 4.5L19 7"></path></svg>
+              Java y recursos automáticos
+            </span>
+            <span>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 4.5 4.5L19 7"></path></svg>
+              Datos locales
+            </span>
+          </div>
         </div>
-        <div class="col">
-          <div class="mcard">
-            <h4>JUGADOR</h4>
-            <div style="display:flex;gap:10px;align-items:center">
-              <div style="width:38px;height:38px;border-radius:11px;background:linear-gradient(135deg,#4BF0B2,#1FAE86);display:grid;place-items:center;color:#062018;font-weight:800">AZ</div>
-              <div style="flex:1">
-                <div class="mline w80" style="height:12px"></div>
-                <div class="mline w40"></div>
+
+        <!-- Demo interactiva -->
+        <div>
+          <div class="app-shell" role="group" aria-label="Vista previa de la interfaz de AZeroCraft">
+            <div class="window-bar" aria-hidden="true">
+              <i></i><i></i><i></i>
+              <span class="window-title">AZeroCraft Launcher</span>
+            </div>
+
+            <div class="app-top">
+              <span class="app-brand" aria-hidden="true"><span>A</span>AZero<b>Craft</b></span>
+              <div class="app-tabs" role="tablist" aria-label="Vista previa por página">
+                <button class="app-tab" id="app-tab-jugar" type="button" role="tab" aria-selected="true" aria-controls="app-panel-jugar">Jugar</button>
+                <button class="app-tab" id="app-tab-versiones" type="button" role="tab" aria-selected="false" aria-controls="app-panel-versiones">Versiones</button>
+                <button class="app-tab" id="app-tab-cuenta" type="button" role="tab" aria-selected="false" aria-controls="app-panel-cuenta">Cuenta</button>
+              </div>
+              <span class="app-theme" aria-hidden="true">◐</span>
+            </div>
+
+            <div class="app-body">
+              <div class="app-panel is-active" id="app-panel-jugar" role="tabpanel" aria-labelledby="app-tab-jugar">
+                <div class="app-cols">
+                  <div class="app-stack">
+                    <div class="mini-card">
+                      <div class="mini-label">Jugador</div>
+                      <div class="mini-row">
+                        <span class="mini-avatar">PL</span>
+                        <div>
+                          <div class="mini-name">Player</div>
+                          <div class="mini-sub">UUID a01e3843…</div>
+                        </div>
+                        <span class="mini-btn">Cambiar</span>
+                      </div>
+                    </div>
+                    <div class="mini-card">
+                      <div class="mini-label">Versión</div>
+                      <div class="mini-select">1.21.1 <span>▾</span></div>
+                      <div class="mini-meta">Java 21 · Vanilla · instalada</div>
+                    </div>
+                    <div class="mini-play">JUGAR</div>
+                    <div class="mini-card">
+                      <div class="mini-label">Memoria RAM</div>
+                      <div class="mini-row">
+                        <span class="mini-sub">1536 MB · 1.5 GB</span>
+                        <span class="mini-btn">Consejos</span>
+                      </div>
+                      <div class="mini-slider" aria-hidden="true"></div>
+                      <div class="mini-chips">
+                        <span class="mini-chip">2 GB</span>
+                        <span class="mini-chip on">Recomendado</span>
+                        <span class="mini-chip">Máx</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="app-stack">
+                    <div class="mini-card" style="padding-bottom:8px">
+                      <div class="mini-label" style="display:flex;justify-content:space-between">
+                        <span>Registro</span>
+                        <span style="letter-spacing:0;color:var(--faint)">Copiar · Limpiar</span>
+                      </div>
+                      <div class="console">
+                        <div class="line"><span class="g">•</span> Leyendo manifiesto oficial</div>
+                        <div class="line">Descargando 245 archivos (49,6 MB)</div>
+                        <div class="line">Extrayendo bibliotecas nativas</div>
+                        <div class="line"><span class="g">•</span> Preparando Java 21</div>
+                        <div class="line">Usando Java 21 (21.0.x) desde …\jdk-21</div>
+                        <div class="line">Iniciando 1.21.1 como Player</div>
+                        <div class="line">Minecraft iniciado · PID 6308</div>
+                        <div class="line">LWJGL 3.3.3 · OpenAL inicializado</div>
+                        <div class="line">Texturas: 1024 × 512</div>
+                        <div class="line"><span class="g">•</span> En ejecución.</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="app-panel" id="app-panel-versiones" role="tabpanel" aria-labelledby="app-tab-versiones">
+                <div class="metrics" style="grid-template-columns:repeat(3,1fr);border-radius:10px;margin-bottom:10px">
+                  <div class="metric" style="padding:10px 12px"><b style="font-size:16px">2</b><span style="font-size:8px">Versiones</span></div>
+                  <div class="metric" style="padding:10px 12px"><b style="font-size:16px">25,6 MB</b><span style="font-size:8px">Tamaño</span></div>
+                  <div class="metric" style="padding:10px 12px"><b style="font-size:16px">0</b><span style="font-size:8px">Partidas</span></div>
+                </div>
+                <div class="mini-card">
+                  <div class="mini-label">Versiones instaladas</div>
+                  <div class="mini-list">
+                    <div class="mini-item"><span class="dot"></span><code>1.21.1</code><span class="mini-pill">VANILLA</span><span class="mini-btn">Jugar</span></div>
+                    <div class="mini-item"><span class="dot"></span><code>fabric-loader-0.20.1-1.21.1</code><span class="mini-pill">FABRIC</span><span class="mini-btn">Jugar</span></div>
+                    <div class="mini-item"><span class="dot"></span><code>1.12.2-OptiFine_HD_U_G5</code><span class="mini-pill">OPTIFINE</span><span class="mini-btn">Jugar</span></div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="app-panel" id="app-panel-cuenta" role="tabpanel" aria-labelledby="app-tab-cuenta">
+                <div class="mini-card" style="margin-bottom:10px">
+                  <div class="mini-label">Cuenta activa</div>
+                  <div class="mini-row">
+                    <span class="mini-avatar">PL</span>
+                    <div>
+                      <div class="mini-name">Player</div>
+                      <div class="mini-sub">Perfil offline · UUID v3</div>
+                    </div>
+                    <span class="mini-pill">OFFLINE</span>
+                  </div>
+                </div>
+                <div class="mini-card">
+                  <div class="mini-label">Cuenta Microsoft</div>
+                  <div class="mini-row">
+                    <div>
+                      <div class="mini-name">Inicio de sesión opcional</div>
+                      <div class="mini-sub">Código de dispositivo, sin contraseña</div>
+                    </div>
+                    <span class="mini-btn" style="color:var(--accent);border-color:var(--accent)">Iniciar sesión</span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
-          <div class="mcard">
-            <h4>VERSIÓN · FORGE 47.2.0</h4>
-            <div class="mline w80" style="background:#1C2636;border:1px solid var(--border)"></div>
-            <div class="mline w60"></div>
-          </div>
-          <div class="mcard">
-            <h4>MEMORIA RAM · AJUSTES RÁPIDOS</h4>
-            <div class="mline accent"></div>
-            <div class="mline w40"></div>
-          </div>
-          <div class="mplay">JUGAR</div>
-        </div>
-        <div class="col">
-          <div class="mconsole">
-            <span class="g">• Leyendo manifiesto oficial</span><br>
-            Descargando 245 archivos (49,6 MB)<br>
-            Extrayendo bibliotecas nativas<br>
-            <span class="g">• Preparando Java 11</span><br>
-            Usando Java 11 (11.0.x) desde …\microsoft-jdk-11<br>
-            Iniciando 1.12.1 como AZeroQA (UUID b50a…)<br>
-            Minecraft iniciado · PID 6308<br>
-            LWJGL 2.9.4 · OpenAL inicializado<br>
-            Texturas: 1024 × 512<br>
-            Biblioteca de narración x64 cargada
-          </div>
-          <div class="mcard">
-            <h4>REGISTRO</h4>
-            <div class="mline w80"></div>
-            <div class="mline w60"></div>
-            <div class="mline accent"></div>
-          </div>
+          <p class="mock-note">Vista ilustrativa · pulsa las pestañas para explorar</p>
         </div>
       </div>
     </div>
   </div>
-</section>
 
-<!-- ======================= FEATURES ======================= -->
-<section>
-  <div class="wrap">
-    <div class="sec-head">
-      <div class="kicker">Funciones</div>
-      <h2>Todo lo que un launcher debe hacer, sin ruido</h2>
-      <p>Selector de versiones agrupado por loader — Vanilla, OptiFine, Forge, Fabric y NeoForge —, varios perfiles por versión base y detección de mods incompatibles antes de lanzar.</p>
-    </div>
-    <div class="grid grid-3">
-      <div class="card">
-        <div class="ico">⬇</div>
-        <h3>Instalación automática</h3>
-        <p>Descarga el cliente, las librerías, los nativos y los assets directamente de Mojang con verificación SHA-1/SHA-256 y reanudación implícita por archivo.</p>
-      </div>
-      <div class="card">
-        <div class="ico">☕</div>
-        <h3>Java automático</h3>
-        <p>Detecta los JRE instalados y elige el compatible con cada versión. Si falta, descarga Microsoft OpenJDK LTS sin intervención.</p>
-      </div>
-      <div class="card">
-        <div class="ico">✦</div>
-        <h3>OptiFine integrado</h3>
-        <p>Aplica el instalador oficial en modo headless y crea un perfil propio que aparece en la lista de versiones junto a las vanilla.</p>
-      </div>
-      <div class="card">
-        <div class="ico">◈</div>
-        <h3>Forge, Fabric y NeoForge</h3>
-        <p>Instala los tres loaders desde Ajustes → Mods, en formatos antiguos y modernos, con varios perfiles por versión base (p. ej. 1.21.1 Forge y Fabric a la vez). NeoForge se detecta correctamente sin confundirlo con Forge.</p>
-      </div>
-      <div class="card">
-        <div class="ico">▦</div>
-        <h3>Selector de versiones agrupado</h3>
-        <p>Explora las versiones por categoría de loader, familia, versión base y perfil. El buscador integrado facilita encontrar una versión y mantener varios perfiles del mismo juego organizados.</p>
-      </div>
-      <div class="card">
-        <div class="ico">⚠</div>
-        <h3>Compatibilidad de mods</h3>
-        <p>Antes de iniciar el juego, el launcher revisa las dependencias declaradas en los mods y avisa si detecta incompatibilidades con la versión de Minecraft o el loader seleccionado. La comprobación depende de los metadatos disponibles en cada archivo.</p>
-      </div>
-      <div class="card">
-        <div class="ico">◎</div>
-        <h3>Modo offline real</h3>
-        <p>El perfil offline genera un UUID v3 determinista, compatible con <code>nameUUIDFromBytes</code> de Java. El mismo nombre produce siempre el mismo UUID.</p>
-      </div>
-      <div class="card">
-        <div class="ico">⚡</div>
-        <h3>Conexión rápida</h3>
-        <p>Escribe <code>servidor.net:25565</code> y entra directo al servidor al arrancar. Compatible con IPv6.</p>
-      </div>
-      <div class="card">
-        <div class="ico">🗂</div>
-        <h3>Portable de verdad</h3>
-        <p>En modo portable, los datos propios del launcher se guardan junto al ejecutable; en una instalación para el usuario, se guardan en la ubicación de datos de la aplicación. La carpeta oficial <code>.minecraft</code> permanece compartida con el launcher de Mojang.</p>
-      </div>
-      <div class="card">
-        <div class="ico">☁</div>
-        <h3>Cuenta Microsoft opcional</h3>
-        <p>Vincula una cuenta Microsoft mediante un código de dispositivo, sin introducir la contraseña en el launcher. El inicio de sesión oficial es opcional.</p>
-      </div>
-      <div class="card">
-        <div class="ico">🕘</div>
-        <h3>Historial completo</h3>
-        <p>Consulta las versiones instaladas, el espacio que ocupan, las descargas recientes y las sesiones de juego. El historial se guarda localmente en SQLite.</p>
-      </div>
-      <div class="card">
-        <div class="ico">🧠</div>
-        <h3>Ajustes según tu hardware</h3>
-        <p>El selector de RAM y las recomendaciones tienen en cuenta la memoria y el procesador del equipo. Puedes ajustar el recolector de basura, la prioridad del proceso y la afinidad de CPU; la optimización rápida recomienda valores de RAM y GC según el hardware.</p>
-      </div>
+  <!-- ============================== MÉTRICAS ============================== -->
+  <div class="wrap reveal">
+    <div class="metrics">
+      <div class="metric"><b>1.7 → 26.x</b><span>Versiones compatibles</span></div>
+      <div class="metric"><b><span data-count="5">5</span></b><span>Loaders integrados</span></div>
+      <div class="metric"><b>SHA-256</b><span>Verificación de descargas</span></div>
+      <div class="metric"><b><span data-count="0">0</span></b><span>Telemetría propia</span></div>
     </div>
   </div>
-</section>
 
-<!-- ======================= VERSIONS ======================= -->
-<section id="versions" style="background:var(--surface)">
-  <div class="wrap">
-    <div class="sec-head">
-      <div class="kicker">Compatibilidad</div>
-      <h2>Versiones y Java</h2>
-      <p>AZeroCraft admite versiones desde Minecraft 1.7 y recomienda una versión de Java compatible para cada perfil.</p>
-    </div>
-    <div class="card" style="padding:0;overflow:hidden">
-      <div class="table-scroll" role="region" aria-label="Compatibilidad de Minecraft y Java" tabindex="0">
-      <table>
-        <thead><tr><th>Versiones</th><th>Java recomendado</th><th>Formato de argumentos</th><th>Estado</th></tr></thead>
-        <tbody>
-          <tr><td><b>1.7 – 1.12.2</b></td><td>Java 11 <span class="tag info">LTS</span> (compatible con 8–15)</td><td><code>minecraftArguments</code></td><td><span class="tag ok">Soportado</span></td></tr>
-          <tr><td><b>1.13 – 1.20.4</b></td><td>Java 17 <span class="tag info">LTS</span> (acepta 17–21)</td><td><code>arguments</code> con reglas</td><td><span class="tag ok">Soportado</span></td></tr>
-          <tr><td><b>1.20.5 – 1.21.x</b></td><td>Java 21 o posterior</td><td><code>arguments</code> con reglas</td><td><span class="tag info">Soportado</span></td></tr>
-          <tr><td><b>26.x</b></td><td>Java 25 o posterior</td><td><code>arguments</code> + <code>default-user-jvm</code></td><td><span class="tag info">Soportado</span></td></tr>
-        </tbody>
-      </table>
+  <!-- ============================== FUNCIONES ============================== -->
+  <section id="funciones">
+    <div class="wrap">
+      <div class="sec-head reveal">
+        <span class="eyebrow">Funciones</span>
+        <h2>Todo lo necesario, sin ruido</h2>
+        <p>Un launcher completo para jugar, instalar loaders y mantener tus perfiles ordenados, con controles claros y resultados verificables.</p>
       </div>
-    </div>
-    <p style="color:var(--faint);font-size:13px;margin-top:14px">
-      Las versiones experimentales y los snapshots están ocultos por defecto;
-      activa <b>Mostrar todas las versiones</b> en Ajustes para incluirlos. Los perfiles de loader
-      (Forge, Fabric, NeoForge, OptiFine) se instalan desde la propia interfaz
-      y aparecen agrupados en el selector de versiones.
-    </p>
-  </div>
-</section>
 
-<!-- ======================= MANUAL ======================= -->
-<section id="manual">
-  <div class="wrap">
-    <div class="sec-head">
-      <div class="kicker">Manual de uso</div>
-      <h2>De cero a jugando en minutos</h2>
-      <p>Guía rápida de cada función del launcher. Todo se gestiona desde la interfaz; no hace falta tocar archivos.</p>
-    </div>
+      <div class="filters reveal" role="group" aria-label="Filtrar funciones por categoría">
+        <button class="filter" type="button" data-filter="all" aria-pressed="true">Todas</button>
+        <button class="filter" type="button" data-filter="instalacion" aria-pressed="false">Instalación</button>
+        <button class="filter" type="button" data-filter="rendimiento" aria-pressed="false">Rendimiento</button>
+        <button class="filter" type="button" data-filter="mods" aria-pressed="false">Mods</button>
+        <button class="filter" type="button" data-filter="cuentas" aria-pressed="false">Cuentas</button>
+      </div>
 
-    <div class="grid grid-3" style="margin-bottom:34px">
-      <div class="card">
-        <h3>1 · Primer arranque</h3>
-        <ul>
-          <li>Elige dónde guardar los datos propios del launcher. La carpeta oficial <code>.minecraft</code> se mantiene compartida.</li>
-          <li>Escribe tu nombre de jugador — el perfil offline se crea solo, con UUID determinista.</li>
-          <li>Pulsa <b>Jugar</b>: la primera vez descarga cliente, librerías, nativos y assets automáticamente.</li>
-        </ul>
-      </div>
-      <div class="card">
-        <h3>2 · Elegir versión</h3>
-        <ul>
-          <li>El selector agrupa por loader: <b>Vanilla, OptiFine, Forge, Fabric, NeoForge</b>.</li>
-          <li>Dentro, por familia (<code>1.21.x</code>, <code>26.x</code>) y versión base.</li>
-          <li>Escribe en el buscador para filtrar (<code>fabric</code>, <code>26.3</code>…).</li>
-          <li>Puedes tener varios perfiles del mismo juego a la vez.</li>
-        </ul>
-      </div>
-      <div class="card">
-        <h3>3 · Instalar un loader</h3>
-        <ul>
-          <li><b>OptiFine</b>: tarjeta Versión en Jugar → selecciona el .jar oficial.</li>
-          <li><b>Forge / Fabric / NeoForge</b>: Ajustes → Mods → botón del loader, elige versión base y release.</li>
-          <li>La instalación es silenciosa; el perfil aparece en el selector al terminar.</li>
-        </ul>
-      </div>
-      <div class="card">
-        <h3>4 · Añadir mods</h3>
-        <ul>
-          <li>Ajustes → Mods → <b>Añadir .jar</b> (o copia los .jar a <code>.minecraft/mods</code>).</li>
-          <li>El launcher muestra nombre y versión de cada mod.</li>
-          <li><b>Antes de lanzar</b> avisa si algún mod no es para tu versión de Minecraft o Java — revísalo en el estado de Jugar.</li>
-        </ul>
-      </div>
-      <div class="card">
-        <h3>5 · Cuenta y multijugador</h3>
-        <ul>
-          <li><b>Perfil offline</b>: nombre propio para uso personal y partidas de un jugador, de acuerdo con las condiciones de Minecraft.</li>
-          <li><b>Microsoft</b>: Cuenta → <b>Iniciar sesión</b>. Completa la autenticación con el código de dispositivo, sin introducir la contraseña en el launcher.</li>
-          <li>Escribe <code>servidor:25565</code> en Jugar para entrar directo al servidor.</li>
-        </ul>
-      </div>
-      <div class="card">
-        <h3>6 · Rendimiento</h3>
-        <ul>
-          <li>Jugar → tarjeta <b>Ajustes rápidos</b>: RAM (2–4 GB suele bastar) y presets.</li>
-          <li>Ajustes → Rendimiento: prioridad del proceso, núcleos, recolector GC (Serial/G1/Parallel), argumentos JVM.</li>
-          <li><b>"Optimizar para este equipo"</b> aplica RAM y GC según tu hardware detectado.</li>
-        </ul>
-      </div>
-    </div>
+      <div class="cards" id="feature-cards">
+        <article class="card reveal" data-category="instalacion" style="--d:0ms">
+          <span class="ico" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v11m0 0 4-4m-4 4-4-4"></path><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"></path></svg>
+          </span>
+          <h3>Instalación verificada</h3>
+          <p>Descarga el cliente, las bibliotecas, los archivos nativos y los recursos desde los servidores oficiales, con comprobación de hashes cuando están disponibles.</p>
+          <span class="tag">Automático</span>
+        </article>
 
-    <div class="sec-head" style="margin-bottom:24px">
-      <div class="kicker">Solución de problemas</div>
-      <h2 style="font-size:26px">Preguntas frecuentes</h2>
-    </div>
-    <div class="grid grid-2">
-      <div class="card">
-        <h3 style="font-size:15px">El launcher avisa de mods incompatibles</h3>
-        <p style="font-size:14px">La carpeta <code>mods</code> se comparte entre versiones. Un mod puede declarar requisitos para una versión concreta de Minecraft o un loader; el launcher avisa cuando detecta una incompatibilidad en los metadatos disponibles. Usa los mods adecuados para el perfil seleccionado.</p>
-      </div>
-      <div class="card">
-        <h3 style="font-size:15px">Minecraft termina al iniciar (código ≠ 0)</h3>
-        <p style="font-size:14px">Abre la carpeta de registros desde la sección Versiones y busca la línea <code>Caused by</code>. Entre las causas frecuentes están los mods incompatibles, una versión de Java no compatible o los argumentos JVM personalizados.</p>
-      </div>
-      <div class="card">
-        <h3 style="font-size:15px">¿Puedo llevarlo en un USB?</h3>
-        <p style="font-size:14px">Sí: descarga el <b>Portable (.zip)</b>, descomprímelo donde quieras y ejecuta <code>AZeroCraft.exe</code>. Los datos se guardan en <code>./data</code> junto al exe; la carpeta <code>.minecraft</code> sigue siendo la oficial de Windows.</p>
-      </div>
-      <div class="card">
-        <h3 style="font-size:15px">No hay conexión / descargas fallan</h3>
-        <p style="font-size:14px">Activa <b>Modo sin conexión</b> en Ajustes para usar los archivos de la caché local sin consultar el manifiesto ni verificar hashes. Los archivos que falten no se podrán descargar, así que el perfil debe contar con los recursos necesarios.</p>
-      </div>
-      <div class="card">
-        <h3 style="font-size:15px">No aparece una versión o snapshot</h3>
-        <p style="font-size:14px">Los snapshots y las versiones antiguas están ocultos por defecto. Activa <b>Mostrar todas las versiones</b> en Ajustes y búscalos en el selector (por ejemplo, <code>25w14a</code>).</p>
-      </div>
-      <div class="card">
-        <h3 style="font-size:15px">¿Dónde están mis mundos y ajustes?</h3>
-        <p style="font-size:14px">La carpeta oficial <code>.minecraft</code> (<code>%APPDATA%\.minecraft</code>) sigue compartida con el launcher de Mojang y contiene tus mundos, paquetes de recursos, shaders, <code>options.txt</code> y mods. AZeroCraft no modifica las opciones de juego.</p>
-      </div>
-    </div>
-  </div>
-</section>
+        <article class="card reveal" data-category="rendimiento" style="--d:60ms">
+          <span class="ico" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h9a3 3 0 1 0-3-3"></path><path d="M20 17h-9a3 3 0 1 0 3 3"></path><circle cx="18" cy="6" r="2.2"></circle><circle cx="6" cy="18" r="2.2"></circle></svg>
+          </span>
+          <h3>Java automático</h3>
+          <p>Detecta los runtimes instalados y elige el más adecuado para cada versión. Si falta, puede descargar Microsoft Build of OpenJDK sin intervención.</p>
+          <span class="tag">8 → 25</span>
+        </article>
 
-<!-- ======================= PERFORMANCE ======================= -->
-<section id="performance">
-  <div class="wrap">
-    <div class="sec-head">
-      <div class="kicker">Control de recursos</div>
-      <h2>Tu PC, tus reglas</h2>
-      <p>Ajusta exactamente cuántos recursos puede consumir el juego mientras juegas o antes de lanzar.</p>
-    </div>
-    <div class="perf">
-      <div class="card">
-        <h3>Memoria RAM</h3>
-        <div class="val">Adaptativa</div>
-        <p>El límite del selector se calcula según la memoria del equipo y reserva recursos para el sistema. El launcher configura la memoria inicial y máxima de Java a partir del valor elegido.</p>
-      </div>
-      <div class="card">
-        <h3>Prioridad del proceso</h3>
-        <div class="val">5 niveles</div>
-        <p>Elige entre Reposo, Baja, Normal, Alta y Muy alta para ajustar la prioridad del proceso del juego en Windows.</p>
-      </div>
-      <div class="card">
-        <h3>Afinidad de CPU</h3>
-        <div class="val">N núcleos</div>
-        <p>Limita el juego a un número determinado de núcleos lógicos o deja que use todos los disponibles.</p>
-      </div>
-      <div class="card">
-        <h3>Recolector de basura</h3>
-        <div class="val">G1 · Serial · Parallel</div>
-        <p>Elige el GC de la JVM: Serial para equipos modestos, G1 para máximo rendimiento.</p>
-      </div>
-      <div class="card">
-        <h3>Argumentos JVM</h3>
-        <div class="val">Libres</div>
-        <p>Configura argumentos JVM personalizados en Ajustes → Java. Si especificas otro recolector de basura, el launcher avisa de que puede entrar en conflicto con el ajuste elegido.</p>
-      </div>
-      <div class="card">
-        <h3>Java automático</h3>
-        <div class="val">Microsoft OpenJDK</div>
-        <p>Detecta los JRE instalados, elige el compatible con cada versión (8 → 25) y descarga Microsoft OpenJDK LTS si falta.</p>
-      </div>
-      <div class="card">
-        <h3>Optimización en un clic</h3>
-        <div class="val">Hardware</div>
-        <p>«Optimizar para este equipo» analiza el procesador, la memoria y la GPU, y aplica recomendaciones de RAM y del recolector de basura.</p>
-      </div>
-      <div class="card">
-        <h3>Hardware inteligente</h3>
-        <div class="val">CPU · GPU · SSE4.2</div>
-        <p>Consulta información del procesador, la GPU, la memoria y las instrucciones compatibles del equipo.</p>
-      </div>
-      <div class="card">
-        <h3>Acerca de y soporte</h3>
-        <div class="val">Diagnóstico · Donar</div>
-        <p>Página Acerca de con enlaces al repo, documentación, copia de diagnóstico al portapapeles, botón de donación y exportar/importar ajustes.</p>
-      </div>
-    </div>
-  </div>
-</section>
+        <article class="card reveal" data-category="mods" style="--d:120ms">
+          <span class="ico" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 4h4v3a2 2 0 1 0 4 0V6h3v5h-3a2 2 0 1 0 0 4h3v5h-5v-3a2 2 0 1 0-4 0v3H4v-5h3a2 2 0 1 0 0-4H4V6h6V4Z"></path></svg>
+          </span>
+          <h3>Loaders integrados</h3>
+          <p>Instala Forge, Fabric, NeoForge y OptiFine desde la propia interfaz. Conviven varios perfiles sobre una misma versión base.</p>
+          <span class="tag">4 loaders</span>
+        </article>
 
-<!-- ======================= ARCHITECTURE ======================= -->
-<section style="background:var(--surface)">
-  <div class="wrap">
-    <div class="sec-head">
-      <div class="kicker">Arquitectura</div>
-      <h2>Cómo funciona por dentro</h2>
-      <p>Núcleo modular en Python: cada capa tiene una sola responsabilidad y se prueba de forma aislada.</p>
-    </div>
-    <div class="card">
-      <div class="arch">
-        <div class="node core">UI PyQt6<small>main_window · pages · theme</small></div>
-        <span class="arrow">→</span>
-        <div class="node">workers<small>QThread: manifest · launch · optifine · forge · loaders · msauth</small></div>
-        <span class="arrow">→</span>
-        <div class="node">launch / install<small>línea de comandos · spawn · profiles</small></div>
-        <span class="arrow">→</span>
-        <div class="node">manifest · libraries<small>herencia · reglas · classpath</small></div>
-        <span class="arrow">→</span>
-        <div class="node">util · assets<small>descargas SHA-1 · objetos</small></div>
-        <span class="arrow">→</span>
-        <div class="node">mods · loaders<small>deps fabric/mods.toml · Forge · Fabric · NeoForge</small></div>
-        <span class="arrow">→</span>
-        <div class="node">database<small>SQLite: historial · sesiones · cuentas</small></div>
-        <span class="arrow">→</span>
-        <div class="node">Mojang · MS<small>piston-meta · Xbox Live · Minecraft Services</small></div>
-      </div>
-      <div style="margin-top:26px;display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px">
-        <div class="mcard"><h4>SEGURIDAD</h4><p style="color:var(--dim);font-size:13px">Extracción de ZIP sin path traversal, verificación de hashes en cada descarga, URLs solo de dominios oficiales.</p></div>
-        <div class="mcard"><h4>CONFIABILIDAD</h4><p style="color:var(--dim);font-size:13px">Reintentos con backoff, cancelación cooperativa, escritura atómica de JSON, caché de manifiestos de 6 h.</p></div>
-        <div class="mcard"><h4>RENDIMIENTO</h4><p style="color:var(--dim);font-size:13px">12 descargas en paralelo, UI en hilo principal + workers QThread, proceso de juego desacoplado del launcher.</p></div>
-      </div>
-    </div>
-  </div>
-</section>
+        <article class="card reveal" data-category="instalacion" style="--d:0ms">
+          <span class="ico" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="15" rx="2.5"></rect><path d="M3 9h18M8 3v4m8-4v4"></path></svg>
+          </span>
+          <h3>Selector de versiones</h3>
+          <p>Organiza las versiones por loader, familia y perfil. El buscador y el filtro por tipo permiten encontrar la instalación correcta en segundos.</p>
+          <span class="tag">Buscador</span>
+        </article>
 
-<!-- ======================= DOWNLOAD ======================= -->
-<section id="download">
-  <div class="wrap">
-    <div class="sec-head" style="text-align:center;margin-left:auto;margin-right:auto">
-      <div class="kicker">Descargar</div>
-      <h2>Release para Windows</h2>
-      <p>El workflow de CI compila y publica automáticamente cada tag <code>v*</code> en GitHub Releases.</p>
-    </div>
-    <div class="dl" id="dl-grid">
-      <div class="file">
-        <b>Instalador (.exe)</b>
-        <span>AZeroCraft-Setup-x.x.x.exe · Inno Setup · por usuario, sin admin</span>
-        <br><a class="btn btn-primary btn-sm" id="dl-setup" href="https://github.com/LiebeBlack/MD/releases/latest" target="_blank" rel="noopener">Última versión</a>
-      </div>
-      <div class="file">
-        <b>Portable (.zip)</b>
-        <span>AZeroCraft-windows-x64.zip · carpeta completa, datos junto al exe</span>
-        <br><a class="btn btn-ghost btn-sm" id="dl-zip" href="https://github.com/LiebeBlack/MD/releases/latest" target="_blank" rel="noopener">Última versión</a>
-      </div>
-      <div class="file">
-        <b>Código fuente</b>
-        <span>Python 3.15 · PyQt6 · sin dependencias externas</span>
-        <br><a class="btn btn-ghost btn-sm" href="https://github.com/LiebeBlack/MD" target="_blank" rel="noopener">Ver en GitHub</a>
-      </div>
-    </div>
-    <p style="text-align:center;color:var(--faint);font-size:13px;margin-top:24px">
-      Requisito: Windows 10/11 de 64 bits. El launcher descarga Java automáticamente si hace falta.
-      <br>Los enlaces apuntan al último release publicado; también puedes ver
-      <a href="https://github.com/LiebeBlack/MD/releases" target="_blank" rel="noopener" style="color:var(--accent)">todos los releases</a>.
-    </p>
-  </div>
-</section>
+        <article class="card reveal" data-category="mods" style="--d:60ms">
+          <span class="ico" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2.8 8 12 13l9.2-5L12 3Z"></path><path d="m2.8 12.5 9.2 5 9.2-5M2.8 17l9.2 5 9.2-5"></path></svg>
+          </span>
+          <h3>Compatibilidad de mods</h3>
+          <p>Revisa las dependencias declaradas en los archivos y avisa cuando detecta requisitos de versión o de loader incompatibles antes de iniciar.</p>
+          <span class="tag">Avisos</span>
+        </article>
 
-<!-- ======================= BUILD ======================= -->
-<section id="build" style="background:var(--surface)">
-  <div class="wrap">
-    <div class="grid grid-2">
-      <div>
-        <div class="sec-head" style="margin-bottom:20px">
-          <div class="kicker">Compilar</div>
-          <h2 style="font-size:26px">Desde código fuente</h2>
-          <p>Desarrollo local en Python puro — sin Node, sin Docker, sin sorpresas.</p>
+        <article class="card reveal" data-category="rendimiento" style="--d:120ms">
+          <span class="ico" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17a9 9 0 1 1 18 0"></path><path d="m12 13 4-4"></path><circle cx="12" cy="17" r="1.6"></circle></svg>
+          </span>
+          <h3>Control de recursos</h3>
+          <p>Ajusta memoria, prioridad del proceso, afinidad de CPU, recolector de basura y argumentos de la JVM. La configuración se guarda por instalación.</p>
+          <span class="tag">A medida</span>
+        </article>
+
+        <article class="card reveal" data-category="cuentas" style="--d:0ms">
+          <span class="ico" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.5"></circle><path d="M4.5 20a7.5 7.5 0 0 1 15 0"></path></svg>
+          </span>
+          <h3>Perfil y cuenta</h3>
+          <p>Juega con un perfil offline de nombre personalizado o vincula una cuenta Microsoft mediante un código de dispositivo. El inicio de sesión oficial es opcional.</p>
+          <span class="tag">Opcional</span>
+        </article>
+
+        <article class="card reveal" data-category="instalacion" style="--d:60ms">
+          <span class="ico" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"></path><path d="M3 3v5h5"></path><path d="M12 7v5l3 2"></path></svg>
+          </span>
+          <h3>Historial local</h3>
+          <p>Consulta versiones instaladas, espacio ocupado, operaciones recientes y sesiones de juego. El historial se guarda en una base SQLite local.</p>
+          <span class="tag">Privado</span>
+        </article>
+      </div>
+
+      <p class="mock-note" id="filter-status" role="status" aria-live="polite"></p>
+    </div>
+  </section>
+
+  <!-- ============================== VERSIONES ============================== -->
+  <section id="versiones" style="background:var(--surface-2)">
+    <div class="wrap">
+      <div class="sec-head reveal">
+        <span class="eyebrow">Compatibilidad</span>
+        <h2>La versión correcta, con el Java correcto</h2>
+        <p>Selecciona una etapa de Minecraft para consultar el runtime recomendado y el formato de argumentos que interpreta el launcher.</p>
+      </div>
+
+      <div class="explorer reveal" role="group" aria-label="Compatibilidad por etapa de Minecraft">
+        <div class="explorer-head" role="tablist" aria-label="Etapas de Minecraft">
+          <button class="era" id="era-1" type="button" role="tab" aria-selected="true" aria-controls="era-panel-1">1.7 – 1.12.2</button>
+          <button class="era" id="era-2" type="button" role="tab" aria-selected="false" aria-controls="era-panel-2">1.13 – 1.20.4</button>
+          <button class="era" id="era-3" type="button" role="tab" aria-selected="false" aria-controls="era-panel-3">1.20.5 – 1.21.x</button>
+          <button class="era" id="era-4" type="button" role="tab" aria-selected="false" aria-controls="era-panel-4">26.x</button>
         </div>
-        <pre><code># 1. Entorno y dependencias
-python -m venv .venv
+
+        <div class="explorer-body">
+          <div class="era-panel is-active" id="era-panel-1" role="tabpanel" aria-labelledby="era-1">
+            <div class="era-cell">
+              <div class="k">Java recomendado</div>
+              <div class="v">Java 11 <small>Compatible con Java 8–15</small></div>
+            </div>
+            <div class="era-cell">
+              <div class="k">Formato de argumentos</div>
+              <code>minecraftArguments</code>
+            </div>
+            <div class="era-cell">
+              <div class="k">Notas</div>
+              <p class="mini-sub" style="font-family:inherit;font-size:13px">Usa LWJGL 2. El launcher limita el runtime para conservar la compatibilidad de los archivos nativos.</p>
+            </div>
+          </div>
+
+          <div class="era-panel" id="era-panel-2" role="tabpanel" aria-labelledby="era-2" hidden>
+            <div class="era-cell">
+              <div class="k">Java recomendado</div>
+              <div class="v">Java 17 <small>Compatible con Java 17–21</small></div>
+            </div>
+            <div class="era-cell">
+              <div class="k">Formato de argumentos</div>
+              <code>arguments</code>
+            </div>
+            <div class="era-cell">
+              <div class="k">Notas</div>
+              <p style="color:var(--muted);font-size:13px">Los perfiles oficiales usan reglas de argumentos para separar opciones del cliente y de la JVM.</p>
+            </div>
+          </div>
+
+          <div class="era-panel" id="era-panel-3" role="tabpanel" aria-labelledby="era-3" hidden>
+            <div class="era-cell">
+              <div class="k">Java recomendado</div>
+              <div class="v">Java 21 <small>Admite versiones posteriores</small></div>
+            </div>
+            <div class="era-cell">
+              <div class="k">Formato de argumentos</div>
+              <code>arguments</code>
+            </div>
+            <div class="era-cell">
+              <div class="k">Notas</div>
+              <p style="color:var(--muted);font-size:13px">Las versiones modernas requieren Java 21 o superior; el launcher comprueba la compatibilidad del runtime.</p>
+            </div>
+          </div>
+
+          <div class="era-panel" id="era-panel-4" role="tabpanel" aria-labelledby="era-4" hidden>
+            <div class="era-cell">
+              <div class="k">Java recomendado</div>
+              <div class="v">Java 25 <small>Admite versiones posteriores</small></div>
+            </div>
+            <div class="era-cell">
+              <div class="k">Formato de argumentos</div>
+              <code>arguments + default-user-jvm</code>
+            </div>
+            <div class="era-cell">
+              <div class="k">Notas</div>
+              <p style="color:var(--muted);font-size:13px">El versionado de calendario puede declarar opciones JVM por defecto y rangos de versión en el perfil.</p>
+            </div>
+          </div>
+        </div>
+        <div class="explorer-foot">
+          Los perfiles de Forge, Fabric, NeoForge y OptiFine heredan de su versión base y aparecen agrupados en el selector.
+          Los snapshots y versiones experimentales se pueden mostrar desde Ajustes.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================== MANUAL ============================== -->
+  <section id="manual">
+    <div class="wrap">
+      <div class="sec-head reveal">
+        <span class="eyebrow">Manual de uso</span>
+        <h2>De cero a jugar, sin pasos innecesarios</h2>
+        <p>Todo se gestiona desde la interfaz. Estos son los seis pasos que cubren el uso habitual del launcher.</p>
+      </div>
+
+      <div class="steps">
+        <article class="step reveal" style="--d:0ms">
+          <span class="step-num">1</span>
+          <h3>Primer arranque</h3>
+          <p>Elige la carpeta de datos del launcher y escribe tu nombre de jugador. Se crea un perfil offline con UUID determinista.</p>
+        </article>
+        <article class="step reveal" style="--d:60ms">
+          <span class="step-num">2</span>
+          <h3>Elige la versión</h3>
+          <p>Abre el selector en Jugar y busca por versión o loader. Puedes mantener varios perfiles de la misma versión base.</p>
+        </article>
+        <article class="step reveal" style="--d:120ms">
+          <span class="step-num">3</span>
+          <h3>Instala un loader</h3>
+          <p>OptiFine se instala desde su tarjeta de versión. Forge, Fabric y NeoForge se instalan desde Ajustes → Mods.</p>
+        </article>
+        <article class="step reveal" style="--d:0ms">
+          <span class="step-num">4</span>
+          <h3>Añade mods</h3>
+          <p>En Ajustes → Mods puedes añadir archivos <code>.jar</code>, consultar sus metadatos y retirarlos. El launcher avisa de incompatibilidades conocidas.</p>
+        </article>
+        <article class="step reveal" style="--d:60ms">
+          <span class="step-num">5</span>
+          <h3>Configura la cuenta</h3>
+          <p>El perfil offline está pensado para uso personal y partidas de un jugador. Para servidores oficiales, vincula una cuenta Microsoft.</p>
+        </article>
+        <article class="step reveal" style="--d:120ms">
+          <span class="step-num">6</span>
+          <h3>Ajusta el rendimiento</h3>
+          <p>Elige memoria RAM, prioridad, núcleos y recolector de basura. La opción de optimización recomienda valores según el hardware.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================== RENDIMIENTO ============================== -->
+  <section id="rendimiento" style="background:var(--surface-2)">
+    <div class="wrap">
+      <div class="sec-head reveal">
+        <span class="eyebrow">Rendimiento</span>
+        <h2>Tu equipo, tus reglas</h2>
+        <p>Controla los recursos del juego sin editar archivos y guarda la configuración junto al resto de tus ajustes.</p>
+      </div>
+
+      <div class="perf-grid">
+        <article class="perf-card reveal" style="--d:0ms">
+          <h3>Memoria RAM</h3>
+          <div class="val">Adaptativa</div>
+          <p>El límite del selector se calcula según la memoria del equipo, reservando recursos para el sistema.</p>
+        </article>
+        <article class="perf-card reveal" style="--d:60ms">
+          <h3>Prioridad del proceso</h3>
+          <div class="val">5 niveles</div>
+          <p>Elige entre Reposo, Baja, Normal, Alta y Muy alta para el proceso del juego en Windows.</p>
+        </article>
+        <article class="perf-card reveal" style="--d:120ms">
+          <h3>Afinidad de CPU</h3>
+          <div class="val">N núcleos</div>
+          <p>Limita el juego a un número de núcleos lógicos o permite que use todos los disponibles.</p>
+        </article>
+        <article class="perf-card reveal" style="--d:0ms">
+          <h3>Recolector de basura</h3>
+          <div class="val">G1 · Serial · Parallel</div>
+          <p>Serial para equipos modestos; G1 para un rendimiento más constante en equipos potentes.</p>
+        </article>
+        <article class="perf-card reveal" style="--d:60ms">
+          <h3>Argumentos JVM</h3>
+          <div class="val">Personalizables</div>
+          <p>Añade opciones propias. Si defines otro recolector, el launcher advierte de una posible duplicidad.</p>
+        </article>
+        <article class="perf-card reveal" style="--d:120ms">
+          <h3>Optimización rápida</h3>
+          <div class="val">Según hardware</div>
+          <p>Analiza el procesador, la memoria y la GPU, y aplica recomendaciones de RAM y GC.</p>
+        </article>
+      </div>
+
+      <div class="callout reveal">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 8h.01M11 12h1v4h1"></path></svg>
+        <div><b>Consejo:</b> para la mayoría de equipos, entre 2 y 4 GB de RAM son suficientes. Asignar más memoria de la disponible puede ralentizar el sistema.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================== ARQUITECTURA ============================== -->
+  <section>
+    <div class="wrap">
+      <div class="sec-head reveal">
+        <span class="eyebrow">Arquitectura</span>
+        <h2>Un núcleo claro, una interfaz directa</h2>
+        <p>El proyecto separa la interfaz, la lógica de instalación y el acceso a la red para facilitar el mantenimiento y las pruebas.</p>
+      </div>
+
+      <div class="flow">
+        <article class="node reveal" style="--d:0ms">
+          <span class="step-num">01</span>
+          <h3>Interfaz PyQt6</h3>
+          <p>Ventana, páginas, widgets y temas claro y oscuro. Las acciones se ejecutan en segundo plano para no bloquear la ventana.</p>
+        </article>
+        <article class="node reveal" style="--d:80ms">
+          <span class="step-num">02</span>
+          <h3>Núcleo del launcher</h3>
+          <p>Manifiestos, perfiles, bibliotecas, Java, loaders y línea de comandos. Cada módulo se prueba de forma aislada.</p>
+        </article>
+        <article class="node reveal" style="--d:160ms">
+          <span class="step-num">03</span>
+          <h3>Servicios oficiales</h3>
+          <p>Descargas desde Mojang y Microsoft, instaladores oficiales de los loaders y autenticación opcional de Microsoft.</p>
+        </article>
+      </div>
+
+      <div class="guarantees">
+        <div class="guarantee reveal" style="--d:0ms">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 5 6v5c0 4.4 3 7.6 7 9 4-1.4 7-4.6 7-9V6l-7-3Z"></path><path d="m9 12 2 2 4-4"></path></svg>
+          <span>Verificación de hashes cuando el manifiesto los publica.</span>
+        </div>
+        <div class="guarantee reveal" style="--d:80ms">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v14H4z"></path><path d="M4 9h16M9 5v14"></path></svg>
+          <span>Datos y registros almacenados en la carpeta elegida por el usuario.</span>
+        </div>
+        <div class="guarantee reveal" style="--d:160ms">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v18M3 12h18"></path></svg>
+          <span>Sin telemetría propia ni cuentas obligatorias.</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================== AYUDA ============================== -->
+  <section id="ayuda" style="background:var(--surface-2)">
+    <div class="wrap">
+      <div class="sec-head reveal">
+        <span class="eyebrow">Ayuda</span>
+        <h2>Preguntas frecuentes</h2>
+        <p>Respuestas breves a las dudas más habituales antes de descargar.</p>
+      </div>
+
+      <div class="faq reveal">
+        <details>
+          <summary>¿Necesito una cuenta de Microsoft para jugar?</summary>
+          <div class="answer">No para el perfil offline, que está pensado para uso personal y partidas de un jugador. Para acceder a servidores oficiales o a Realms necesitas una cuenta válida de Minecraft, que puedes vincular desde la pestaña Cuenta con un código de dispositivo.</div>
+        </details>
+        <details>
+          <summary>¿El launcher descarga archivos del juego?</summary>
+          <div class="answer">Sí. AZeroCraft no incluye ni redistribuye archivos de Minecraft: descarga el cliente, las bibliotecas, los nativos y los recursos desde los servidores oficiales de Mojang cuando los necesitas.</div>
+        </details>
+        <details>
+          <summary>¿Dónde se guardan mis mundos y ajustes?</summary>
+          <div class="answer">En la carpeta oficial <code>.minecraft</code> de Windows, compartida con el launcher de Mojang. AZeroCraft no modifica tus opciones de juego ni mueve tus mundos. Los ajustes propios del launcher se guardan en la carpeta de datos que elijas.</div>
+        </details>
+        <details>
+          <summary>¿Funciona sin conexión a Internet?</summary>
+          <div class="answer">El modo sin conexión permite usar los archivos que ya están en la caché local sin consultar el manifiesto ni verificar hashes. Los archivos que falten no se podrán descargar, así que el perfil debe estar preparado previamente.</div>
+        </details>
+        <details>
+          <summary>¿Por qué el launcher avisa de un mod incompatible?</summary>
+          <div class="answer">Porque el archivo declara requisitos de versión de Minecraft, de Java o de un loader que no coinciden con el perfil seleccionado. La comprobación depende de los metadatos disponibles en cada mod; si el aviso aparece, usa el archivo adecuado o cambia de perfil.</div>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================== DESCARGAR ============================== -->
+  <section id="descargar">
+    <div class="wrap">
+      <div class="sec-head center reveal">
+        <span class="eyebrow">Descargar</span>
+        <h2>Empieza en menos de un minuto</h2>
+        <p>Elige el instalador para una instalación por usuario o la versión portable en un archivo ZIP.</p>
+      </div>
+
+      <div class="dl-grid">
+        <article class="dl-card reveal" style="--d:0ms">
+          <div class="k">Recomendado</div>
+          <h3>Instalador para Windows</h3>
+          <p>Instalación por usuario, sin privilegios de administrador. Crea accesos directos en el menú Inicio y, opcionalmente, en el escritorio.</p>
+          <div class="dl-meta">
+            <span>Windows 10/11</span>
+            <span>x64</span>
+            <span id="setup-version">Última versión</span>
+          </div>
+          <a class="btn btn-primary" id="dl-setup" href="https://github.com/LiebeBlack/MD/releases/latest">
+            Ver releases
+          </a>
+        </article>
+
+        <article class="dl-card reveal" style="--d:80ms">
+          <div class="k">Portable</div>
+          <h3>Versión portable (.zip)</h3>
+          <p>Descomprime la carpeta donde quieras y ejecuta el launcher. Los datos propios se guardan junto al ejecutable; la carpeta <code>.minecraft</code> sigue siendo la oficial.</p>
+          <div class="dl-meta">
+            <span>Sin instalación</span>
+            <span>Windows x64</span>
+            <span id="zip-version">Última versión</span>
+          </div>
+          <a class="btn btn-ghost" id="dl-zip" href="https://github.com/LiebeBlack/MD/releases/latest">
+            Ver releases
+          </a>
+        </article>
+      </div>
+
+      <p class="mock-note">Los enlaces se actualizan automáticamente con la última versión publicada en GitHub.</p>
+    </div>
+  </section>
+
+  <!-- ============================== COMPILAR ============================== -->
+  <section id="compilar" style="background:var(--surface-2)">
+    <div class="wrap">
+      <div class="sec-head reveal">
+        <span class="eyebrow">Código abierto</span>
+        <h2>Compila desde el código fuente</h2>
+        <p>Desarrollo en Python puro. Necesitas Python 3.15 con GIL; PyQt6 no es compatible con las compilaciones free-threaded.</p>
+      </div>
+
+      <div class="code-grid">
+        <article class="code-card reveal" style="--d:0ms">
+          <div class="code-head">
+            <h3>Desarrollo local</h3>
+            <button class="copy" type="button" data-copy="code-dev">Copiar</button>
+          </div>
+          <pre><code id="code-dev">python -m venv .venv
 .venv\Scripts\Activate.ps1
 pip install -r requirements.txt
+python main.py</code></pre>
+        </article>
 
-# 2. Ejecutar
-python main.py          # o: python -m azero</code></pre>
-      </div>
-      <div>
-        <div class="sec-head" style="margin-bottom:20px">
-          <div class="kicker">Release</div>
-          <h2 style="font-size:26px">Build de producción</h2>
-          <p>Ejecutable nativo + instalador + publicación en GitHub Releases.</p>
-        </div>
-        <pre><code># Ejecutable onedir (PyInstaller)
+        <article class="code-card reveal" style="--d:80ms">
+          <div class="code-head">
+            <h3>Compilación y pruebas</h3>
+            <button class="copy" type="button" data-copy="code-build">Copiar</button>
+          </div>
+          <pre><code id="code-build">python -m unittest discover -s tests -v
 .\build.ps1
-
-# + Instalador Inno Setup (requiere Inno Setup 6)
-.\build.ps1 -Installer
-
-# O publicar todo en GitHub Releases:
-git tag v4.37.58
-git push origin v4.37.58</code></pre>
+.\build.ps1 -Installer</code></pre>
+        </article>
       </div>
     </div>
-    <div class="card" style="margin-top:8px">
-      <h3 style="font-size:15px;margin-bottom:10px">Verificación</h3>
-      <pre style="margin:0"><code>python -m unittest discover -s tests -v   # tests unitarios
-python tools\verify_version.py 1.12.1   # QA real: manifiesto → assets → URLs</code></pre>
-    </div>
-  </div>
-</section>
+  </section>
 
-<!-- ======================= LEGAL / FAIR USE ======================= -->
-<section id="legal" style="padding-top:24px">
-  <div class="wrap">
-    <div class="card" style="border-color:rgba(242,193,78,.25)">
-      <div class="kicker" style="font-size:12px;font-weight:700;letter-spacing:1.6px;color:var(--warn);text-transform:uppercase">Aviso legal · Fair Use</div>
-      <h2 style="font-size:24px;margin:10px 0 14px">Uso responsable del software</h2>
-      <div style="color:var(--dim);font-size:14.5px;columns:1;max-width:900px">
-        <p style="margin-bottom:12px">
-          <b style="color:var(--text)">AZeroCraft Launcher</b> es una herramienta independiente,
-          desarrollada por <b style="color:var(--text)">Liebe Black</b>. No está afiliada, respaldada
-          ni patrocinada por Mojang AB, Microsoft ni Microsoft Studios. «Minecraft» es una marca
-          registrada de Mojang Synergies AB.
-        </p>
-        <p style="margin-bottom:12px">
-          <b style="color:var(--text)">Uso del software.</b> El launcher no incluye ni redistribuye
-          archivos del juego: descarga los recursos desde los servidores oficiales de Mojang.
-          Para jugar en servidores oficiales o en Realms se necesita una cuenta válida de
-          Minecraft, que puedes vincular desde la pestaña <b style="color:var(--text)">Cuenta</b>
-          mediante un código de dispositivo. El perfil offline está destinado al uso personal
-          y a las partidas de un jugador, de acuerdo con las condiciones de uso aplicables.
-        </p>
-        <p style="margin-bottom:12px">
-          <b style="color:var(--text)">Responsabilidad.</b> El software se ofrece "tal cual", sin
-          garantías de ningún tipo, expresas o implícitas. El desarrollador no se hace responsable
-          de daños derivados del uso del launcher, de la pérdida de datos, ni de problemas de
-          compatibilidad con versiones futuras de Minecraft o de OptiFine (marca de sp614x).
-        </p>
-        <p>
-          <b style="color:var(--text)">Privacidad.</b> AZeroCraft no incorpora funciones de
-          recopilación de telemetría ni de estadísticas de uso. Se conecta a los servicios
-          oficiales de Mojang, Microsoft, los proveedores de los instaladores seleccionados y
-          GitHub para comprobar si hay actualizaciones. La autenticación de Microsoft solo se
-          inicia cuando la solicitas; el juego puede conectarse a los servidores que elijas.
-        </p>
+  <!-- ============================== LEGAL ============================== -->
+  <section id="legal">
+    <div class="wrap">
+      <div class="sec-head reveal">
+        <span class="eyebrow">Transparencia</span>
+        <h2>Uso responsable y privacidad</h2>
+        <p>AZeroCraft es un proyecto independiente. Estas son las condiciones esenciales antes de usarlo.</p>
+      </div>
+
+      <div class="legal-grid">
+        <article class="legal-block reveal">
+          <h3>Independencia</h3>
+          <p>AZeroCraft Launcher es una herramienta desarrollada por <b>Liebe Black</b>. No está afiliada, respaldada ni patrocinada por Mojang AB, Microsoft ni Microsoft Studios. «Minecraft» es una marca registrada de Mojang Synergies AB.</p>
+        </article>
+        <article class="legal-block reveal">
+          <h3>Archivos y cuentas</h3>
+          <p>El launcher no incluye ni redistribuye archivos del juego. Los recursos se descargan de los servidores oficiales durante la ejecución. Para servidores oficiales o Realms se necesita una cuenta válida de Minecraft; el perfil offline está destinado al uso personal y a partidas de un jugador.</p>
+        </article>
+        <article class="legal-block reveal">
+          <h3>Responsabilidad</h3>
+          <p>El software se ofrece «tal cual», sin garantías expresas ni implícitas. No se garantiza la compatibilidad con versiones futuras de Minecraft, Java u OptiFine. Consulta las <a href="https://github.com/LiebeBlack/MD/blob/main/installer/license.txt" target="_blank" rel="noopener">condiciones completas</a>.</p>
+        </article>
+        <article class="legal-block reveal">
+          <h3>Privacidad</h3>
+          <p>No se incorporan funciones propias de telemetría ni de estadísticas de uso. Las conexiones se limitan a los servicios oficiales de Mojang y Microsoft, los instaladores de los loaders, la comprobación de actualizaciones en GitHub, la autenticación de Microsoft cuando la inicias y los servidores a los que decidas conectarte.</p>
+        </article>
       </div>
     </div>
-  </div>
-</section>
+  </section>
+</main>
 
 <footer>
   <div class="wrap">
-    <div>
-      <b style="color:var(--text)">AZeroCraft Launcher</b> · Proyecto independiente, no afiliado a Mojang AB ni a Microsoft.
-      Los recursos y manifiestos se descargan de los servidores oficiales durante la ejecución.
+    <div class="footer-grid">
+      <div class="footer-brand">
+        <a class="logo" href="#top" aria-label="AZeroCraft Launcher, inicio">
+          <span class="logo-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round">
+              <path d="M12 3 20 7.5v9L12 21l-8-4.5v-9L12 3Z"></path>
+              <path d="M12 3v9m0 0 8-4.5M12 12 4 7.5"></path>
+            </svg>
+          </span>
+          <span>AZero<b>Craft</b></span>
+        </a>
+        <p style="margin-top:12px">Launcher de Minecraft Java Edition para Windows. Proyecto independiente de Liebe Black.</p>
+      </div>
+      <div>
+        <h4>Producto</h4>
+        <a href="#funciones">Funciones</a>
+        <a href="#versiones">Compatibilidad</a>
+        <a href="#manual">Manual</a>
+        <a href="#descargar">Descargar</a>
+      </div>
+      <div>
+        <h4>Recursos</h4>
+        <a href="https://github.com/LiebeBlack/MD" target="_blank" rel="noopener">Repositorio</a>
+        <a href="https://github.com/LiebeBlack/MD/releases" target="_blank" rel="noopener">Releases</a>
+        <a href="https://github.com/LiebeBlack/MD/issues" target="_blank" rel="noopener">Incidencias</a>
+        <a href="https://github.com/LiebeBlack/MD/blob/main/README.md" target="_blank" rel="noopener">Documentación</a>
+      </div>
+      <div>
+        <h4>Proyecto</h4>
+        <a href="#compilar">Compilar</a>
+        <a href="https://github.com/LiebeBlack/MD/blob/main/installer/license.txt" target="_blank" rel="noopener">Licencia</a>
+        <a href="https://github.com/sponsors/LiebeBlack" target="_blank" rel="noopener">Apoyar</a>
+        <a href="https://github.com/LiebeBlack" target="_blank" rel="noopener">Liebe Black</a>
+      </div>
     </div>
-    <div>
-      <a href="https://github.com/LiebeBlack/MD" target="_blank" rel="noopener">GitHub</a> ·
-      <a href="https://github.com/LiebeBlack/MD/releases" target="_blank" rel="noopener">Releases</a> ·
-      <a href="#features">Funciones</a> ·
-      <a href="#legal">Aviso legal</a> ·
-      <a href="https://github.com/sponsors/LiebeBlack" target="_blank" rel="noopener">Donar</a> ·
-      <a href="https://github.com/LiebeBlack/MD" target="_blank" rel="noopener">por Liebe Black</a>
+    <div class="footer-bottom">
+      <span>© <span id="year">2025</span> AZeroCraft Launcher · Proyecto independiente, no afiliado a Mojang AB ni a Microsoft.</span>
+      <span>Hecho con Python y PyQt6<span class="dot">·</span>Datos locales</span>
     </div>
   </div>
 </footer>
-</main>
+
+<button class="to-top" id="to-top" type="button" aria-label="Volver arriba">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20V5m0 0-6 6m6-6 6 6"></path></svg>
+</button>
 
 <script>
-// Descarga dinámica: obtiene los archivos de la última versión publicada en GitHub.
 (function () {
-  var REPO = "LiebeBlack/MD";
-  var api = "https://api.github.com/repos/" + REPO + "/releases/latest";
-  fetch(api, { headers: { "Accept": "application/vnd.github+json" } })
-    .then(function (r) { return r.ok ? r.json() : null; })
-    .then(function (rel) {
-      if (!rel || !rel.assets) return;
-      var setup = document.getElementById("dl-setup");
-      var zip = document.getElementById("dl-zip");
-      rel.assets.forEach(function (a) {
-        var name = a.name.toLowerCase();
-        var size = (a.size / 1048576).toFixed(1) + " MB";
-        if (name.indexOf("setup") !== -1 && name.endsWith(".exe")) {
-          setup.href = a.browser_download_url;
-          setup.textContent = "Descargar · " + size;
-          setup.parentElement.querySelector("span").textContent = a.name;
-        } else if (name.endsWith(".zip")) {
-          zip.href = a.browser_download_url;
-          zip.textContent = "Descargar · " + size;
-          zip.parentElement.querySelector("span").textContent = a.name;
-        }
-      });
-      // Etiqueta de versión junto al título de la sección.
-      var h2 = document.querySelector("#download .sec-head h2");
-      if (h2 && rel.tag_name) {
-        var tag = document.createElement("span");
-        tag.className = "tag ok";
-        tag.style.marginLeft = "10px";
-        tag.textContent = rel.tag_name;
-        h2.appendChild(tag);
-      }
-    })
-    .catch(function () { /* sin release aun: los enlaces van a /releases */ });
-})();
-</script>
-<script>
-(function () {
+  "use strict";
+
   var root = document.documentElement;
-  var button = document.getElementById("theme-toggle");
-  var label = button.querySelector(".theme-label");
-  function applyTheme(theme, persist) {
-    var dark = theme === "dark";
+  var reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var header = document.getElementById("topbar");
+  var progress = document.getElementById("progress");
+  var toTop = document.getElementById("to-top");
+  var nav = document.getElementById("site-nav");
+  var menuBtn = document.getElementById("menu-btn");
+
+  /* -------------------------------------------------- tema */
+  var themeBtn = document.getElementById("theme-toggle");
+  var metaTheme = document.querySelector('meta[name="theme-color"]');
+
+  function applyTheme(name, persist) {
+    var dark = name !== "light";
     root.dataset.theme = dark ? "dark" : "light";
-    button.setAttribute("aria-pressed", String(dark));
-    button.setAttribute("aria-label", dark ? "Cambiar al tema claro" : "Cambiar al tema oscuro");
-    label.textContent = dark ? "Tema claro" : "Tema oscuro";
-    button.querySelector("[aria-hidden]").textContent = dark ? "☼" : "☾";
+    themeBtn.setAttribute("aria-pressed", String(!dark));
+    themeBtn.setAttribute("aria-label", dark ? "Cambiar al tema claro" : "Cambiar al tema oscuro");
+    if (metaTheme) metaTheme.setAttribute("content", dark ? "#070B12" : "#F5F8FC");
     if (persist) {
-      try { localStorage.setItem("azero-docs-theme", dark ? "dark" : "light"); }
-      catch (_) { /* El tema funciona también sin almacenamiento local. */ }
+      try { localStorage.setItem("azero-theme", root.dataset.theme); }
+      catch (_) { /* El tema funciona sin almacenamiento local. */ }
     }
   }
-  var saved = "";
-  try { saved = localStorage.getItem("azero-docs-theme") || ""; }
-  catch (_) { /* El almacenamiento local puede estar desactivado. */ }
-  var prefersLight = window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches;
-  applyTheme(saved || (prefersLight ? "light" : "dark"), false);
-  button.addEventListener("click", function () {
+
+  applyTheme(root.dataset.theme, false);
+  themeBtn.addEventListener("click", function () {
     applyTheme(root.dataset.theme === "dark" ? "light" : "dark", true);
   });
 
-  var header = document.querySelector("header");
-  var menu = document.getElementById("mobile-nav-toggle");
-  function setMenu(open) {
-    header.classList.toggle("menu-open", open);
-    menu.setAttribute("aria-expanded", String(open));
-    menu.setAttribute("aria-label", open ? "Cerrar menú" : "Abrir menú");
-    menu.textContent = open ? "✕" : "☰";
+  /* -------------------------------------------------- menú móvil */
+  function closeMenu() {
+    nav.classList.remove("is-open");
+    menuBtn.setAttribute("aria-expanded", "false");
+    menuBtn.setAttribute("aria-label", "Abrir menú");
   }
-  menu.addEventListener("click", function () {
-    setMenu(!header.classList.contains("menu-open"));
+
+  menuBtn.addEventListener("click", function () {
+    var open = !nav.classList.contains("is-open");
+    nav.classList.toggle("is-open", open);
+    menuBtn.setAttribute("aria-expanded", String(open));
+    menuBtn.setAttribute("aria-label", open ? "Cerrar menú" : "Abrir menú");
   });
-  document.querySelectorAll("#site-links a").forEach(function (link) {
-    link.addEventListener("click", function () { setMenu(false); });
+
+  nav.querySelectorAll("a").forEach(function (link) {
+    link.addEventListener("click", closeMenu);
   });
+
   document.addEventListener("keydown", function (event) {
-    if (event.key === "Escape") setMenu(false);
+    if (event.key === "Escape") closeMenu();
   });
+
+  document.addEventListener("click", function (event) {
+    if (!nav.classList.contains("is-open")) return;
+    if (nav.contains(event.target) || menuBtn.contains(event.target)) return;
+    closeMenu();
+  });
+
+  /* -------------------------------------------------- progreso y cabecera */
+  var ticking = false;
+  function onScroll() {
+    var top = window.scrollY || document.documentElement.scrollTop;
+    var max = document.documentElement.scrollHeight - window.innerHeight;
+    var ratio = max > 0 ? Math.min(1, top / max) : 0;
+    progress.style.transform = "scaleX(" + ratio + ")";
+    header.classList.toggle("is-scrolled", top > 8);
+    toTop.classList.toggle("is-visible", top > 520);
+    ticking = false;
+  }
+
+  window.addEventListener("scroll", function () {
+    if (ticking) return;
+    ticking = true;
+    window.requestAnimationFrame(onScroll);
+  }, { passive: true });
+  onScroll();
+
+  toTop.addEventListener("click", function () {
+    window.scrollTo({ top: 0, behavior: reduceMotion ? "auto" : "smooth" });
+  });
+
+  /* -------------------------------------------------- animaciones de entrada */
+  var revealItems = document.querySelectorAll(".reveal");
+  if ("IntersectionObserver" in window && !reduceMotion) {
+    var revealObserver = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        if (!entry.isIntersecting) return;
+        entry.target.classList.add("is-visible");
+        revealObserver.unobserve(entry.target);
+      });
+    }, { threshold: .12, rootMargin: "0px 0px -8% 0px" });
+    revealItems.forEach(function (item) { revealObserver.observe(item); });
+  } else {
+    revealItems.forEach(function (item) { item.classList.add("is-visible"); });
+  }
+
+  /* -------------------------------------------------- navegación activa */
+  var sections = ["funciones", "versiones", "manual", "rendimiento", "ayuda"];
+  var navLinks = {};
+  nav.querySelectorAll("a").forEach(function (link) {
+    var id = (link.getAttribute("href") || "").replace("#", "");
+    if (id) navLinks[id] = link;
+  });
+
+  if ("IntersectionObserver" in window) {
+    var spy = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        if (!entry.isIntersecting) return;
+        Object.keys(navLinks).forEach(function (id) {
+          var active = id === entry.target.id;
+          navLinks[id].setAttribute("aria-current", active ? "true" : "false");
+        });
+      });
+    }, { rootMargin: "-45% 0px -50% 0px" });
+    sections.forEach(function (id) {
+      var section = document.getElementById(id);
+      if (section) spy.observe(section);
+    });
+  }
+
+  /* -------------------------------------------------- contadores */
+  var counters = document.querySelectorAll("[data-count]");
+  function runCounter(node) {
+    var target = Number(node.dataset.count);
+    if (!Number.isFinite(target) || reduceMotion) {
+      node.textContent = String(target);
+      return;
+    }
+    var start = performance.now();
+    var duration = 900;
+    function frame(now) {
+      var t = Math.min(1, (now - start) / duration);
+      var eased = 1 - Math.pow(1 - t, 3);
+      node.textContent = String(Math.round(target * eased));
+      if (t < 1) window.requestAnimationFrame(frame);
+      else node.textContent = String(target);
+    }
+    window.requestAnimationFrame(frame);
+  }
+  if ("IntersectionObserver" in window) {
+    var counterObserver = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        if (!entry.isIntersecting) return;
+        runCounter(entry.target);
+        counterObserver.unobserve(entry.target);
+      });
+    }, { threshold: .6 });
+    counters.forEach(function (node) { counterObserver.observe(node); });
+  } else {
+    counters.forEach(runCounter);
+  }
+
+  /* -------------------------------------------------- demo de la app */
+  var appTabs = Array.prototype.slice.call(document.querySelectorAll(".app-tab"));
+  var appPanels = Array.prototype.slice.call(document.querySelectorAll(".app-panel"));
+
+  function selectAppTab(id) {
+    appTabs.forEach(function (tab) {
+      var active = tab.id === id;
+      tab.setAttribute("aria-selected", String(active));
+      tab.setAttribute("tabindex", active ? "0" : "-1");
+    });
+    appPanels.forEach(function (panel) {
+      var active = panel.id === id.replace("app-tab-", "app-panel-");
+      panel.classList.toggle("is-active", active);
+    });
+  }
+
+  selectAppTab("app-tab-jugar");
+  appTabs.forEach(function (tab, index) {
+    tab.addEventListener("click", function () { selectAppTab(tab.id); });
+    tab.addEventListener("keydown", function (event) {
+      var direction = event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0;
+      if (!direction) return;
+      event.preventDefault();
+      var next = (index + direction + appTabs.length) % appTabs.length;
+      appTabs[next].focus();
+      selectAppTab(appTabs[next].id);
+    });
+  });
+
+  /* -------------------------------------------------- filtros de funciones */
+  var filters = Array.prototype.slice.call(document.querySelectorAll(".filter"));
+  var cards = Array.prototype.slice.call(document.querySelectorAll("#feature-cards .card"));
+  var status = document.getElementById("filter-status");
+
+  filters.forEach(function (button) {
+    button.addEventListener("click", function () {
+      var category = button.dataset.filter;
+      filters.forEach(function (other) {
+        other.setAttribute("aria-pressed", String(other === button));
+      });
+      var shown = 0;
+      cards.forEach(function (card) {
+        var visible = category === "all" || card.dataset.category === category;
+        card.classList.toggle("is-hidden", !visible);
+        if (visible) shown += 1;
+      });
+      if (status) {
+        status.textContent = category === "all"
+          ? "Mostrando todas las funciones."
+          : "Mostrando " + shown + (shown === 1 ? " función." : " funciones.");
+      }
+    });
+  });
+
+  /* -------------------------------------------------- explorador de versiones */
+  var eras = Array.prototype.slice.call(document.querySelectorAll(".era"));
+  var eraPanels = Array.prototype.slice.call(document.querySelectorAll(".era-panel"));
+
+  function selectEra(id) {
+    eras.forEach(function (tab) {
+      var active = tab.id === id;
+      tab.setAttribute("aria-selected", String(active));
+      tab.setAttribute("tabindex", active ? "0" : "-1");
+    });
+    eraPanels.forEach(function (panel) {
+      var active = panel.id === id.replace("era-", "era-panel-");
+      panel.classList.toggle("is-active", active);
+      panel.hidden = !active;
+    });
+  }
+
+  selectEra("era-1");
+  eras.forEach(function (tab, index) {
+    tab.addEventListener("click", function () { selectEra(tab.id); });
+    tab.addEventListener("keydown", function (event) {
+      var direction = event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0;
+      if (!direction) return;
+      event.preventDefault();
+      var next = (index + direction + eras.length) % eras.length;
+      eras[next].focus();
+      selectEra(eras[next].id);
+    });
+  });
+
+  /* -------------------------------------------------- copiar código */
+  document.querySelectorAll(".copy").forEach(function (button) {
+    button.addEventListener("click", function () {
+      var block = document.getElementById(button.dataset.copy);
+      if (!block) return;
+      var text = block.textContent;
+      function done() {
+        var previous = button.textContent;
+        button.textContent = "Copiado";
+        button.classList.add("is-done");
+        window.setTimeout(function () {
+          button.textContent = previous;
+          button.classList.remove("is-done");
+        }, 1600);
+      }
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(done).catch(fallback);
+      } else {
+        fallback();
+      }
+      function fallback() {
+        var area = document.createElement("textarea");
+        area.value = text;
+        area.setAttribute("readonly", "");
+        area.style.position = "fixed";
+        area.style.top = "-1000px";
+        document.body.appendChild(area);
+        area.select();
+        try { document.execCommand("copy"); done(); }
+        catch (_) { /* El usuario puede seleccionar el texto manualmente. */ }
+        document.body.removeChild(area);
+      }
+    });
+  });
+
+  /* -------------------------------------------------- última versión publicada */
+  var setupLink = document.getElementById("dl-setup");
+  var zipLink = document.getElementById("dl-zip");
+  var setupVersion = document.getElementById("setup-version");
+  var zipVersion = document.getElementById("zip-version");
+
+  fetch("https://api.github.com/repos/LiebeBlack/MD/releases/latest", {
+    headers: { Accept: "application/vnd.github+json" }
+  })
+    .then(function (response) { return response.ok ? response.json() : null; })
+    .then(function (release) {
+      if (!release || !Array.isArray(release.assets)) return;
+      var tag = release.tag_name || "";
+      if (tag) {
+        setupVersion.textContent = tag;
+        zipVersion.textContent = tag;
+      }
+      release.assets.forEach(function (asset) {
+        var name = String(asset.name || "").toLowerCase();
+        var size = (asset.size / 1048576).toFixed(1).replace(".", ",") + " MB";
+        if (name.indexOf("setup") !== -1 && name.endsWith(".exe")) {
+          setupLink.href = asset.browser_download_url;
+          setupLink.textContent = "Descargar · " + size;
+        } else if (name.endsWith(".zip")) {
+          zipLink.href = asset.browser_download_url;
+          zipLink.textContent = "Descargar · " + size;
+        }
+      });
+    })
+    .catch(function () {
+      /* Sin conexión o sin releases: los enlaces apuntan a la página de releases. */
+    });
+
+  /* -------------------------------------------------- año del pie */
+  var year = document.getElementById("year");
+  if (year) year.textContent = String(new Date().getFullYear());
 })();
 </script>
-
 </body>
 </html>
