@@ -129,6 +129,8 @@ class MainWindow(QMainWindow):
         shortcut.activated.connect(self._go_settings)
         play_shortcut = QShortcut(QKeySequence("Ctrl+Return"), self)
         play_shortcut.activated.connect(self._on_play_clicked)
+        version_shortcut = QShortcut(QKeySequence("Ctrl+K"), self)
+        version_shortcut.activated.connect(self._focus_version_picker)
         refresh_shortcut = QShortcut(QKeySequence("F5"), self)
         refresh_shortcut.activated.connect(self._reload_versions)
         clear_shortcut = QShortcut(QKeySequence("Ctrl+L"), self)
@@ -371,6 +373,15 @@ class MainWindow(QMainWindow):
         if not self._is_busy():
             self._go_page(3)
 
+    def _focus_version_picker(self) -> None:
+        """Abre el selector de versiones con el teclado (Ctrl+K)."""
+        if self._is_busy():
+            return
+        self._go_page(0)
+        picker = self.play_page.version_picker
+        picker.setFocus(Qt.FocusReason.ShortcutFocusReason)
+        picker.click()
+
     # -------------------------------------------------------------- estado
     def _launch_running(self) -> bool:
         return bool(self._launch_worker and self._launch_worker.isRunning())
@@ -526,6 +537,9 @@ class MainWindow(QMainWindow):
     def _set_progress(self, done: int, total: int) -> None:
         if not hasattr(self, "progress"):
             return
+        page = getattr(self, "play_page", None)
+        if page is not None:
+            page.set_progress_visible(True)
         if total <= 0:
             self.progress.setRange(0, 0)
             self.percent_label.setText("")
@@ -533,6 +547,11 @@ class MainWindow(QMainWindow):
         self.progress.setRange(0, total)
         self.progress.setValue(min(done, total))
         self.percent_label.setText(f"{int(done * 100 / total)}%")
+
+    def _hide_progress(self) -> None:
+        page = getattr(self, "play_page", None)
+        if page is not None:
+            page.set_progress_visible(False)
 
     def _refresh_account(self) -> None:
         key = self.settings.active_account or ""
@@ -891,6 +910,7 @@ class MainWindow(QMainWindow):
             self._session_id = None
             self.versions_page.refresh_all()
         self._restore_quarantined_mods()
+        self._hide_progress()
         if not self._allow_close:
             self._set_status(f"Juego cerrado (código {code}).", "normal")
 
@@ -910,6 +930,7 @@ class MainWindow(QMainWindow):
                       if message.strip() else "Error desconocido")
         self._set_status("No se pudo iniciar el juego.", "error")
         self._set_progress(0, 1)
+        self._hide_progress()
         box = QMessageBox(self)
         box.setIcon(QMessageBox.Icon.Critical)
         box.setWindowTitle("No se pudo iniciar Minecraft")
@@ -928,6 +949,7 @@ class MainWindow(QMainWindow):
             self._session_id = None
         self._restore_quarantined_mods()
         self._set_progress(0, 1)
+        self._hide_progress()
         self._set_status("Operación cancelada.", "normal")
 
     def _on_launch_finished(self) -> None:
@@ -935,6 +957,7 @@ class MainWindow(QMainWindow):
         self._launch_worker = None
         if worker:
             worker.deleteLater()
+        self._hide_progress()
         self._refresh_state()
 
     # ------------------------------------------------------------- optifine
@@ -995,6 +1018,7 @@ class MainWindow(QMainWindow):
         self._of_worker = None
         if worker:
             worker.deleteLater()
+        self._hide_progress()
         self._refresh_state()
 
     # ---------------------------------------------------------- ajustes UI

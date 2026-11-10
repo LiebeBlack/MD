@@ -91,7 +91,8 @@ class PlayPage(ScrollPage):
 
     # ------------------------------------------------------------- build
     def _build(self) -> None:
-        header = PageHeader("Jugar")
+        header = PageHeader(
+            "Jugar", "Perfil, versión y memoria del juego.")
         self.body.addWidget(header)
 
         columns = QHBoxLayout()
@@ -112,6 +113,9 @@ class PlayPage(ScrollPage):
         self.play_button.setObjectName("playButton")
         self.play_button.setMinimumHeight(46)
         self.play_button.setToolTip("Iniciar el juego (Ctrl+Enter)")
+        self.play_button.setAccessibleName("Jugar")
+        self.play_button.setAccessibleDescription(
+            "Inicia Minecraft con el perfil y la versión seleccionados")
         self.play_button.clicked.connect(self.shell._on_play_clicked)
         left_layout.addWidget(self.play_button)
 
@@ -131,6 +135,9 @@ class PlayPage(ScrollPage):
             "Copiar", "ghost", "Copia todo el registro al portapapeles",
             self._copy_console))
         console_head.addWidget(make_button(
+            "Guardar…", "ghost", "Guarda el registro en un archivo de texto",
+            self._save_console))
+        console_head.addWidget(make_button(
             "Limpiar", "ghost", "Vaciar el registro (Ctrl+L)",
             lambda: self.console.clear()))
         console_card.body.addLayout(console_head)
@@ -148,6 +155,7 @@ class PlayPage(ScrollPage):
         self.progress.setFixedHeight(8)
         self.percent_label = faint_label("")
         self.percent_label.setFixedWidth(42)
+        self.set_progress_visible(False)
         self.percent_label.setAlignment(Qt.AlignmentFlag.AlignRight
                                         | Qt.AlignmentFlag.AlignVCenter)
         progress_row.addWidget(self.progress, 1)
@@ -181,8 +189,33 @@ class PlayPage(ScrollPage):
             QApplication.clipboard().setText(text)
             self.shell._set_status("Registro copiado al portapapeles.", "ok")
 
+    def _save_console(self) -> None:
+        """Guarda el registro visible en un archivo de texto UTF-8."""
+        text = self.console.toPlainText()
+        if not text.strip():
+            self.shell._set_status("El registro está vacío.", "error")
+            return
+        target, _ = QFileDialog.getSaveFileName(
+            self, "Guardar registro", "azero-registro.txt",
+            "Archivos de texto (*.txt);;Todos los archivos (*)")
+        if not target:
+            return
+        try:
+            Path(target).write_text(text, encoding="utf-8")
+        except OSError as error:
+            QMessageBox.warning(
+                self, "No se pudo guardar el registro", str(error))
+            return
+        self.shell._set_status(f"Registro guardado en {target}", "ok")
+
+    def set_progress_visible(self, visible: bool) -> None:
+        """Muestra el progreso solo mientras hay una operación activa."""
+        self.progress.setVisible(visible)
+        self.percent_label.setVisible(visible)
+
     def _account_card(self) -> Card:
         card = Card()
+        card.body.addWidget(section_label("Jugador"))
         row = QHBoxLayout()
         row.setSpacing(14)
         self.avatar = Avatar(48)
@@ -220,6 +253,7 @@ class PlayPage(ScrollPage):
 
     def _version_card(self) -> Card:
         card = Card()
+        card.body.addWidget(section_label("Versión"))
         self.version_picker = VersionPicker()
         self.version_picker.set_placeholder("Cargando versiones…")
         self.version_picker.setToolTip(
@@ -435,7 +469,8 @@ class VersionsPage(ScrollPage):
         self._build()
 
     def _build(self) -> None:
-        header = PageHeader("Versiones")
+        header = PageHeader(
+            "Versiones", "Perfiles instalados, descargas y sesiones.")
         header.add_action(make_button(
             "Actualizar", "accent", "Volver a leer versiones e historial (F5)",
             self.refresh_all))
@@ -711,7 +746,9 @@ class VersionsPage(ScrollPage):
             group.setText(0, self._group_label_text(group))
 
         if self.installed_list.topLevelItemCount() == 0:
-            item = QTreeWidgetItem(["No hay versiones instaladas."])
+            item = QTreeWidgetItem(
+                ["No hay versiones instaladas. Elige una en Jugar para "
+                 "descargarla."])
             item.setFlags(Qt.ItemFlag.NoItemFlags)
             self.installed_list.addTopLevelItem(item)
         self._apply_filter()
@@ -889,7 +926,8 @@ class AccountPage(ScrollPage):
         self._build()
 
     def _build(self) -> None:
-        header = PageHeader("Cuenta")
+        header = PageHeader(
+            "Cuenta", "Perfil offline o cuenta Microsoft.")
         self.body.addWidget(header)
 
         self.body.addWidget(self._active_card())
@@ -1295,7 +1333,8 @@ class SettingsPage(ScrollPage):
         self._refresh_dirty()
 
     def _build(self) -> None:
-        header = PageHeader("Ajustes")
+        header = PageHeader(
+            "Ajustes", "Java, rendimiento, mods y datos del launcher.")
         self.dirty_pill = Pill("SIN GUARDAR")
         self.dirty_pill.setVisible(False)
         header.add_action(self.dirty_pill)

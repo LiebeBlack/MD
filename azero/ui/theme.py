@@ -332,6 +332,7 @@ QLabel#emptyState {
     color: $TEXT_FAINT;
     font-size: 8.5pt;
     font-style: italic;
+    padding: 14px;
 }
 QLabel#pill {
     background-color: rgba($ACCENT_RGB, 0.10);
@@ -486,25 +487,30 @@ QComboBox QAbstractItemView::item:selected {
 }
 
 /* ---- selector de versiones agrupado ---- */
-QToolButton#versionPicker {
+QPushButton#versionPicker {
     background-color: $SURFACE;
     border: 1px solid $BORDER;
     border-radius: 6px;
-    padding: 6px 30px 6px 10px;
+    padding: 6px 12px;
     min-height: 18px;
     color: $TEXT;
+    font-size: 9.5pt;
     font-weight: 600;
     text-align: left;
 }
-QToolButton#versionPicker:hover {
+QPushButton#versionPicker:hover {
     border-color: $BORDER_STRONG;
+    background-color: $SURFACE_HOVER;
 }
-QToolButton#versionPicker:focus {
+QPushButton#versionPicker:pressed {
+    background-color: $SURFACE_PRESSED;
+}
+QPushButton#versionPicker:focus {
     border: 2px solid $ACCENT;
     background-color: $FIELD_FOCUS;
-    padding: 5px 29px 5px 9px;
+    padding: 5px 11px;
 }
-QToolButton#versionPicker:disabled {
+QPushButton#versionPicker:disabled {
     color: $TEXT_FAINT;
     background-color: $SURFACE_ALT;
 }
@@ -1161,6 +1167,9 @@ QFrame#statCard {
     background-color: $SURFACE;
     border: 1px solid $BORDER_SOFT;
     border-radius: 8px;
+}
+QFrame#statCard:hover {
+    border-color: rgba($ACCENT_RGB, 0.45);
 }
 QLabel#statValue {
     color: $TEXT;

@@ -47,8 +47,13 @@ def make_button(text: str, kind: str = "", tooltip: str = "",
     if object_name:
         button.setObjectName(object_name)
     button.setCursor(Qt.CursorShape.PointingHandCursor)
+    button.setAutoDefault(False)
+    accessible = text.replace("…", "").replace("&", "").strip()
+    if accessible:
+        button.setAccessibleName(accessible)
     if tooltip:
         button.setToolTip(tooltip)
+        button.setAccessibleDescription(tooltip)
     if on_click is not None:
         button.clicked.connect(lambda _checked=False: on_click())
     return button
@@ -116,6 +121,8 @@ class StatCard(QFrame):
                  parent: QWidget | None = None):
         super().__init__(parent)
         self.setObjectName("statCard")
+        self._caption = caption
+        self.setToolTip(caption)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(14, 9, 14, 9)
         layout.setSpacing(1)
@@ -132,6 +139,7 @@ class StatCard(QFrame):
 
     def set_value(self, text: str) -> None:
         self.value_label.setText(str(text))
+        self.setAccessibleName(f"{self._caption}: {text}")
 
 
 class InfoGrid(QWidget):
@@ -351,6 +359,9 @@ class ConsoleView(QPlainTextEdit):
         self.setMaximumBlockCount(2500)
         self.setLineWrapMode(QPlainTextEdit.LineWrapMode.WidgetWidth)
         self.setPlaceholderText("Los registros aparecerán aquí.")
+        self.setAccessibleName("Registro de actividad")
+        self.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setMinimumHeight(150)
         self.setSizePolicy(QSizePolicy.Policy.Expanding,
                            QSizePolicy.Policy.Expanding)
@@ -377,10 +388,12 @@ class _VersionPopup(QFrame):
         self.search = QLineEdit()
         self.search.setPlaceholderText("Filtrar versiones…")
         self.search.setClearButtonEnabled(True)
+        self.search.setAccessibleName("Filtrar versiones")
         layout.addWidget(self.search)
 
         self.tree = QTreeWidget()
         self.tree.setObjectName("versionTree")
+        self.tree.setAccessibleName("Versiones disponibles")
         self.tree.setHeaderHidden(True)
         self.tree.setRootIsDecorated(True)
         self.tree.setUniformRowHeights(True)
@@ -627,6 +640,14 @@ class _VersionPopup(QFrame):
             self._set_hidden_recursive(item.child(i), hidden)
 
     # ----------------------------------------------------------- senales
+    def keyPressEvent(self, event) -> None:  # noqa: N802 - API de Qt
+        """Escape cierra el desplegable sin cambiar la versión."""
+        if event.key() == Qt.Key.Key_Escape:
+            self.hide()
+            event.accept()
+            return
+        super().keyPressEvent(event)
+
     def _on_item_clicked(self, item: QTreeWidgetItem,
                          column: int) -> None:  # noqa: ARG002
         vid = item.data(0, self._ROLE_ID)
@@ -636,8 +657,8 @@ class _VersionPopup(QFrame):
             item.setExpanded(not item.isExpanded())
 
 
-class VersionPicker(QToolButton):
-    """Selector de version agrupado por familia y perfil."""
+class VersionPicker(QPushButton):
+    """Selector de versión agrupado por familia y perfil."""
 
     selectionChanged = pyqtSignal(str)
 
@@ -648,7 +669,9 @@ class VersionPicker(QToolButton):
         self.setSizePolicy(QSizePolicy.Policy.Expanding,
                            QSizePolicy.Policy.Fixed)
         self.setMinimumHeight(34)
-        self.setToolTip("Elegir la version de Minecraft")
+        self.setAutoDefault(False)
+        self.setToolTip("Elegir la versión de Minecraft (Ctrl+K)")
+        self.setAccessibleName("Versión de Minecraft")
 
         self._entries: list[dict] = []
         self._selected = ""
@@ -740,6 +763,7 @@ class VersionPicker(QToolButton):
     def _refresh_text(self) -> None:
         label = self._selected or self._placeholder
         self.setText(f"{label}   ▾")
+        self.setAccessibleDescription(label)
 
     def _on_picked(self, version_id: str) -> None:
         self._popup.hide()

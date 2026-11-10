@@ -60,6 +60,7 @@
   }
   .logo b{color:var(--accent)}
   nav.links{margin-left:auto;display:flex;gap:4px;align-items:center}
+  .nav-actions{display:flex;align-items:center;gap:8px}
   nav.links a{
     color:var(--dim);text-decoration:none;font-size:14px;font-weight:600;
     padding:8px 12px;border-radius:8px;transition:.15s;
@@ -209,9 +210,10 @@
     .stat{padding:0 18px}
     nav.links{position:absolute;display:none;top:60px;left:-24px;right:-24px;margin:0;padding:12px 24px;background:var(--surface);border-bottom:1px solid var(--border-soft);box-shadow:0 12px 24px rgba(0,0,0,.14);align-items:stretch;flex-direction:column;z-index:60}
     header.menu-open nav.links{display:flex}
-    nav.links a:not(.btn){display:block}
+    nav.links a{display:block}
     nav.links>.btn{display:none}
-    .mobile-nav-toggle{display:inline-flex;margin-left:auto}
+    .nav-actions{margin-left:auto}
+    .mobile-nav-toggle{display:inline-flex}
     .theme-toggle .theme-label{display:none}
     .theme-toggle{flex:0 0 36px;justify-content:center;width:36px;height:36px;padding:0}
   }
@@ -225,7 +227,7 @@
     <a class="logo" href="#">
       <span class="mark">A</span>AZero<b>Craft</b>
     </a>
-    <nav class="links" aria-label="Navegación principal">
+    <nav class="links" id="site-links" aria-label="Navegación principal">
       <a href="#features">Funciones</a>
       <a href="#manual">Manual</a>
       <a href="#versions">Versiones</a>
@@ -233,8 +235,11 @@
       <a href="#download">Descargar</a>
       <a href="#build">Compilar</a>
       <a class="btn btn-primary btn-sm" href="https://github.com/LiebeBlack/MD" target="_blank" rel="noopener">GitHub ↗</a>
-      <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Cambiar al tema claro" aria-pressed="false"><span aria-hidden="true">☼</span><span class="theme-label">Tema claro</span></button>
     </nav>
+    <div class="nav-actions">
+      <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Cambiar al tema claro" aria-pressed="false"><span aria-hidden="true">☼</span><span class="theme-label">Tema claro</span></button>
+      <button class="mobile-nav-toggle" id="mobile-nav-toggle" type="button" aria-label="Abrir menú" aria-expanded="false" aria-controls="site-links">☰</button>
+    </div>
   </div>
 </header>
 <main id="main">
@@ -816,6 +821,24 @@ python tools\verify_version.py 1.12.1   # QA real: manifiesto → assets → URL
   applyTheme(saved || (prefersLight ? "light" : "dark"), false);
   button.addEventListener("click", function () {
     applyTheme(root.dataset.theme === "dark" ? "light" : "dark", true);
+  });
+
+  var header = document.querySelector("header");
+  var menu = document.getElementById("mobile-nav-toggle");
+  function setMenu(open) {
+    header.classList.toggle("menu-open", open);
+    menu.setAttribute("aria-expanded", String(open));
+    menu.setAttribute("aria-label", open ? "Cerrar menú" : "Abrir menú");
+    menu.textContent = open ? "✕" : "☰";
+  }
+  menu.addEventListener("click", function () {
+    setMenu(!header.classList.contains("menu-open"));
+  });
+  document.querySelectorAll("#site-links a").forEach(function (link) {
+    link.addEventListener("click", function () { setMenu(false); });
+  });
+  document.addEventListener("keydown", function (event) {
+    if (event.key === "Escape") setMenu(false);
   });
 })();
 </script>
