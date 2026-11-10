@@ -1,4 +1,4 @@
-"""Ventana principal del launcher: barra superior + pestanas + paginas."""
+"""Ventana principal del launcher: barra superior, pestañas y páginas."""
 
 from __future__ import annotations
 
@@ -39,7 +39,7 @@ def _center_window(window: QWidget) -> None:
 
 def _java_major_display(version_id: str,
                         payload: dict | None = None) -> int:
-    """Java real que usara el launcher, leido del perfil si existe."""
+    """Versión de Java que usará el launcher, leída del perfil si existe."""
     if payload is None:
         payload = load_version_profile(version_id) or {}
     base = payload.get("inheritsFrom") or version_id
@@ -293,7 +293,7 @@ class MainWindow(QMainWindow):
         self._apply_ui_theme(name)
 
     def _apply_ui_theme(self, name: str) -> None:
-        """Cambia el tema de toda la interfaz en caliente y lo guarda."""
+        """Cambia el tema de toda la interfaz y guarda la preferencia."""
         name = name if name in theme.THEMES else "light"
         self.settings.ui_theme = name
         try:
@@ -353,7 +353,7 @@ class MainWindow(QMainWindow):
             self.about_page.ensure_update_check()
 
     def _go_page(self, index: int) -> None:
-        """Abre o enfoca la pestaña de una pagina (como un navegador)."""
+        """Abre o enfoca una pestaña de la aplicación."""
         if not 0 <= index < len(self._page_specs):
             return
         tab_index = self._tab_index_for_page(index)
@@ -397,10 +397,10 @@ class MainWindow(QMainWindow):
         return payload.get("inheritsFrom") or version_id
 
     def _mods_launch_issues(self, version_id: str) -> list[tuple]:
-        """(mod, motivo) de mods que no cargarian en esta version.
+        """Devuelve cada mod que no se cargaría en esta versión y el motivo.
 
-        Solo aplica a perfiles con loader de mods: en vanilla/OptiFine
-        el juego ignora mods/ y no hay nada que desactivar."""
+        Solo se aplica a perfiles con loader: en Vanilla y OptiFine,
+        el juego ignora la carpeta mods/ y no hay nada que desactivar."""
         kind = mod_loader_kind(version_id)
         if not kind:
             return []
@@ -417,10 +417,10 @@ class MainWindow(QMainWindow):
         return issues
 
     def _quarantine_incompatible_mods(self, version_id: str) -> bool:
-        """Aparta los mods incompatibles para esta sesion de juego.
+        """Aparta los mods incompatibles durante esta sesión de juego.
 
-        Devuelve False si algun mod no se pudo mover: en ese caso el
-        lanzamiento se aborta porque el juego podria fallar igual."""
+        Devuelve False si no se pudo mover algún mod. En ese caso, se
+        cancela el inicio para evitar posibles errores en el juego."""
         issues = self._mods_launch_issues(version_id)
         if not issues:
             return True
@@ -438,7 +438,7 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(
                 self, "Mods incompatibles",
                 f"No se pudieron desactivar temporalmente: "
-                f"{names}{extra}.\n\nEl juego podria fallar al arrancar; "
+                f"{names}{extra}.\n\nEl juego podría fallar al iniciar; "
                 "revisa la carpeta mods/ en Ajustes > Mods.")
             return False
         if active:
@@ -450,7 +450,7 @@ class MainWindow(QMainWindow):
         return True
 
     def _restore_quarantined_mods(self) -> None:
-        """Devuelve a mods/ los jars apartados para la sesion anterior."""
+        """Devuelve a mods/ los archivos JAR apartados en la sesión anterior."""
         restored = mods.restore_quarantined()
         if restored:
             self.console.append(
@@ -760,7 +760,7 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "No se pudo eliminar la versión",
                                 str(error))
             return
-        self.console.append(f"Version eliminada: {version_id}")
+        self.console.append(f"Versión eliminada: {version_id}")
         self.versions_page.refresh_all()
         self._reload_versions()
 
@@ -867,7 +867,7 @@ class MainWindow(QMainWindow):
         database.log_download(
             "version", f"Cliente {version_id} listo",
             version_id=version_id, size_bytes=size, status="ok",
-            detail=f"sesion como {self._session_name}")
+            detail=f"Sesión con {self._session_name}")
         self._session_id = database.session_start(
             self._session_name, self._session_uuid, version_id,
             self._session_account, pid=pid)

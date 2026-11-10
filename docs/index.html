@@ -3,10 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AZeroCraft Launcher — Minecraft 1.7 a la ultima version</title>
+<title>AZeroCraft Launcher — Minecraft 1.7 y versiones actuales</title>
 <meta name="description" content="Launcher ligero de Minecraft Java para Windows: instalación automática, OptiFine, Microsoft OpenJDK y control total de recursos.">
 <style>
-  :root{
+  :root,
+  [data-theme="dark"]{
+    color-scheme:dark;
     --bg:#0A0D13; --surface:#111722; --surface-alt:#161E2C; --surface-hover:#1C2636;
     --border:#232D3F; --border-soft:#1B2432;
     --text:#E7EEF9; --dim:#93A1B7; --faint:#5F6C81;
@@ -14,8 +16,19 @@
     --danger:#FF6B6B; --warn:#F2C14E;
     --radius:14px;
   }
+  [data-theme="light"]{
+    color-scheme:light;
+    --bg:#F5F7FA; --surface:#FFFFFF; --surface-alt:#EDF2F7; --surface-hover:#E4EBF3;
+    --border:#CBD5E1; --border-soft:#E2E8F0;
+    --text:#172033; --dim:#46556B; --faint:#64748B;
+    --accent:#087A55; --accent-dim:#066344; --accent-text:#FFFFFF;
+    --danger:#B42332; --warn:#8A5A00;
+  }
   *{margin:0;padding:0;box-sizing:border-box}
   html{scroll-behavior:smooth}
+  :focus-visible{outline:3px solid var(--accent);outline-offset:3px}
+  .skip-link{position:fixed;top:10px;left:10px;z-index:1000;transform:translateY(-160%);background:var(--surface);color:var(--text);padding:10px 14px;border:1px solid var(--border);border-radius:8px}
+  .skip-link:focus{transform:translateY(0)}
   body{
     background:var(--bg); color:var(--text);
     font-family:"Segoe UI","Inter","Noto Sans",system-ui,sans-serif;
@@ -35,10 +48,10 @@
   /* ---------- header ---------- */
   header{
     position:sticky;top:0;z-index:50;
-    background:rgba(10,13,19,.85);backdrop-filter:blur(12px);
+    background:var(--bg);
     border-bottom:1px solid var(--border-soft);
   }
-  .nav{display:flex;align-items:center;gap:12px;height:60px}
+  .nav{display:flex;align-items:center;gap:12px;height:60px;position:relative}
   .logo{display:flex;align-items:center;gap:10px;font-weight:800;font-size:18px;text-decoration:none;color:var(--text)}
   .logo .mark{
     width:30px;height:30px;border-radius:9px;display:grid;place-items:center;
@@ -52,6 +65,10 @@
     padding:8px 12px;border-radius:8px;transition:.15s;
   }
   nav.links a:hover{color:var(--text);background:var(--surface-alt)}
+  .theme-toggle{display:inline-flex;align-items:center;gap:7px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:7px 10px;font-size:13px;font-weight:600;font-family:inherit;cursor:pointer}
+  .theme-toggle:hover{background:var(--surface-hover)}
+  .mobile-nav-toggle{display:none;align-items:center;justify-content:center;width:36px;height:36px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:8px;font-size:18px;cursor:pointer}
+  .mobile-nav-toggle:hover{background:var(--surface-hover)}
   .btn{
     display:inline-flex;align-items:center;gap:8px;text-decoration:none;
     font-weight:700;font-size:14px;border-radius:10px;padding:10px 18px;
@@ -116,16 +133,19 @@
   /* mockup del launcher */
   .shot{
     border:1px solid var(--border);border-radius:16px;overflow:hidden;
-    background:linear-gradient(160deg,#0E1420,#0A0D13);
+    background:var(--surface);
     box-shadow:0 30px 80px rgba(0,0,0,.5);
   }
-  .shot .bar{display:flex;gap:7px;padding:12px 14px;border-bottom:1px solid var(--border-soft);background:#0D121B}
+  .shot .bar{display:flex;gap:7px;padding:12px 14px;border-bottom:1px solid var(--border-soft);background:var(--surface-alt)}
   .shot .bar i{width:11px;height:11px;border-radius:50%;background:#2A3548}
   .shot .bar i:nth-child(1){background:#FF5F57}.shot .bar i:nth-child(2){background:#FEBC2E}.shot .bar i:nth-child(3){background:#28C840}
-  .mock{display:grid;grid-template-columns:118px 290px 1fr;gap:14px;padding:18px}
+  .mock{display:grid;grid-template-columns:minmax(250px,320px) minmax(0,1fr);gap:14px;padding:18px}
   @media(max-width:900px){.mock{grid-template-columns:1fr}}
+  @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important;transition-duration:.01ms!important}}
   .mock .col{display:flex;flex-direction:column;gap:10px}
-  .mside{background:#0D1119;border:1px solid var(--border-soft);border-radius:12px;padding:10px;display:flex;flex-direction:column;gap:6px}
+  .mside{grid-column:1/-1;background:var(--surface);border:1px solid var(--border-soft);border-radius:12px;padding:10px;display:flex;align-items:center;gap:6px}
+  .mside .mnav{height:auto;min-height:32px;flex:0 0 auto}
+  .mside .sp{display:none}
   .mnav{height:22px;border-radius:6px;background:var(--surface-alt);font-size:9px;font-weight:700;color:var(--faint);display:flex;align-items:center;padding:0 9px;letter-spacing:.8px}
   .mnav.on{background:rgba(61,224,160,.12);color:var(--accent);border:1px solid rgba(61,224,160,.3)}
   .mside .sp{flex:1}
@@ -136,9 +156,9 @@
   .mline.accent{background:linear-gradient(90deg,var(--accent-dim),var(--accent));width:70%}
   .mplay{background:var(--accent);color:var(--accent-text);text-align:center;
          font-weight:800;font-size:12px;letter-spacing:1px;border-radius:10px;padding:11px}
-  .mconsole{background:#0A0F17;border:1px solid var(--border-soft);border-radius:10px;
+  .mconsole{background:var(--bg);border:1px solid var(--border-soft);border-radius:10px;
             padding:12px;font-family:"Cascadia Mono",monospace;font-size:10.5px;
-            color:#7E8CA3;line-height:1.7;min-height:120px}
+            color:var(--dim);line-height:1.7;min-height:120px}
   .mconsole .g{color:var(--accent)}
 
   /* architecture */
@@ -152,7 +172,8 @@
   .arrow{color:var(--faint);font-size:18px}
 
   /* versions table */
-  table{width:100%;border-collapse:collapse;font-size:14px}
+  .table-scroll{overflow-x:auto;border-radius:var(--radius)}
+  table{width:100%;min-width:680px;border-collapse:collapse;font-size:14px}
   th,td{text-align:left;padding:11px 14px;border-bottom:1px solid var(--border-soft)}
   th{color:var(--faint);font-size:11px;letter-spacing:1px;text-transform:uppercase}
   td{color:var(--dim)}
@@ -186,18 +207,25 @@
     .hero{padding:60px 0 44px}
     section{padding:52px 0}
     .stat{padding:0 18px}
-    nav.links a:not(.btn){display:none}
+    nav.links{position:absolute;display:none;top:60px;left:-24px;right:-24px;margin:0;padding:12px 24px;background:var(--surface);border-bottom:1px solid var(--border-soft);box-shadow:0 12px 24px rgba(0,0,0,.14);align-items:stretch;flex-direction:column;z-index:60}
+    header.menu-open nav.links{display:flex}
+    nav.links a:not(.btn){display:block}
+    nav.links>.btn{display:none}
+    .mobile-nav-toggle{display:inline-flex;margin-left:auto}
+    .theme-toggle .theme-label{display:none}
+    .theme-toggle{flex:0 0 36px;justify-content:center;width:36px;height:36px;padding:0}
   }
 </style>
 </head>
 <body>
+<a class="skip-link" href="#main">Saltar al contenido principal</a>
 
 <header>
   <div class="wrap nav">
     <a class="logo" href="#">
       <span class="mark">A</span>AZero<b>Craft</b>
     </a>
-    <nav class="links">
+    <nav class="links" aria-label="Navegación principal">
       <a href="#features">Funciones</a>
       <a href="#manual">Manual</a>
       <a href="#versions">Versiones</a>
@@ -205,9 +233,11 @@
       <a href="#download">Descargar</a>
       <a href="#build">Compilar</a>
       <a class="btn btn-primary btn-sm" href="https://github.com/LiebeBlack/MD" target="_blank" rel="noopener">GitHub ↗</a>
+      <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Cambiar al tema claro" aria-pressed="false"><span aria-hidden="true">☼</span><span class="theme-label">Tema claro</span></button>
     </nav>
   </div>
 </header>
+<main id="main">
 
 <!-- ======================= HERO ======================= -->
 <div class="hero">
@@ -215,11 +245,11 @@
     <div class="badge">LANZADOR PARA MINECRAFT JAVA EDITION</div>
     <h1>Juega <span>Minecraft</span> sin complicaciones</h1>
     <p>
-      AZeroCraft instala, configura y lanza Minecraft 1.7 a la ultima version con un solo
-      clic: descarga automática desde Mojang, Microsoft OpenJDK incluido, Forge, Fabric,
-      NeoForge y OptiFine con varios perfiles por versión, verificación de
-      compatibilidad de mods, cuenta Microsoft opcional e historial completo —
-      todo gratis, sin cuenta obligatoria.
+      Instala y ejecuta Minecraft desde la versión 1.7 hasta las versiones actuales.
+      AZeroCraft gestiona las descargas oficiales, Java, Forge, Fabric, NeoForge y
+      OptiFine, organiza varios perfiles por versión y avisa de incompatibilidades
+      entre mods. Incluye inicio de sesión opcional con Microsoft, modo sin conexión
+      y un historial local de actividad.
     </p>
     <div class="cta">
       <a class="btn btn-primary" href="#download">Descargar para Windows</a>
@@ -227,8 +257,8 @@
     </div>
     <div class="stats">
       <div class="stat"><b>1.7 – actual</b><span>Versiones soportadas</span></div>
-      <div class="stat"><b>0 configuraciones</b><span>Java y assets automáticos</span></div>
-      <div class="stat"><b>100% offline</b><span>UUID v3 compatible con Java</span></div>
+      <div class="stat"><b>Configuración sencilla</b><span>Java y recursos automáticos</span></div>
+      <div class="stat"><b>Perfil offline</b><span>UUID v3 compatible con Java</span></div>
       <div class="stat"><b>~60 MB</b><span>Launcher portable</span></div>
     </div>
   </div>
@@ -239,8 +269,8 @@
   <div class="wrap">
     <div class="sec-head" style="margin:0 auto 44px;text-align:center">
       <div class="kicker">Interfaz</div>
-      <h2>Diseño oscuro, información clara</h2>
-      <p>Navegación lateral con cuatro páginas — Jugar, Versiones, Cuenta y Ajustes — más registro en tiempo real, todo en una ventana compacta.</p>
+      <h2>Una interfaz clara y personalizable</h2>
+      <p>Navega por pestañas entre Jugar, Versiones, Cuenta, Ajustes y Acerca de. Elige entre los temas claro y oscuro, consulta el registro en tiempo real y accede a las acciones principales desde una sola ventana.</p>
     </div>
     <div class="shot">
       <div class="bar"><i></i><i></i><i></i></div>
@@ -280,15 +310,15 @@
         <div class="col">
           <div class="mconsole">
             <span class="g">• Leyendo manifiesto oficial</span><br>
-            Descargando 245 archivo(s) (49.6 MB)<br>
-            Extrayendo librerías nativas<br>
+            Descargando 245 archivos (49,6 MB)<br>
+            Extrayendo bibliotecas nativas<br>
             <span class="g">• Preparando Java 11</span><br>
             Usando Java 11 (11.0.x) desde …\microsoft-jdk-11<br>
-            Lanzando 1.12.1 como AZeroQA (UUID b50a…)<br>
+            Iniciando 1.12.1 como AZeroQA (UUID b50a…)<br>
             Minecraft iniciado · PID 6308<br>
-            LWJGL Version: 2.9.4 · OpenAL initialized<br>
-            Created: 1024x512 textures-atlas<br>
-            Narrator library for x64 loaded
+            LWJGL 2.9.4 · OpenAL inicializado<br>
+            Texturas: 1024 × 512<br>
+            Biblioteca de narración x64 cargada
           </div>
           <div class="mcard">
             <h4>REGISTRO</h4>
@@ -334,17 +364,17 @@
       <div class="card">
         <div class="ico">▦</div>
         <h3>Selector de versiones agrupado</h3>
-        <p>Las versiones se organizan por categoría de loader → familia → versión base → perfil, con buscador instantáneo. Varios perfiles del mismo juego conviven sin mezclarse.</p>
+        <p>Explora las versiones por categoría de loader, familia, versión base y perfil. El buscador integrado facilita encontrar una versión y mantener varios perfiles del mismo juego organizados.</p>
       </div>
       <div class="card">
         <div class="ico">⚠</div>
         <h3>Compatibilidad de mods</h3>
-        <p>Antes de lanzar, el launcher lee las dependencias de cada mod (<code>fabric.mod.json</code>, <code>mods.toml</code>) y avisa si alguno no es para la versión o el Java seleccionados — adiós a los crashes de Fabric por mods de otra versión.</p>
+        <p>Antes de iniciar el juego, el launcher revisa las dependencias declaradas en los mods y avisa si detecta incompatibilidades con la versión de Minecraft o el loader seleccionado. La comprobación depende de los metadatos disponibles en cada archivo.</p>
       </div>
       <div class="card">
         <div class="ico">◎</div>
         <h3>Modo offline real</h3>
-        <p>UUID v3 determinista idéntico al de <code>nameUUIDFromBytes</code> de Java: tu mundo y tu skin offline se mantienen siempre iguales.</p>
+        <p>El perfil offline genera un UUID v3 determinista, compatible con <code>nameUUIDFromBytes</code> de Java. El mismo nombre produce siempre el mismo UUID.</p>
       </div>
       <div class="card">
         <div class="ico">⚡</div>
@@ -354,22 +384,22 @@
       <div class="card">
         <div class="ico">🗂</div>
         <h3>Portable de verdad</h3>
-        <p>Todo vive en <code>./data</code> junto al ejecutable. Copia la carpeta a un USB y sigue jugando. En instalación de sistema usa <code>%APPDATA%</code> automáticamente.</p>
+        <p>En modo portable, los datos propios del launcher se guardan junto al ejecutable; en una instalación para el usuario, se guardan en la ubicación de datos de la aplicación. La carpeta oficial <code>.minecraft</code> permanece compartida con el launcher de Mojang.</p>
       </div>
       <div class="card">
         <div class="ico">☁</div>
         <h3>Cuenta Microsoft opcional</h3>
-        <p>Inicio de sesión por código de dispositivo (sin contraseña en el launcher) para servidores oficiales online-mode. El perfil offline sigue siendo 100 % gratuito y sin registro.</p>
+        <p>Vincula una cuenta Microsoft mediante un código de dispositivo, sin introducir la contraseña en el launcher. El inicio de sesión oficial es opcional.</p>
       </div>
       <div class="card">
         <div class="ico">🕘</div>
         <h3>Historial completo</h3>
-        <p>Versiones instaladas con su tamaño, historial de descargas, sesiones jugadas y registros del juego — todo persistido en SQLite local.</p>
+        <p>Consulta las versiones instaladas, el espacio que ocupan, las descargas recientes y las sesiones de juego. El historial se guarda localmente en SQLite.</p>
       </div>
       <div class="card">
         <div class="ico">🧠</div>
         <h3>Ajustes según tu hardware</h3>
-        <p>El selector de RAM se adapta a la memoria instalada (nada de 16 GB en un PC de 4 GB), GC Serial automático en CPUs débiles y pipeline OpenGL para Intel UHD.</p>
+        <p>El selector de RAM y las recomendaciones tienen en cuenta la memoria y el procesador del equipo. Puedes ajustar el recolector de basura, la prioridad del proceso y la afinidad de CPU; la optimización rápida recomienda valores de RAM y GC según el hardware.</p>
       </div>
     </div>
   </div>
@@ -381,22 +411,24 @@
     <div class="sec-head">
       <div class="kicker">Compatibilidad</div>
       <h2>Versiones y Java</h2>
-      <p>AZeroCraft soporta el rango clásico completo de Minecraft Java Edition con el Java adecuado para cada una.</p>
+      <p>AZeroCraft admite versiones desde Minecraft 1.7 y recomienda una versión de Java compatible para cada perfil.</p>
     </div>
     <div class="card" style="padding:0;overflow:hidden">
+      <div class="table-scroll" role="region" aria-label="Compatibilidad de Minecraft y Java" tabindex="0">
       <table>
-        <thead><tr><th>Versiones</th><th>Java requerido</th><th>Formato de argumentos</th><th>Estado</th></tr></thead>
+        <thead><tr><th>Versiones</th><th>Java recomendado</th><th>Formato de argumentos</th><th>Estado</th></tr></thead>
         <tbody>
-          <tr><td><b>1.7 – 1.12.2</b></td><td>Java 11 <span class="tag info">LTS</span> (acepta 8–15)</td><td><code>minecraftArguments</code></td><td><span class="tag ok">Soportado</span></td></tr>
+          <tr><td><b>1.7 – 1.12.2</b></td><td>Java 11 <span class="tag info">LTS</span> (compatible con 8–15)</td><td><code>minecraftArguments</code></td><td><span class="tag ok">Soportado</span></td></tr>
           <tr><td><b>1.13 – 1.20.4</b></td><td>Java 17 <span class="tag info">LTS</span> (acepta 17–21)</td><td><code>arguments</code> con reglas</td><td><span class="tag ok">Soportado</span></td></tr>
-          <tr><td><b>1.20.5 – 1.21.x</b></td><td>Java 21</td><td><code>arguments</code> con reglas</td><td><span class="tag info">Soportado</span></td></tr>
-          <tr><td><b>26.x</b></td><td>Java 25</td><td><code>arguments</code> + <code>default-user-jvm</code></td><td><span class="tag info">Soportado</span></td></tr>
+          <tr><td><b>1.20.5 – 1.21.x</b></td><td>Java 21 o posterior</td><td><code>arguments</code> con reglas</td><td><span class="tag info">Soportado</span></td></tr>
+          <tr><td><b>26.x</b></td><td>Java 25 o posterior</td><td><code>arguments</code> + <code>default-user-jvm</code></td><td><span class="tag info">Soportado</span></td></tr>
         </tbody>
       </table>
+      </div>
     </div>
     <p style="color:var(--faint);font-size:13px;margin-top:14px">
-      Snapshots y versiones fuera del rango 1.7 → actual están ocultos por defecto;
-      se pueden mostrar todas desde <b>Ajustes</b>. Los perfiles de loader
+      Las versiones experimentales y los snapshots están ocultos por defecto;
+      activa <b>Mostrar todas las versiones</b> en Ajustes para incluirlos. Los perfiles de loader
       (Forge, Fabric, NeoForge, OptiFine) se instalan desde la propia interfaz
       y aparecen agrupados en el selector de versiones.
     </p>
@@ -416,7 +448,7 @@
       <div class="card">
         <h3>1 · Primer arranque</h3>
         <ul>
-          <li>Elige carpeta de datos: junto al exe (<code>./data</code>, portable) o en AppData.</li>
+          <li>Elige dónde guardar los datos propios del launcher. La carpeta oficial <code>.minecraft</code> se mantiene compartida.</li>
           <li>Escribe tu nombre de jugador — el perfil offline se crea solo, con UUID determinista.</li>
           <li>Pulsa <b>Jugar</b>: la primera vez descarga cliente, librerías, nativos y assets automáticamente.</li>
         </ul>
@@ -449,8 +481,8 @@
       <div class="card">
         <h3>5 · Cuenta y multijugador</h3>
         <ul>
-          <li><b>Offline</b>: nombre propio, gratis, sirve en singleplayer y servidores sin verificación.</li>
-          <li><b>Microsoft</b>: Cuenta → "Iniciar sesión" — código de dispositivo, sin escribir contraseña.</li>
+          <li><b>Perfil offline</b>: nombre propio para uso personal y partidas de un jugador, de acuerdo con las condiciones de Minecraft.</li>
+          <li><b>Microsoft</b>: Cuenta → <b>Iniciar sesión</b>. Completa la autenticación con el código de dispositivo, sin introducir la contraseña en el launcher.</li>
           <li>Escribe <code>servidor:25565</code> en Jugar para entrar directo al servidor.</li>
         </ul>
       </div>
@@ -471,11 +503,11 @@
     <div class="grid grid-2">
       <div class="card">
         <h3 style="font-size:15px">El launcher avisa de mods incompatibles</h3>
-        <p style="font-size:14px">Tu carpeta <code>mods</code> es compartida por todas las versiones: un mod de MC 26.3 no funciona en 1.21.1 y viceversa. El aviso indica qué mod pide qué versión — usa los jars correctos para la versión seleccionada o cambia de perfil.</p>
+        <p style="font-size:14px">La carpeta <code>mods</code> se comparte entre versiones. Un mod puede declarar requisitos para una versión concreta de Minecraft o un loader; el launcher avisa cuando detecta una incompatibilidad en los metadatos disponibles. Usa los mods adecuados para el perfil seleccionado.</p>
       </div>
       <div class="card">
         <h3 style="font-size:15px">Minecraft termina al iniciar (código ≠ 0)</h3>
-        <p style="font-size:14px">Abre el registro del juego (doble clic en la lista de Versiones → Registros) y busca la línea <code>Caused by</code>. Causas típicas: mods incompatibles, Java incorrecto o argumentos JVM personalizados en Ajustes → Java.</p>
+        <p style="font-size:14px">Abre la carpeta de registros desde la sección Versiones y busca la línea <code>Caused by</code>. Entre las causas frecuentes están los mods incompatibles, una versión de Java no compatible o los argumentos JVM personalizados.</p>
       </div>
       <div class="card">
         <h3 style="font-size:15px">¿Puedo llevarlo en un USB?</h3>
@@ -483,15 +515,15 @@
       </div>
       <div class="card">
         <h3 style="font-size:15px">No hay conexión / descargas fallan</h3>
-        <p style="font-size:14px">Activa <b>Modo sin conexión</b> en Ajustes: el launcher usa solo tu caché local, sin verificar hashes ni descargar nada. Úsalo también con perfiles ya instalados para jugar sin red.</p>
+        <p style="font-size:14px">Activa <b>Modo sin conexión</b> en Ajustes para usar los archivos de la caché local sin consultar el manifiesto ni verificar hashes. Los archivos que falten no se podrán descargar, así que el perfil debe contar con los recursos necesarios.</p>
       </div>
       <div class="card">
         <h3 style="font-size:15px">No aparece una versión o snapshot</h3>
-        <p style="font-size:14px">Los snapshots y versiones fuera del rango estable están ocultos. En Ajustes activa "mostrar todas las versiones" y el selector los listará (busca por fecha, p. ej. <code>25w14a</code>).</p>
+        <p style="font-size:14px">Los snapshots y las versiones antiguas están ocultos por defecto. Activa <b>Mostrar todas las versiones</b> en Ajustes y búscalos en el selector (por ejemplo, <code>25w14a</code>).</p>
       </div>
       <div class="card">
         <h3 style="font-size:15px">¿Dónde están mis mundos y ajustes?</h3>
-        <p style="font-size:14px">En la <code>.minecraft</code> oficial compartida (<code>%APPDATA%\.minecraft</code>): mundos, resourcepacks, shaderpacks, options.txt y mods. AZeroCraft no los mueve — son compatibles con el launcher oficial.</p>
+        <p style="font-size:14px">La carpeta oficial <code>.minecraft</code> (<code>%APPDATA%\.minecraft</code>) sigue compartida con el launcher de Mojang y contiene tus mundos, paquetes de recursos, shaders, <code>options.txt</code> y mods. AZeroCraft no modifica las opciones de juego.</p>
       </div>
     </div>
   </div>
@@ -509,17 +541,17 @@
       <div class="card">
         <h3>Memoria RAM</h3>
         <div class="val">Adaptativa</div>
-        <p>El máximo del selector se calcula con tu RAM real (~0.5 GB de reserva). <code>-Xms</code>/<code>-Xmx</code> ajustados automáticamente.</p>
+        <p>El límite del selector se calcula según la memoria del equipo y reserva recursos para el sistema. El launcher configura la memoria inicial y máxima de Java a partir del valor elegido.</p>
       </div>
       <div class="card">
         <h3>Prioridad del proceso</h3>
         <div class="val">5 niveles</div>
-        <p>Reposo, Baja, Normal, Alta y Muy alta vía <code>SetPriorityClass</code> en Windows.</p>
+        <p>Elige entre Reposo, Baja, Normal, Alta y Muy alta para ajustar la prioridad del proceso del juego en Windows.</p>
       </div>
       <div class="card">
         <h3>Afinidad de CPU</h3>
         <div class="val">N núcleos</div>
-        <p>Limita el juego a tantos núcleos lógicos como quieras con <code>SetProcessAffinityMask</code>.</p>
+        <p>Limita el juego a un número determinado de núcleos lógicos o deja que use todos los disponibles.</p>
       </div>
       <div class="card">
         <h3>Recolector de basura</h3>
@@ -529,7 +561,7 @@
       <div class="card">
         <h3>Argumentos JVM</h3>
         <div class="val">Libres</div>
-        <p>Campo de argumentos JVM personalizados en Ajustes → Java, con aviso si defines un recolector que duplique el del launcher.</p>
+        <p>Configura argumentos JVM personalizados en Ajustes → Java. Si especificas otro recolector de basura, el launcher avisa de que puede entrar en conflicto con el ajuste elegido.</p>
       </div>
       <div class="card">
         <h3>Java automático</h3>
@@ -539,12 +571,12 @@
       <div class="card">
         <h3>Optimización en un clic</h3>
         <div class="val">Hardware</div>
-        <p>"Optimizar para este equipo" detecta CPU, GPU, núcleos y RAM (incl. flags SSE4.2/AVX2) y aplica RAM y GC recomendados.</p>
+        <p>«Optimizar para este equipo» analiza el procesador, la memoria y la GPU, y aplica recomendaciones de RAM y del recolector de basura.</p>
       </div>
       <div class="card">
         <h3>Hardware inteligente</h3>
         <div class="val">CPU · GPU · SSE4.2</div>
-        <p>Detecta procesador, GPU, núcleos, RAM y flags de instrucción (SSE4.2/AVX) para sugerir RAM, GC y ajustes de vídeo sin configuración manual.</p>
+        <p>Consulta información del procesador, la GPU, la memoria y las instrucciones compatibles del equipo.</p>
       </div>
       <div class="card">
         <h3>Acerca de y soporte</h3>
@@ -633,7 +665,7 @@
           <h2 style="font-size:26px">Desde código fuente</h2>
           <p>Desarrollo local en Python puro — sin Node, sin Docker, sin sorpresas.</p>
         </div>
-        <pre><code># 1. Entorno e dependencias
+        <pre><code># 1. Entorno y dependencias
 python -m venv .venv
 .venv\Scripts\Activate.ps1
 pip install -r requirements.txt
@@ -675,19 +707,17 @@ python tools\verify_version.py 1.12.1   # QA real: manifiesto → assets → URL
       <div style="color:var(--dim);font-size:14.5px;columns:1;max-width:900px">
         <p style="margin-bottom:12px">
           <b style="color:var(--text)">AZeroCraft Launcher</b> es una herramienta independiente,
-          desarrollada por <b style="color:var(--text)">Liebe Black</b>. No está afiliado, respaldado
-          ni patrocinado por Mojang AB, Microsoft ni Microsoft Studios. "Minecraft" es marca
+          desarrollada por <b style="color:var(--text)">Liebe Black</b>. No está afiliada, respaldada
+          ni patrocinada por Mojang AB, Microsoft ni Microsoft Studios. «Minecraft» es una marca
           registrada de Mojang Synergies AB.
         </p>
         <p style="margin-bottom:12px">
-          <b style="color:var(--text)">Fair use.</b> El launcher se distribuye con la finalidad de
-          facilitar el acceso legítimo a Minecraft Java Edition. No incluye, redistribuye ni
-          modifica los archivos del juego: en tiempo de ejecución descarga los recursos
-          directamente de los servidores oficiales de Mojang, igual que haría cualquier otro
-          launcher. Para jugar en servidores online o en Realms puedes usar tu cuenta oficial
-          de Minecraft desde la pestaña <b style="color:var(--text)">Cuenta</b> (opcional,
-          por código de dispositivo); el perfil offline con nombre propio funciona siempre,
-          gratis y sin registro, en singleplayer y servidores sin verificación.
+          <b style="color:var(--text)">Uso del software.</b> El launcher no incluye ni redistribuye
+          archivos del juego: descarga los recursos desde los servidores oficiales de Mojang.
+          Para jugar en servidores oficiales o en Realms se necesita una cuenta válida de
+          Minecraft, que puedes vincular desde la pestaña <b style="color:var(--text)">Cuenta</b>
+          mediante un código de dispositivo. El perfil offline está destinado al uso personal
+          y a las partidas de un jugador, de acuerdo con las condiciones de uso aplicables.
         </p>
         <p style="margin-bottom:12px">
           <b style="color:var(--text)">Responsabilidad.</b> El software se ofrece "tal cual", sin
@@ -696,11 +726,11 @@ python tools\verify_version.py 1.12.1   # QA real: manifiesto → assets → URL
           compatibilidad con versiones futuras de Minecraft o de OptiFine (marca de sp614x).
         </p>
         <p>
-          <b style="color:var(--text)">Privacidad.</b> AZeroCraft no recopila datos de usuario,
-          telemetría ni estadísticas. Las únicas conexiones de red son las descargas de los
-          servidores oficiales de Mojang/Microsoft, el inicio de sesión de Microsoft
-          <b style="color:var(--text)">solo si tú lo inicias</b> desde la pestaña Cuenta, y los
-          servidores de Minecraft a los que decidas conectarte.
+          <b style="color:var(--text)">Privacidad.</b> AZeroCraft no incorpora funciones de
+          recopilación de telemetría ni de estadísticas de uso. Se conecta a los servicios
+          oficiales de Mojang, Microsoft, los proveedores de los instaladores seleccionados y
+          GitHub para comprobar si hay actualizaciones. La autenticación de Microsoft solo se
+          inicia cuando la solicitas; el juego puede conectarse a los servidores que elijas.
         </p>
       </div>
     </div>
@@ -710,8 +740,8 @@ python tools\verify_version.py 1.12.1   # QA real: manifiesto → assets → URL
 <footer>
   <div class="wrap">
     <div>
-      <b style="color:var(--text)">AZeroCraft Launcher</b> · Minecraft no está afiliado a Mojang AB.
-      Los assets y manifiestos se descargan de los servidores oficiales en tiempo de ejecución.
+      <b style="color:var(--text)">AZeroCraft Launcher</b> · Proyecto independiente, no afiliado a Mojang AB ni a Microsoft.
+      Los recursos y manifiestos se descargan de los servidores oficiales durante la ejecución.
     </div>
     <div>
       <a href="https://github.com/LiebeBlack/MD" target="_blank" rel="noopener">GitHub</a> ·
@@ -723,9 +753,10 @@ python tools\verify_version.py 1.12.1   # QA real: manifiesto → assets → URL
     </div>
   </div>
 </footer>
+</main>
 
 <script>
-// Descargas dinamicas: toma los assets del ultimo release de GitHub.
+// Descarga dinámica: obtiene los archivos de la última versión publicada en GitHub.
 (function () {
   var REPO = "LiebeBlack/MD";
   var api = "https://api.github.com/repos/" + REPO + "/releases/latest";
@@ -748,7 +779,7 @@ python tools\verify_version.py 1.12.1   # QA real: manifiesto → assets → URL
           zip.parentElement.querySelector("span").textContent = a.name;
         }
       });
-      // etiqueta de version junto al titulo de la seccion
+      // Etiqueta de versión junto al título de la sección.
       var h2 = document.querySelector("#download .sec-head h2");
       if (h2 && rel.tag_name) {
         var tag = document.createElement("span");
@@ -759,6 +790,33 @@ python tools\verify_version.py 1.12.1   # QA real: manifiesto → assets → URL
       }
     })
     .catch(function () { /* sin release aun: los enlaces van a /releases */ });
+})();
+</script>
+<script>
+(function () {
+  var root = document.documentElement;
+  var button = document.getElementById("theme-toggle");
+  var label = button.querySelector(".theme-label");
+  function applyTheme(theme, persist) {
+    var dark = theme === "dark";
+    root.dataset.theme = dark ? "dark" : "light";
+    button.setAttribute("aria-pressed", String(dark));
+    button.setAttribute("aria-label", dark ? "Cambiar al tema claro" : "Cambiar al tema oscuro");
+    label.textContent = dark ? "Tema claro" : "Tema oscuro";
+    button.querySelector("[aria-hidden]").textContent = dark ? "☼" : "☾";
+    if (persist) {
+      try { localStorage.setItem("azero-docs-theme", dark ? "dark" : "light"); }
+      catch (_) { /* El tema funciona también sin almacenamiento local. */ }
+    }
+  }
+  var saved = "";
+  try { saved = localStorage.getItem("azero-docs-theme") || ""; }
+  catch (_) { /* El almacenamiento local puede estar desactivado. */ }
+  var prefersLight = window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches;
+  applyTheme(saved || (prefersLight ? "light" : "dark"), false);
+  button.addEventListener("click", function () {
+    applyTheme(root.dataset.theme === "dark" ? "light" : "dark", true);
+  });
 })();
 </script>
 

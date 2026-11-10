@@ -1,4 +1,4 @@
-"""Paginas de la interfaz: Jugar, Versiones, Cuenta, Ajustes y Acerca de."""
+"""Páginas de la interfaz: Jugar, Versiones, Cuenta, Ajustes y Acerca de."""
 
 from __future__ import annotations
 
@@ -1611,7 +1611,7 @@ class SettingsPage(ScrollPage):
                      "neoforge": "NeoForge"}
 
     def _maybe_offer_loader(self, jar: Path, kind: str) -> None:
-        """Si el mod necesita un loader que no esta instalado, lo ofrece."""
+        """Ofrece instalar el loader que necesita el mod, si falta."""
         if not kind or kind == "optifine":
             return
         if loaders.has_loader_profile(kind):
@@ -1724,8 +1724,8 @@ class SettingsPage(ScrollPage):
         self.show_all = QCheckBox("Mostrar todas las versiones")
         self.show_all.setChecked(settings.show_all_versions)
         self.show_all.setToolTip(
-            "Incluye versiones antiguas y snapshots en la lista de Jugar. "
-            "El rango soportado es 1.7 en adelante.")
+            "Incluye las versiones antiguas y los snapshots en la lista de "
+            "Jugar. Se admiten versiones desde Minecraft 1.7.")
         card.body.addWidget(self.show_all)
 
         self.offline_mode = QCheckBox("Modo sin conexión")
@@ -1733,8 +1733,8 @@ class SettingsPage(ScrollPage):
         self.offline_mode.setToolTip(
             "Juega solo con los archivos ya descargados: no consulta el "
             "manifiesto ni verifica SHA-1/SHA-256, y tolera descargas o "
-            "indices que no estén en caché. Ideal sin internet o con "
-            "conexiones inestables.")
+            "índices que no estén en caché. Es útil sin conexión a Internet "
+            "o con una conexión inestable.")
         card.body.addWidget(self.offline_mode)
         card.body.addWidget(Divider())
 
@@ -1755,7 +1755,7 @@ class SettingsPage(ScrollPage):
         actions.setSpacing(8)
         actions.addWidget(make_button(
             "Abrir datos", "ghost",
-            "Abrir la carpeta con ajustes, caché y logs",
+            "Abrir la carpeta con los ajustes, la caché y los registros",
             lambda: _open_path(paths.DATA_DIR)))
         actions.addWidget(make_button(
             "Limpiar caché", "ghost",
@@ -1821,10 +1821,11 @@ class SettingsPage(ScrollPage):
             f"Caché limpiada ({human_size(freed)} liberados).", "ok")
 
     def _wipe_data(self) -> None:
-        """Borra el contenido de todas las carpetas de datos del launcher.
+        """Vacía los datos del launcher sin tocar los ajustes ni .minecraft.
 
-        Se conservan settings.json (ajustes) y todo .minecraft (versiones,
-        mundos, mods). Java tendra que volver a descargarse si hace falta.
+        Se conservan settings.json y todo el contenido de .minecraft,
+        incluidas las versiones, los mundos y los mods. Java tendrá que
+        descargarse de nuevo si hace falta.
         """
         data_dir = paths.DATA_DIR
         if not data_dir.exists():
@@ -1841,9 +1842,10 @@ class SettingsPage(ScrollPage):
             self, "Vaciar datos",
             f"Se borrará TODO el contenido de:\n{data_dir}\n\n"
             f"Carpetas/archivos afectados: {names}\n\n"
-            "Se conservan los ajustes (settings.json) y tu .minecraft "
-            "(versiones, mundos y mods). Java se redescargará si hace "
-            "falta. ¿Continuar?",
+            "Se conservan los ajustes (settings.json) y todo el contenido "
+            "de .minecraft, incluidas las versiones, los mundos y los mods. "
+            "Java tendrá que descargarse de nuevo si hace falta. "
+            "¿Quieres continuar?", 
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No,
         )

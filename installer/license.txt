@@ -1,47 +1,50 @@
-﻿AZeroCraft Launcher - Aviso legal y condiciones de uso
+AZeroCraft Launcher — Aviso legal y condiciones de uso
 Desarrollado por Liebe Black (https://github.com/LiebeBlack)
 
 1. NATURALEZA DEL SOFTWARE
-AZeroCraft Launcher es una herramienta independiente que facilita la
-descarga, instalacion y ejecucion de Minecraft Java Edition. No esta
-afiliado, respaldado ni patrocinado por Mojang AB, Microsoft ni Microsoft
-Studios. "Minecraft" es marca registrada de Mojang Synergies AB.
+AZeroCraft Launcher es una herramienta independiente para descargar,
+instalar y ejecutar Minecraft Java Edition. No está afiliada, respaldada ni
+patrocinada por Mojang AB, Microsoft ni Microsoft Studios. «Minecraft» es una
+marca registrada de Mojang Synergies AB.
 
-2. FAIR USE
-El launcher se distribuye con la unica finalidad de facilitar el acceso
-legitimo a Minecraft Java Edition.
+2. ARCHIVOS DEL JUEGO Y CUENTAS
+El launcher no incluye, redistribuye ni modifica archivos de Minecraft. Los
+recursos necesarios se descargan durante la ejecución desde los servidores
+oficiales de Mojang.
 
-- El software NO incluye, NO redistribuye y NO modifica los archivos del
-  juego. En tiempo de ejecucion descarga los recursos directamente de los
-  servidores oficiales de Mojang.
-- Para jugar en servidores online o en Realms es obligatorio disponer de
-  una cuenta oficial valida de Minecraft.
-- El modo offline esta destinado a uso personal y singleplayer.
+Para acceder a servidores oficiales o a Realms se necesita una cuenta válida
+de Minecraft. El inicio de sesión con Microsoft es opcional y se realiza
+mediante un código de dispositivo. El perfil offline está destinado al uso
+personal y a las partidas de un jugador. El usuario es responsable de cumplir
+los términos de Minecraft y las condiciones de cada servidor al utilizar el
+software.
 
-3. PROPIEDAD DE OPTIFINE
-La funcionalidad OptiFine se basa en el instalador oficial de OptiFine
-(marca de sp614x). El usuario es responsable de obtener dicho instalador
-desde su fuente oficial (optifine.net) y de cumplir sus terminos de uso.
+3. OPTIFINE
+La función de instalación de OptiFine utiliza el instalador oficial de
+OptiFine, marca de sp614x. El usuario debe obtener dicho instalador de su
+fuente oficial (optifine.net) y respetar sus condiciones de uso.
 
-4. AUSENCIA DE GARANTIAS
-El software se ofrece "TAL CUAL", sin garantia de ningun tipo, expresa o
-implicita, incluyendo pero no limitado a garantias de comerciabilidad,
-idoneidad para un proposito particular y no infraccion. El desarrollador
-no garantiza la compatibilidad con versiones futuras de Minecraft, Java
-o OptiFine.
+4. AUSENCIA DE GARANTÍAS
+El software se ofrece «tal cual», sin garantías de ningún tipo, expresas ni
+implícitas, incluidas, entre otras, las garantías de comerciabilidad,
+idoneidad para un propósito particular y no infracción. No se garantiza la
+compatibilidad con versiones futuras de Minecraft, Java u OptiFine.
 
-5. LIMITACION DE RESPONSABILIDAD
-En ningun caso el desarrollador sera responsable de danos directos,
-indirectos, incidentales o consecuentes derivados del uso o la imposibilidad
-de uso del software, incluida la perdida de datos o de mundos de juego.
+5. LIMITACIÓN DE RESPONSABILIDAD
+En la medida permitida por la legislación aplicable, el desarrollador no será
+responsable de daños directos, indirectos, incidentales o consecuentes
+relacionados con el uso o la imposibilidad de uso del software, incluida la
+pérdida de datos o de mundos de juego.
 
-6. PRIVACIDAD
-AZeroCraft no recopila datos personales, telemetria ni estadisticas de uso.
-Las unicas conexiones de red del launcher son:
-  - Descargas de los servidores oficiales de Mojang/Microsoft.
-  - Conexiones a servidores de Minecraft iniciadas por el propio usuario.
+6. PRIVACIDAD Y CONEXIONES
+AZeroCraft no incorpora funciones propias de recopilación de telemetría ni de
+estadísticas de uso. Para funcionar, puede conectarse a los servidores
+oficiales de Mojang y Microsoft con el fin de consultar manifiestos y
+obtener archivos. Si el usuario inicia sesión con Microsoft, se comunica
+además con los servicios de autenticación correspondientes. El juego puede
+conectarse a los servidores elegidos por el usuario.
 
-7. ACEPTACION
-Al instalar o utilizar AZeroCraft Launcher, el usuario declara haber leido
-y aceptado estos terminos. Si no esta de acuerdo, debe desinstalar el
-software inmediatamente.
+7. ACEPTACIÓN
+Al instalar o utilizar AZeroCraft Launcher, el usuario declara haber leído y
+aceptado estas condiciones. Si no está de acuerdo, debe dejar de utilizar el
+software y, si lo instaló, desinstalarlo.
