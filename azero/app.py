@@ -15,7 +15,7 @@ from . import APP_NAME, APP_VERSION, paths
 from .settings import Settings
 from .ui import theme
 from .ui.main_window import MainWindow
-from .ui.widgets import Card, faint_label, make_button, muted_label
+from .ui.widgets import Card, make_button
 
 
 def _browse(edit: QLineEdit, parent: QWidget) -> None:
@@ -57,12 +57,11 @@ def _ask_data_dir(parent: QWidget) -> Path | None:
     titles = QVBoxLayout()
     titles.setContentsMargins(0, 0, 0, 0)
     titles.setSpacing(2)
-    title = QLabel("¿Dónde quieres guardar los datos del launcher?")
+    title = QLabel("Carpeta de datos")
     title.setObjectName("pageTitle")
     title.setWordWrap(True)
     subtitle = QLabel(
-        "Elige una carpeta escribible; el juego sigue usando tu "
-        ".minecraft oficial.")
+        "El juego sigue usando tu .minecraft oficial.")
     subtitle.setObjectName("pageSubtitle")
     subtitle.setWordWrap(True)
     titles.addWidget(title)
@@ -71,9 +70,6 @@ def _ask_data_dir(parent: QWidget) -> Path | None:
     layout.addLayout(head)
 
     card = Card(margins=16, spacing=10)
-    card.body.addWidget(muted_label(
-        "Por defecto se usa 'data' junto al launcher o tu perfil. "
-        "Puedes elegir otra unidad, por ejemplo D:\\Games\\AZeroCraft."))
     default = paths.DATA_DIR
     row = QHBoxLayout()
     row.setSpacing(8)
@@ -84,14 +80,7 @@ def _ask_data_dir(parent: QWidget) -> Path | None:
     row.addWidget(edit, 1)
     row.addWidget(browse)
     card.body.addLayout(row)
-    card.body.addWidget(faint_label(f"Carpeta sugerida: {default}"))
     layout.addWidget(card)
-
-    note = faint_label(
-        "Versiones, mundos, mods y resourcepacks siguen en tu "
-        ".minecraft oficial.")
-    note.setWordWrap(True)
-    layout.addWidget(note)
 
     buttons = QHBoxLayout()
     buttons.setSpacing(8)

@@ -14,7 +14,7 @@ from PyQt6.QtWidgets import (QApplication, QFileDialog, QHBoxLayout, QLabel,
 
 from .. import APP_NAME, APP_VERSION, database, mods, paths
 from ..auth import offline_uuid, validate_username
-from ..constants import MEMORY_STEP_MB, SPONSORS_URL
+from ..constants import MEMORY_STEP_MB
 from ..loaders import loader_kind, mod_loader_kind
 from .. import manifest
 from ..manifest import load_version_profile, local_profiles, parse_version_key
@@ -24,7 +24,7 @@ from ..workers import LaunchWorker, ManifestWorker, OptiFineWorker
 from . import theme
 from .pages import (AboutPage, AccountPage, PlayPage, SettingsPage,
                     VersionsPage)
-from .widgets import Pill, faint_label, make_button, repolish
+from .widgets import faint_label, make_button, repolish
 
 
 def _center_window(window: QWidget) -> None:
@@ -152,11 +152,6 @@ class MainWindow(QMainWindow):
         root.setObjectName("root")
         self.setCentralWidget(root)
 
-        layout = QVBoxLayout(root)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
-        layout.addWidget(self._build_app_bar())
-
         self.stack = QStackedWidget()
         self.play_page = PlayPage(self)
         self.versions_page = VersionsPage(self)
@@ -169,7 +164,10 @@ class MainWindow(QMainWindow):
         self.stack.addWidget(self.settings_page)
         self.stack.addWidget(self.about_page)
 
-        layout.addWidget(self._build_tab_strip())
+        layout = QVBoxLayout(root)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+        layout.addWidget(self._build_app_bar())
         layout.addWidget(self.stack, 1)
         layout.addWidget(self._build_status_bar())
 
@@ -190,34 +188,37 @@ class MainWindow(QMainWindow):
         layout.setSpacing(12)
 
         icon = QLabel()
-        icon.setPixmap(theme.app_icon().pixmap(32, 32))
-        icon.setFixedSize(32, 32)
+        icon.setPixmap(theme.app_icon().pixmap(28, 28))
+        icon.setFixedSize(28, 28)
         layout.addWidget(icon)
 
-        titles = QVBoxLayout()
-        titles.setContentsMargins(0, 0, 0, 0)
-        titles.setSpacing(0)
         self.brand_title = QLabel()
         self.brand_title.setObjectName("brandTitle")
         self.brand_title.setTextFormat(Qt.TextFormat.RichText)
         self._refresh_brand()
-        titles.addWidget(self.brand_title)
-        tagline = QLabel("Launcher 1.7 en adelante")
-        tagline.setObjectName("faint")
-        titles.addWidget(tagline)
-        layout.addLayout(titles)
+        layout.addWidget(self.brand_title)
+        layout.addSpacing(8)
+
+        self.tabs = QTabBar()
+        self.tabs.setObjectName("browserTabs")
+        self.tabs.setExpanding(False)
+        self.tabs.setMovable(False)
+        self.tabs.setTabsClosable(False)
+        self.tabs.setElideMode(Qt.TextElideMode.ElideRight)
+        self.tabs.setUsesScrollButtons(False)
+        self.tabs.setDrawBase(False)
+        self.tabs.setIconSize(QSize(16, 16))
+        self.tabs.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.tabs.setSizePolicy(QSizePolicy.Policy.Fixed,
+                                QSizePolicy.Policy.Fixed)
+        self.tabs.setAccessibleName("Navegación")
+        self.tabs.setToolTip(
+            "Navegación · Ctrl+Tab · Ctrl+1–5")
+        for index in range(len(self._page_specs)):
+            self._add_page_tab(index)
+        self.tabs.currentChanged.connect(self._on_tab_changed)
+        layout.addWidget(self.tabs, 0, Qt.AlignmentFlag.AlignVCenter)
         layout.addStretch(1)
-
-        self.header_status = Pill("LISTO", dim=True)
-        self.header_status.setToolTip("Estado del launcher")
-        layout.addWidget(self.header_status, 0, Qt.AlignmentFlag.AlignVCenter)
-
-        self.support_button = make_button(
-            "Apoyar", "accent",
-            "Donar al proyecto en GitHub Sponsors",
-            lambda: QDesktopServices.openUrl(QUrl(SPONSORS_URL)))
-        layout.addWidget(self.support_button, 0,
-                         Qt.AlignmentFlag.AlignVCenter)
 
         self.theme_button = make_button(
             "", "icon", "Cambiar entre tema claro y oscuro",
@@ -226,36 +227,6 @@ class MainWindow(QMainWindow):
         self._refresh_theme_button()
         layout.addWidget(self.theme_button, 0, Qt.AlignmentFlag.AlignVCenter)
         return bar
-
-    def _build_tab_strip(self) -> QWidget:
-        strip = QWidget()
-        strip.setObjectName("tabStrip")
-        strip.setFixedHeight(38)
-        row = QHBoxLayout(strip)
-        row.setContentsMargins(16, 0, 16, 0)
-        row.setSpacing(0)
-
-        self.tabs = QTabBar()
-        self.tabs.setObjectName("browserTabs")
-        self.tabs.setExpanding(True)
-        self.tabs.setMovable(False)
-        self.tabs.setTabsClosable(False)
-        self.tabs.setElideMode(Qt.TextElideMode.ElideRight)
-        self.tabs.setUsesScrollButtons(False)
-        self.tabs.setDrawBase(False)
-        self.tabs.setIconSize(QSize(16, 16))
-        self.tabs.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-        self.tabs.setSizePolicy(QSizePolicy.Policy.Expanding,
-                                QSizePolicy.Policy.Fixed)
-        self.tabs.setAccessibleName("Pestañas")
-        self.tabs.setToolTip(
-            "Pestañas · Ctrl+Tab cambia · Ctrl+1–5 salta a una página")
-        for index in range(len(self._page_specs)):
-            self._add_page_tab(index)
-        self.tabs.currentChanged.connect(self._on_tab_changed)
-        self.tabs.setCurrentIndex(0)
-        row.addWidget(self.tabs, 1, Qt.AlignmentFlag.AlignVCenter)
-        return strip
 
     def _add_page_tab(self, page_index: int) -> int:
         label, kind = self._page_specs[page_index]
@@ -349,8 +320,6 @@ class MainWindow(QMainWindow):
         if hasattr(self, "tabs"):
             repolish(self.tabs)
             self._refresh_tab_icons()
-        if hasattr(self, "header_status"):
-            repolish(self.header_status)
         self._refresh_state()
 
     def _build_status_bar(self) -> QWidget:
@@ -364,18 +333,12 @@ class MainWindow(QMainWindow):
         self.status_dot.setProperty("kind", "normal")
         self.status_dot.setFixedSize(8, 8)
         layout.addWidget(self.status_dot)
-        self.status_label = QLabel("Listo para jugar.")
+        self.status_label = QLabel("Listo.")
         self.status_label.setObjectName("statusLabel")
         layout.addWidget(self.status_label, 1)
         self.version_label = faint_label(f"v{APP_VERSION}")
         self.version_label.setWordWrap(False)
         layout.addWidget(self.version_label)
-        layout.addWidget(faint_label("·"))
-        self.hint_label = faint_label("Ctrl+Tab · Ctrl+Enter")
-        self.hint_label.setWordWrap(False)
-        self.hint_label.setToolTip(
-            "Ctrl+Tab cambia de pestaña · Ctrl+1–5 abre una página")
-        layout.addWidget(self.hint_label)
         return bar
 
     # ------------------------------------------------------------ navegacion
@@ -528,25 +491,16 @@ class MainWindow(QMainWindow):
                 # hay nada que cancelar desde el boton.
                 page.play_button.setText("EN PARTIDA")
                 page.play_button.setEnabled(False)
-                self.header_status.setText("JUGANDO")
-                self.header_status.set_dim(False)
             else:
                 page.play_button.setText("CANCELAR")
                 page.play_button.setEnabled(True)
-                self.header_status.setText("TRABAJANDO")
-                self.header_status.set_dim(False)
         elif self._of_running():
             page.play_button.setText("INSTALANDO…")
             page.play_button.setEnabled(False)
-            self.header_status.setText("OPTIFINE")
-            self.header_status.set_dim(False)
         else:
             page.play_button.setText("JUGAR")
-            page.play_button.setEnabled(
-                self._identity_valid() and has_version)
-            page.stage_label.setText("Esperando acción.")
-            self.header_status.setText("LISTO")
-            self.header_status.set_dim(True)
+            page.play_button.setEnabled(has_version)
+            page.stage_label.setText("Listo.")
 
         busy_property = busy
         if bool(page.play_button.property("busy")) != busy_property:
@@ -701,9 +655,9 @@ class MainWindow(QMainWindow):
         self._update_version_meta()
         self._refresh_state()
         if not entries:
-            self._set_status("No hay versiones disponibles sin conexión.", "error")
+            self._set_status("Sin versiones disponibles.", "error")
         else:
-            self._set_status("Listo para jugar.", "ok")
+            self._set_status("Listo.", "ok")
 
     def _on_manifest_failed(self, message: str) -> None:
         self.console.append(message)
@@ -730,7 +684,7 @@ class MainWindow(QMainWindow):
         self._update_version_meta()
         self.play_page._refresh_mods_status()
         if not self._is_busy():
-            self._set_status("Listo para jugar.", "normal")
+            self._set_status("Listo.", "normal")
 
     def _update_version_meta(self) -> None:
         version_id = self._selected_version()
@@ -747,7 +701,7 @@ class MainWindow(QMainWindow):
         if paths.find_version_jar(base) is not None:
             state = "instalada"
         else:
-            state = "se descargará al jugar"
+            state = "descarga al jugar"
         # El picker ya muestra el id; aqui solo va el resumen util.
         self.play_page.version_meta.setText(
             f"Java {_java_major_display(version_id, payload)} · "
@@ -793,10 +747,8 @@ class MainWindow(QMainWindow):
             return
         answer = QMessageBox.question(
             self, "Eliminar versión",
-            f"Se eliminará '{version_id}' y todos sus archivos "
-            "(cliente, perfil y nativos).\n\n"
-            "Las librerías y assets compartidos se conservan.\n\n"
-            "¿Continuar?",
+            f"Se eliminará '{version_id}' (cliente, perfil y nativos). "
+            "Las librerías y assets compartidos se conservan.",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No,
         )
@@ -856,19 +808,15 @@ class MainWindow(QMainWindow):
             box.setIcon(QMessageBox.Icon.Information)
             box.setWindowTitle("Primera ejecución")
             box.setText(
-                f"Primera vez con Minecraft {base}: se descargarán "
-                "el cliente, librerías y assets.\n\n"
-                "Esto puede tardar varios minutos según tu conexión, "
-                "y el juego un poco más en abrir según tu equipo.")
+                f"Minecraft {base} se descargará ahora "
+                "(cliente, librerías y assets).")
             box.setStandardButtons(QMessageBox.StandardButton.Ok)
             # No modal: el lanzamiento continúa mientras se lee.
             box.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
             box.show()
         self._set_launch_notice(
-            "La descarga puede tardar varios minutos y el juego un "
-            "poco más en abrir, según tu equipo."
-            if needs_download else
-            "El juego puede tardar un poco en abrir según tu equipo.")
+            "Descarga inicial en curso; puede tardar varios minutos."
+            if needs_download else "")
         self._session_name = shown_name
         self._session_uuid = uuid_
         self._session_account = "microsoft" if online else "offline"
@@ -907,14 +855,10 @@ class MainWindow(QMainWindow):
     def _on_launched(self, pid: int, log_path: str, auto_close: bool) -> None:
         self._set_progress(1, 1)
         self._set_status(f"Minecraft iniciado (PID {pid}).", "ok")
-        self._set_launch_notice(
-            "El juego está arrancando; puede tardar un poco en "
-            "mostrar el menú según tu equipo.")
+        self._set_launch_notice("")
         self.console.append(f"Minecraft iniciado · PID {pid}")
         self.console.append(f"Log del juego: {log_path}")
-        self.stage_label.setText(
-            "En ejecución · proceso independiente del launcher."
-        )
+        self.stage_label.setText("En ejecución.")
         version_id = self._selected_version() or self.settings.version
         base = self._selected_base() or version_id
         jar_path = (paths.find_version_jar(base)
@@ -948,7 +892,7 @@ class MainWindow(QMainWindow):
             self.versions_page.refresh_all()
         self._restore_quarantined_mods()
         if not self._allow_close:
-            self._set_status(f"Minecraft se cerró (código {code}).", "normal")
+            self._set_status(f"Juego cerrado (código {code}).", "normal")
 
     def _on_failed(self, message: str) -> None:
         self._set_launch_notice("")
@@ -971,7 +915,7 @@ class MainWindow(QMainWindow):
         box.setWindowTitle("No se pudo iniciar Minecraft")
         box.setText(first_line)
         box.setInformativeText(
-            "Puedes revisar el registro completo y volver a intentarlo."
+            "Revisa el registro completo y vuelve a intentarlo."
         )
         box.setDetailedText(message)
         box.exec()

@@ -6,7 +6,7 @@ import hashlib
 from typing import Callable
 
 from PyQt6.QtCore import QPoint, QRectF, Qt, QSize, QUrl, pyqtSignal
-from PyQt6.QtGui import (QColor, QDesktopServices, QFont, QFontDatabase,
+from PyQt6.QtGui import (QColor, QDesktopServices, QFont,
                          QLinearGradient, QPainter, QPainterPath, QPen)
 from PyQt6.QtWidgets import (QApplication, QFrame, QGridLayout, QHBoxLayout,
                              QLabel, QLineEdit, QPlainTextEdit, QPushButton,
@@ -14,8 +14,6 @@ from PyQt6.QtWidgets import (QApplication, QFrame, QGridLayout, QHBoxLayout,
                              QTableWidgetItem, QToolButton, QTreeWidget,
                              QTreeWidgetItem, QVBoxLayout, QWidget)
 
-from .. import APP_VERSION
-from ..branding import brand_mark, brand_pixmap
 from ..manifest import (load_version_profile, parse_version_key,
                         version_family_label)
 from . import theme
@@ -73,102 +71,6 @@ class Card(QFrame):
         self.body = QVBoxLayout(self)
         self.body.setContentsMargins(margins, margins, margins, margins)
         self.body.setSpacing(spacing)
-
-
-class BrandBanner(QWidget):
-    """Cabecera visual de Acerca de: fondo de marca, logo y version."""
-
-    def __init__(self, parent: QWidget | None = None):
-        super().__init__(parent)
-        self.setFixedHeight(140)
-        self.setSizePolicy(QSizePolicy.Policy.Expanding,
-                           QSizePolicy.Policy.Fixed)
-        self.setAccessibleName("AZeroCraft Launcher")
-        self._fonts = bool(QFontDatabase.families())
-
-    def paintEvent(self, event) -> None:  # noqa: N802 - API de Qt
-        width, height = self.width(), self.height()
-        if width <= 0 or height <= 0:
-            return
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        rect = QRectF(0, 0, width, height)
-        clip = QPainterPath()
-        clip.addRoundedRect(rect, 12, 12)
-        painter.setClipPath(clip)
-
-        gradient = QLinearGradient(0, 0, width, height)
-        gradient.setColorAt(0.0, QColor("#0B3D73"))
-        gradient.setColorAt(0.55, QColor("#0F6CBD"))
-        gradient.setColorAt(1.0, QColor("#0A2342"))
-        painter.fillRect(rect, gradient)
-
-        painter.setPen(QPen(QColor(255, 255, 255, 11), 1))
-        for x in range(-height, width + height, 24):
-            painter.drawLine(x, 0, x + height, height)
-
-        painter.save()
-        painter.setOpacity(0.11)
-        painter.translate(width - 250, 0)
-        painter.scale(2.1, 2.1)
-        brand_mark(painter, QColor("#FFFFFF"), 22)
-        painter.restore()
-
-        painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(QColor(255, 255, 255, 236))
-        painter.drawRoundedRect(QRectF(20, 24, 72, 72), 18, 18)
-        painter.drawPixmap(26, 30, brand_pixmap(60))
-
-        if self._fonts:
-            label = QFont("Segoe UI")
-            label.setWeight(QFont.Weight.Bold)
-            label.setPixelSize(9)
-            label.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, 1.6)
-            painter.setFont(label)
-            painter.setPen(QColor("#A9D2F5"))
-            painter.drawText(QRectF(108, 20, 400, 14),
-                             Qt.AlignmentFlag.AlignLeft
-                             | Qt.AlignmentFlag.AlignVCenter,
-                             "ACERCA DE")
-
-            painter.setFont(QFont("Segoe UI", 18, QFont.Weight.Bold))
-            painter.setPen(QColor("#FFFFFF"))
-            painter.drawText(QRectF(108, 34, width - 210, 30),
-                             Qt.AlignmentFlag.AlignLeft
-                             | Qt.AlignmentFlag.AlignVCenter,
-                             "AZeroCraft Launcher")
-
-            subtitle_font = QFont("Segoe UI")
-            subtitle_font.setPixelSize(12)
-            painter.setFont(subtitle_font)
-            painter.setPen(QColor("#C7E2FA"))
-            painter.drawText(QRectF(108, 70, width - 210, 18),
-                             Qt.AlignmentFlag.AlignLeft
-                             | Qt.AlignmentFlag.AlignVCenter,
-                             "Launcher de Minecraft Java Edition · "
-                             "1.7 – actual")
-
-            painter.setFont(QFont("Segoe UI", 8))
-            painter.setPen(QColor("#9CC7F0"))
-            painter.drawText(QRectF(108, 92, width - 210, 18),
-                             Qt.AlignmentFlag.AlignLeft
-                             | Qt.AlignmentFlag.AlignVCenter,
-                             "Por Liebe Black · versiones, librerías y "
-                             "Java oficiales · offline y Microsoft")
-
-            pill = QRectF(width - 90, 22, 64, 22)
-            painter.setPen(QPen(QColor(255, 255, 255, 52), 1))
-            painter.setBrush(QColor(255, 255, 255, 28))
-            painter.drawRoundedRect(pill, 11, 11)
-            painter.setPen(QColor("#FFFFFF"))
-            version_font = QFont("Segoe UI")
-            version_font.setWeight(QFont.Weight.Bold)
-            version_font.setPixelSize(11)
-            painter.setFont(version_font)
-            painter.drawText(pill, Qt.AlignmentFlag.AlignCenter,
-                             f"v{APP_VERSION}")
-
-        painter.end()
 
 
 class PageHeader(QWidget):
@@ -393,12 +295,6 @@ class Pill(QLabel):
             self.setObjectName(name)
             repolish(self)
 
-    def set_accent(self, accent: bool) -> None:
-        name = "pillAccent" if accent else "pill"
-        if self.objectName() != name:
-            self.setObjectName(name)
-            repolish(self)
-
 
 class Avatar(QWidget):
     """Avatar generado a partir del UUID, sin descargas externas."""
@@ -454,8 +350,7 @@ class ConsoleView(QPlainTextEdit):
         self.setReadOnly(True)
         self.setMaximumBlockCount(2500)
         self.setLineWrapMode(QPlainTextEdit.LineWrapMode.WidgetWidth)
-        self.setPlaceholderText(
-            "El registro de descargas y del juego aparecerá aquí.")
+        self.setPlaceholderText("Los registros aparecerán aquí.")
         self.setMinimumHeight(150)
         self.setSizePolicy(QSizePolicy.Policy.Expanding,
                            QSizePolicy.Policy.Expanding)
@@ -465,14 +360,7 @@ class ConsoleView(QPlainTextEdit):
 
 
 class _VersionPopup(QFrame):
-    """Panel desplegable del selector de versiones.
-
-    Muestra las versiones en un arbol agrupado por loader (Vanilla,
-    OptiFine, Forge, Fabric, NeoForge), luego por familia (1.12.x,
-    26.x...) y, dentro, por version base: cada perfil cuelga de su
-    version madre. QTreeWidget solo pinta las filas visibles, asi que
-    el scroll no renderiza la lista completa.
-    """
+    """Desplegable de versiones agrupado por loader, familia y base."""
 
     picked = pyqtSignal(str)
 
@@ -749,11 +637,7 @@ class _VersionPopup(QFrame):
 
 
 class VersionPicker(QToolButton):
-    """Boton que abre el arbol de versiones agrupadas por familia.
-
-    Sustituto del QComboBox: mismo sitio en la UI, pero el desplegable
-    agrupa cada perfil bajo su version madre y solo renderiza lo visible.
-    """
+    """Selector de version agrupado por familia y perfil."""
 
     selectionChanged = pyqtSignal(str)
 

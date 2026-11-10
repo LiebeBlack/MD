@@ -17,12 +17,12 @@ from ..branding import brand_icon
 # Escala de la interfaz. Todas las paginas usan estos valores para que los
 # margenes, separaciones y anchos sean consistentes entre pantallas.
 # --------------------------------------------------------------------------
-PAGE_MARGIN = 16
-PAGE_SPACING = 14
-CARD_MARGIN = 16
-CARD_SPACING = 10
-COLUMN_GAP = 16
-CONTENT_MAX_WIDTH = 1200
+PAGE_MARGIN = 18
+PAGE_SPACING = 12
+CARD_MARGIN = 14
+CARD_SPACING = 8
+COLUMN_GAP = 12
+CONTENT_MAX_WIDTH = 1120
 
 # Paletas Office 365 / Fluent. Cada tema define todos los tokens del QSS,
 # incluidos los colores "sueltos" (consola, foco de campos, gradientes).
@@ -44,8 +44,6 @@ LIGHT = {
     "ACCENT_DIM": "#0C518A",
     "ACCENT_DEEP": "#0A3D66",
     "ACCENT_TEXT": "#FFFFFF",
-    "ACCENT2": "#881798",
-    "INFO": "#0F6CBD",
     "DANGER": "#C50F1F",
     "WARN": "#CA5010",
     # Tokens extra para el QSS (rgb suelto para rgba(), fondos, degradados)
@@ -56,14 +54,6 @@ LIGHT = {
     "CONSOLE_TEXT": "#323130",
     "CONSOLE_SEL": "#D6E4F7",
     "OK_COLOR": "#107C10",
-    "CARD_A": "#FFFFFF",
-    "CARD_B": "#FFFFFF",
-    "PANEL_A": "#FFFFFF",
-    "PANEL_B": "#FFFFFF",
-    "PLAY_A": "#0F6CBD",
-    "PLAY_B": "#0F6CBD",
-    "PLAY_A_HI": "#106EBE",
-    "PLAY_B_HI": "#106EBE",
 }
 
 DARK = {
@@ -84,8 +74,6 @@ DARK = {
     "ACCENT_DIM": "#2B6CB8",
     "ACCENT_DEEP": "#1E4E8C",
     "ACCENT_TEXT": "#FFFFFF",
-    "ACCENT2": "#B180D7",
-    "INFO": "#6CB6FF",
     "DANGER": "#F1707B",
     "WARN": "#F2C14E",
     "ACCENT_RGB": "62, 139, 221",
@@ -95,14 +83,6 @@ DARK = {
     "CONSOLE_TEXT": "#D4D4D4",
     "CONSOLE_SEL": "#264F78",
     "OK_COLOR": "#6CCB5F",
-    "CARD_A": "#2D2D2D",
-    "CARD_B": "#2B2B2B",
-    "PANEL_A": "#252526",
-    "PANEL_B": "#222222",
-    "PLAY_A": "#5592E4",
-    "PLAY_B": "#2B6CB8",
-    "PLAY_A_HI": "#6FA8F5",
-    "PLAY_B_HI": "#3E8BDD",
 }
 
 THEMES = {"light": LIGHT, "dark": DARK}
@@ -147,20 +127,6 @@ def _draw_check(path: Path, color: str) -> None:
     pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
     painter.setPen(pen)
     painter.drawPolyline([QPointF(6, 12.5), QPointF(10.5, 17), QPointF(18, 8)])
-    painter.end()
-    pixmap.save(str(path))
-
-
-def _draw_clear(path: Path, color: str) -> None:
-    pixmap = QPixmap(24, 24)
-    pixmap.fill(Qt.GlobalColor.transparent)
-    painter = QPainter(pixmap)
-    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-    pen = QPen(QColor(color), 2.4)
-    pen.setCapStyle(Qt.PenCapStyle.RoundCap)
-    painter.setPen(pen)
-    painter.drawLine(QPointF(8, 8), QPointF(16, 16))
-    painter.drawLine(QPointF(16, 8), QPointF(8, 16))
     painter.end()
     pixmap.save(str(path))
 
@@ -219,16 +185,13 @@ def generate_assets(palette: dict | None = None) -> dict[str, str]:
     chevron = folder / "chevron.png"
     chevron_up = folder / "chevron_up.png"
     check = folder / "check.png"
-    clear = folder / "clear.png"
     _draw_chevron(chevron, palette["TEXT_DIM"])
     _draw_chevron(chevron_up, palette["TEXT_DIM"], up=True)
     _draw_check(check, palette["ACCENT_TEXT"])
-    _draw_clear(clear, palette["TEXT_FAINT"])
     return {
         "chevron": chevron.as_posix(),
         "chevron_up": chevron_up.as_posix(),
         "check": check.as_posix(),
-        "clear": clear.as_posix(),
     }
 
 
@@ -301,19 +264,16 @@ QStackedWidget, QScrollArea {
     background: transparent;
 }
 
-/* ---- tarjetas y paneles (degradado sutil tipo Fluent/Mica) ---- */
+/* ---- tarjetas y paneles ---- */
 QFrame#card {
     background-color: $SURFACE;
     border: 1px solid $BORDER_SOFT;
-    border-radius: 10px;
-}
-QFrame#card:hover {
-    border-color: $BORDER;
+    border-radius: 8px;
 }
 QFrame#softPanel {
     background-color: $SURFACE;
     border: 1px solid $BORDER_SOFT;
-    border-radius: 10px;
+    border-radius: 8px;
 }
 
 /* ---- etiquetas ---- */
@@ -322,18 +282,15 @@ QLabel {
 }
 QLabel#brandTitle {
     font-family: "Segoe UI", "Inter", sans-serif;
-    font-size: 14pt;
+    font-size: 13pt;
     font-weight: 700;
     letter-spacing: 0.2px;
-}
-QLabel#brandAccent {
-    color: $ACCENT;
 }
 QLabel#sectionLabel {
     color: $TEXT_FAINT;
     font-size: 7.5pt;
     font-weight: 700;
-    letter-spacing: 1.3px;
+    letter-spacing: 0.9px;
     padding-top: 1px;
 }
 QLabel#muted {
@@ -355,8 +312,8 @@ QLabel#valueLabel {
 }
 QLabel#appTitle {
     color: $TEXT;
-    font-size: 18pt;
-    font-weight: 800;
+    font-size: 16pt;
+    font-weight: 700;
 }
 QLabel#accountName {
     color: $TEXT;
@@ -607,12 +564,12 @@ QPushButton:disabled {
 QPushButton#playButton {
     background-color: $ACCENT;
     border: 1px solid $ACCENT_DEEP;
-    border-radius: 8px;
+    border-radius: 6px;
     color: $ACCENT_TEXT;
-    font-size: 12pt;
+    font-size: 11pt;
     font-weight: 700;
-    letter-spacing: 1.2px;
-    padding: 11px 18px;
+    letter-spacing: 0.6px;
+    padding: 10px 16px;
 }
 QPushButton#playButton:hover {
     background-color: $ACCENT_HI;
@@ -623,7 +580,7 @@ QPushButton#playButton:pressed {
 }
 QPushButton#playButton:focus {
     border: 2px solid $TEXT;
-    padding: 10px 17px;
+    padding: 9px 15px;
 }
 QPushButton#playButton:disabled {
     background: $SURFACE_ALT;
@@ -1083,13 +1040,9 @@ QFrame#divider {
     border: none;
 }
 
-/* ---- barra superior, pestanas estilo navegador y barra de estado ---- */
+/* ---- barra superior, navegacion y barra de estado ---- */
 QWidget#appBar {
     background-color: $SURFACE;
-    border-bottom: 1px solid $BORDER_SOFT;
-}
-QWidget#tabStrip {
-    background-color: $SURFACE_ALT;
     border-bottom: 1px solid $BORDER_SOFT;
 }
 QTabBar#browserTabs {
@@ -1099,28 +1052,23 @@ QTabBar#browserTabs {
 QTabBar#browserTabs::tab {
     background: transparent;
     color: $TEXT_DIM;
-    border: 1px solid transparent;
-    border-top: 2px solid transparent;
-    border-top-left-radius: 8px;
-    border-top-right-radius: 8px;
-    padding: 5px 12px;
-    margin: 3px 2px 0 0;
-    min-width: 80px;
+    border: none;
+    border-radius: 6px;
+    padding: 6px 12px;
+    margin: 0 2px;
+    min-width: 0;
 }
 QTabBar#browserTabs::tab:hover {
     background-color: $SURFACE_HOVER;
     color: $TEXT;
 }
 QTabBar#browserTabs::tab:selected {
-    background-color: $SURFACE;
-    color: $TEXT;
-    border-color: $BORDER_SOFT;
-    border-top: 2px solid $ACCENT;
-    border-bottom-color: $SURFACE;
+    background-color: rgba($ACCENT_RGB, 0.10);
+    color: $ACCENT;
     font-weight: 600;
 }
 QTabBar#browserTabs::tab:selected:hover {
-    background-color: $SURFACE;
+    background-color: rgba($ACCENT_RGB, 0.14);
 }
 QTabBar#browserTabs::tab:disabled {
     color: $TEXT_FAINT;
@@ -1136,7 +1084,7 @@ QWidget#page {
 }
 QLabel#pageTitle {
     color: $TEXT;
-    font-size: 15pt;
+    font-size: 13.5pt;
     font-weight: 700;
     letter-spacing: 0.1px;
 }
@@ -1212,10 +1160,7 @@ QTreeWidget::branch {
 QFrame#statCard {
     background-color: $SURFACE;
     border: 1px solid $BORDER_SOFT;
-    border-radius: 10px;
-}
-QFrame#statCard:hover {
-    border-color: $BORDER;
+    border-radius: 8px;
 }
 QLabel#statValue {
     color: $TEXT;
@@ -1243,7 +1188,7 @@ def build_stylesheet(theme_name: str = "light") -> str:
     assets = generate_assets(palette)
     return QSS.substitute(**palette, CHEVRON=assets["chevron"],
                           CHEVRON_UP=assets["chevron_up"],
-                          CHECK=assets["check"], CLEAR=assets["clear"])
+                          CHECK=assets["check"])
 
 
 def apply_theme(app: QApplication, theme_name: str = "light") -> None:

@@ -39,11 +39,11 @@ from ..util import human_size
 from ..workers import (ForgeInstallWorker, LoaderInstallWorker,
                        MSLoginWorker)
 from . import theme
-from .widgets import (Avatar, BrandBanner, Card, ConsoleView, Divider,
+from .widgets import (Avatar, Card, ConsoleView, Divider,
                       FocusWheelSlider, InfoGrid, PageHeader, Pill,
                       ScrollPage, StatCard, VersionPicker, faint_label,
                       link_button, list_row, make_button, muted_label,
-                      section_label, set_empty_table_message)
+                      repolish, section_label, set_empty_table_message)
 
 
 def _gb_text(memory_mb: int) -> str:
@@ -91,11 +91,7 @@ class PlayPage(ScrollPage):
 
     # ------------------------------------------------------------- build
     def _build(self) -> None:
-        header = PageHeader(
-            "Jugar",
-            "Elige jugador y versión; pulsa Jugar.")
-        self.head_pill = Pill("Modo offline")
-        header.add_action(self.head_pill)
+        header = PageHeader("Jugar")
         self.body.addWidget(header)
 
         columns = QHBoxLayout()
@@ -131,10 +127,6 @@ class PlayPage(ScrollPage):
         console_head.addWidget(make_button(
             "Carpeta", "ghost", "Abrir la carpeta .minecraft",
             self.shell._open_mc_folder))
-        console_head.addWidget(make_button(
-            "Registros", "ghost",
-            "Abrir la carpeta de registros del launcher",
-            lambda: _open_path(paths.LOGS_DIR)))
         console_head.addWidget(make_button(
             "Copiar", "ghost", "Copia todo el registro al portapapeles",
             self._copy_console))
@@ -191,11 +183,9 @@ class PlayPage(ScrollPage):
 
     def _account_card(self) -> Card:
         card = Card()
-        card.body.addWidget(section_label("Jugador"))
-
         row = QHBoxLayout()
         row.setSpacing(14)
-        self.avatar = Avatar(54)
+        self.avatar = Avatar(48)
         column = QVBoxLayout()
         column.setContentsMargins(0, 0, 0, 0)
         column.setSpacing(3)
@@ -221,20 +211,15 @@ class PlayPage(ScrollPage):
         column.addWidget(self.uuid_label)
         row.addWidget(self.avatar)
         row.addLayout(column, 1)
+        row.addWidget(make_button(
+            "Cambiar", "ghost", "Cambiar de cuenta",
+            lambda: self.shell._go_page(2)), 0,
+            Qt.AlignmentFlag.AlignVCenter)
         card.body.addLayout(row)
-
-        footer = QHBoxLayout()
-        footer.addStretch(1)
-        footer.addWidget(make_button(
-            "Cambiar", "ghost", "Elegir otra cuenta",
-            lambda: self.shell._go_page(2)))
-        card.body.addLayout(footer)
         return card
 
     def _version_card(self) -> Card:
         card = Card()
-        card.body.addWidget(section_label("Versión"))
-
         self.version_picker = VersionPicker()
         self.version_picker.set_placeholder("Cargando versiones…")
         self.version_picker.setToolTip(
@@ -281,16 +266,10 @@ class PlayPage(ScrollPage):
         mods_col.addWidget(mods_title)
         mods_col.addWidget(self.mods_status)
         mods_row.addLayout(mods_col, 1)
-        self.add_mod_button = make_button(
-            "Añadir .jar…", "accent",
-            "Instala uno o varios mods (.jar) en la carpeta mods del "
-            "juego. Si son mods de Forge, el launcher ofrece activarlo.",
-            lambda: self.shell.settings_page._add_mod())
         self.manage_mods_button = make_button(
             "Gestionar", "ghost",
-            "Abrir la pestaña Ajustes, sección Mods",
+            "Abrir Ajustes › Mods",
             lambda: self.shell._go_page(3))
-        mods_row.addWidget(self.add_mod_button)
         mods_row.addWidget(self.manage_mods_button)
         card.body.addLayout(mods_row)
         self._refresh_mods_status()
@@ -299,26 +278,22 @@ class PlayPage(ScrollPage):
     def _refresh_mods_status(self) -> None:
         installed = mods.list_mods()
         if not installed:
-            self.mods_status.setText("Sin mods instalados.")
+            self.mods_status.setText("Sin mods")
             return
         loader_mods = [mod for mod in installed if mod.loader]
         count = len(installed)
-        text = (f"{count} mod{'s' if count != 1 else ''} "
-                f"{'instalados' if count != 1 else 'instalado'}")
-        if loader_mods:
-            kinds = sorted({mod.loader for mod in loader_mods})
-            text += " · loaders: " + ", ".join(
-                kind.capitalize() for kind in kinds)
+        parts = [f"{count} mod" + ("s" if count != 1 else "")]
+        kinds = sorted({mod.loader for mod in loader_mods})
+        if kinds:
+            parts.append(", ".join(kind.capitalize() for kind in kinds))
+        text = " · ".join(parts)
         version_id = (self.shell._selected_version() or "").lower()
-        missing = [kind for kind in
-                   sorted({mod.loader for mod in loader_mods})
-                   if kind and kind not in version_id
+        missing = [kind for kind in kinds
+                   if kind not in version_id
                    and not loaders.has_loader_profile(kind)]
         if missing:
-            names = ", ".join(kind.capitalize() for kind in missing)
-            verb = "instálalo" if len(missing) == 1 else "instálalos"
-            text += (f" · AVISO: requieren {names} — {verb} en "
-                     "Ajustes > Mods")
+            text += " · falta " + ", ".join(
+                kind.capitalize() for kind in missing)
         # Mods que declaran una version de Minecraft incompatible.
         base = self.shell._selected_base() or ""
         if base:
@@ -327,75 +302,22 @@ class PlayPage(ScrollPage):
                 names = ", ".join(
                     mod.title or mod.name for mod, _dep in bad[:3])
                 extra = f" +{len(bad) - 3}" if len(bad) > 3 else ""
-                text += (f" · AVISO: {names}{extra} no son para MC "
-                         f"{base}")
+                text += f" · {names}{extra} no es para MC {base}"
         self.mods_status.setText(text)
-
-    def _system_card(self) -> Card:
-        """Información del equipo en rejilla alineada y accesos directos."""
-        card = Card()
-        card.body.addWidget(section_label("Sistema"))
-
-        runtimes = java_module.find_runtimes()
-        if runtimes:
-            java_text = " · ".join(
-                f"Java {item.major} ({item.source})"
-                for item in runtimes[:3])
-        else:
-            java_text = "Sin Java detectado"
-        self.system_grid = InfoGrid([
-            ("Equipo", hardware.summary(include_flags=False)),
-            ("Java", java_text),
-            ("Versiones", ""),
-            (".minecraft", str(paths.MC_DIR)),
-        ], key_width=88)
-        card.body.addWidget(self.system_grid)
-        self._refresh_sys_profiles()
-        card.body.addStretch(1)
-
-        buttons = QHBoxLayout()
-        buttons.setSpacing(8)
-        buttons.addWidget(make_button(
-            "Abrir .minecraft", "ghost", "Abrir la carpeta oficial",
-            lambda: _open_path(paths.MC_DIR)))
-        buttons.addWidget(make_button(
-            "Registros", "ghost", "Abrir la carpeta de logs del launcher",
-            lambda: _open_path(paths.LOGS_DIR)))
-        buttons.addStretch(1)
-        card.body.addLayout(buttons)
-        return card
-
-    def _refresh_sys_profiles(self, profiles: list[str] | None = None) -> None:
-        """Actualiza el contador de versiones/loaders de la tarjeta Sistema."""
-        grid = getattr(self, "system_grid", None)
-        if grid is None:
-            return
-        profiles = local_profiles() if profiles is None else profiles
-        grouped = loaders.installed_loader_profiles()
-        labels = {"forge": "Forge", "fabric": "Fabric",
-                  "neoforge": "NeoForge", "optifine": "OptiFine"}
-        parts = [f"{labels[kind]} ×{len(ids)}"
-                 for kind, ids in grouped.items()]
-        loaders_text = " · ".join(parts)
-        count = len(profiles)
-        text = (f"{count} versión" + ("es" if count != 1 else "")
-                + (f" · {loaders_text}" if loaders_text
-                   else " · sin loader"))
-        grid.set_value("Versiones", text)
-
-    def refresh_system_info(self) -> None:
-        self._refresh_sys_profiles()
 
     def _quick_card(self) -> Card:
         card = Card()
-        card.body.addWidget(section_label("Ajustes rápidos"))
 
         head = QHBoxLayout()
+        head.setSpacing(8)
         head.addWidget(faint_label("Memoria RAM"))
-        head.addStretch(1)
         self.ram_value = QLabel(_ram_text(self.shell.settings.memory_mb))
         self.ram_value.setObjectName("valueLabel")
         head.addWidget(self.ram_value)
+        head.addStretch(1)
+        head.addWidget(make_button(
+            "Consejos", "ghost", "Recomendaciones de RAM, GC y mods",
+            lambda: TipsDialog(self).exec()))
         card.body.addLayout(head)
 
         self.ram_slider = FocusWheelSlider(Qt.Orientation.Horizontal)
@@ -405,8 +327,8 @@ class PlayPage(ScrollPage):
         self.ram_slider.setSingleStep(MEMORY_STEP_MB)
         self.ram_slider.setPageStep(1024)
         self.ram_slider.setToolTip(
-            f"Máximo para tu equipo (~{_gb_text(ram_max)}): asignar más RAM "
-            "de la disponible provoca cierres y lentitud en el sistema.")
+            f"Máximo recomendado: {_gb_text(ram_max)}. Asignar más RAM de "
+            "la disponible ralentiza el equipo y puede cerrar el juego.")
         self.ram_slider.valueChanged.connect(self.shell._on_ram_changed)
         self.ram_slider.valueChanged.connect(self._sync_ram_presets)
         self.ram_slider.sliderReleased.connect(self._commit_ram)
@@ -427,43 +349,27 @@ class PlayPage(ScrollPage):
             presets.addWidget(button)
         presets.addStretch(1)
         card.body.addLayout(presets)
-        card.body.addWidget(faint_label(
-            f"Sugerido para este equipo: {_ram_text(recommended)}."))
 
-        card.body.addWidget(Divider())
-        card.body.addWidget(faint_label("Servidor (opcional)"))
+        card.body.addWidget(faint_label("Servidor"))
         self.server_edit = QLineEdit(self.shell.settings.server)
         self.server_edit.setPlaceholderText(
             "play.ejemplo.net:25565")
         self.server_edit.setClearButtonEnabled(True)
         self.server_edit.setToolTip(
-            "El juego se conecta automáticamente a este servidor al "
-            "iniciar. Déjalo vacío para abrir el menú multijugador.")
+            "Conexión automática al iniciar. Vacío = menú multijugador.")
         self.server_edit.editingFinished.connect(
             self.shell._on_server_changed)
         card.body.addWidget(self.server_edit)
 
-        card.body.addWidget(Divider())
         self.auto_close_check = QCheckBox(
             "Cerrar al iniciar el juego")
         self.auto_close_check.setChecked(self.shell.settings.auto_close)
         self.auto_close_check.setToolTip(
-            "El juego se ejecuta en un proceso independiente, por lo que el "
-            "launcher puede cerrarse y liberar toda su memoria.")
+            "El juego corre en un proceso independiente: el launcher "
+            "puede cerrarse y liberar su memoria.")
         self.auto_close_check.toggled.connect(
             self.shell._on_auto_close_changed)
         card.body.addWidget(self.auto_close_check)
-
-        card.body.addWidget(Divider())
-        tips_row = QHBoxLayout()
-        tips_row.addWidget(faint_label(
-            "Consejos para mejorar el rendimiento."))
-        tips_row.addStretch(1)
-        tips_row.addWidget(make_button(
-            "Ver consejos", "ghost",
-            "Mostrar recomendaciones de RAM, GC y mods",
-            lambda: TipsDialog(self).exec()))
-        card.body.addLayout(tips_row)
         self._sync_ram_presets()
         return card
 
@@ -498,8 +404,6 @@ class PlayPage(ScrollPage):
         self.avatar.set_identity(name or "?", uuid_ or name or "?")
         self.uuid_label.setText(f"UUID {uuid_}" if uuid_
                                 else "UUID pendiente")
-        self.head_pill.setText(kind)
-        self.head_pill.set_dim(not online)
         self.name_edit.setVisible(not online)
         self.account_label.setVisible(online)
         if online:
@@ -516,7 +420,7 @@ class PlayPage(ScrollPage):
         widgets: list[QWidget] = [
             self.name_edit, self.version_picker, self.ram_slider,
             self.auto_close_check, self.server_edit, self.optifine_button,
-            self.add_mod_button, self.manage_mods_button,
+            self.manage_mods_button,
         ]
         widgets.extend(button for button, _ in self._ram_presets)
         for widget in widgets:
@@ -531,9 +435,7 @@ class VersionsPage(ScrollPage):
         self._build()
 
     def _build(self) -> None:
-        header = PageHeader(
-            "Versiones",
-            "Versiones instaladas, descargas y registros.")
+        header = PageHeader("Versiones")
         header.add_action(make_button(
             "Actualizar", "accent", "Volver a leer versiones e historial (F5)",
             self.refresh_all))
@@ -603,18 +505,18 @@ class VersionsPage(ScrollPage):
         installed_card.body.addWidget(self.filter_empty)
 
         row = QHBoxLayout()
-        hint = faint_label("Librerías y assets compartidos.")
-        hint.setWordWrap(False)
-        row.addWidget(hint)
+        row.setSpacing(8)
         row.addStretch(1)
         row.addWidget(make_button(
             "Añadir carpeta…", "accent",
-            "Busca una carpeta .minecraft en cualquier ubicación y registra "
-            "sus versiones (incluidos perfiles Forge/OptiFine).",
+            "Registrar otra carpeta .minecraft y sus versiones",
             self._add_mc_folder))
         row.addWidget(make_button(
             "Abrir .minecraft", "ghost", "Abrir la carpeta oficial",
             lambda: _open_path(paths.MC_DIR)))
+        row.addWidget(make_button(
+            "Registros", "ghost", "Abrir la carpeta de registros",
+            lambda: _open_path(paths.LOGS_DIR)))
         installed_card.body.addLayout(row)
         self.extra_roots_label = faint_label("")
         installed_card.body.addWidget(self.extra_roots_label)
@@ -638,17 +540,6 @@ class VersionsPage(ScrollPage):
         self.sessions_table.setMaximumHeight(200)
         sessions_card.body.addWidget(self.sessions_table)
         self.body.addWidget(sessions_card)
-
-        logs_card = Card()
-        logs_card.body.addWidget(section_label("Registros del juego"))
-        self.logs_list = QListWidget()
-        self.logs_list.setMinimumHeight(100)
-        self.logs_list.setMaximumHeight(160)
-        self.logs_list.itemDoubleClicked.connect(self._open_log)
-        logs_card.body.addWidget(self.logs_list)
-        logs_card.body.addWidget(faint_label(
-            "Doble clic en un registro para abrirlo."))
-        self.body.addWidget(logs_card)
 
         self.body.addStretch(1)
 
@@ -679,7 +570,6 @@ class VersionsPage(ScrollPage):
         self._refresh_installed(installed)
         self._refresh_downloads()
         self._refresh_sessions()
-        self._refresh_logs()
 
     def _refresh_stats(self, installed: list[dict]) -> None:
         total = sum(item["size"] for item in installed)
@@ -729,9 +619,8 @@ class VersionsPage(ScrollPage):
         if root is None:
             QMessageBox.information(
                 self, "Escáner de Minecraft",
-                "No se encontró una carpeta .minecraft válida.\n\n"
-                "Elige la carpeta .minecraft, su subcarpeta versions/, "
-                "o una carpeta que la contenga (aunque tenga otro nombre).")
+                "No se encontró una carpeta .minecraft válida. Elige la "
+                "carpeta .minecraft o una que la contenga.")
             return
         settings = self.shell.settings
         current = [line.strip()
@@ -781,7 +670,7 @@ class VersionsPage(ScrollPage):
             name.setObjectName("valueLabel")
             parts = [human_size(entry["size"])] if entry["size"] else []
             if not entry["client"]:
-                parts.append("perfil, cliente base bajo demanda")
+                parts.append("cliente bajo demanda")
             detail = QLabel(" · ".join(parts) or "perfil local")
             detail.setObjectName("faint")
             info.addWidget(name)
@@ -822,9 +711,7 @@ class VersionsPage(ScrollPage):
             group.setText(0, self._group_label_text(group))
 
         if self.installed_list.topLevelItemCount() == 0:
-            item = QTreeWidgetItem(
-                ["No hay versiones instaladas. "
-                 "Pulsa Jugar para descargar una."])
+            item = QTreeWidgetItem(["No hay versiones instaladas."])
             item.setFlags(Qt.ItemFlag.NoItemFlags)
             self.installed_list.addTopLevelItem(item)
         self._apply_filter()
@@ -916,8 +803,7 @@ class VersionsPage(ScrollPage):
         table.setRowCount(0)
         rows = database.list_downloads(limit=500)
         if not rows:
-            set_empty_table_message(
-                table, "Sin operaciones registradas.")
+            set_empty_table_message(table, "Sin operaciones.")
             return
         for row in rows:
             r = table.rowCount()
@@ -949,7 +835,7 @@ class VersionsPage(ScrollPage):
         table.setRowCount(0)
         rows = database.list_sessions(limit=500)
         if not rows:
-            set_empty_table_message(table, "Aún no has jugado ninguna partida.")
+            set_empty_table_message(table, "Sin partidas.")
             return
         for row in rows:
             r = table.rowCount()
@@ -980,40 +866,11 @@ class VersionsPage(ScrollPage):
                     item.setForeground(QColor(state_color))
                 table.setItem(r, c, item)
 
-    def _refresh_logs(self) -> None:
-        self.logs_list.clear()
-        try:
-            logs = sorted(paths.LOGS_DIR.glob("*.log"),
-                          key=lambda p: p.stat().st_mtime,
-                          reverse=True)[:100]
-        except OSError:
-            logs = []
-        for log in logs:
-            try:
-                stat = log.stat()
-            except OSError:
-                continue
-            label = (f"{log.name}  ·  {human_size(stat.st_size)}  ·  "
-                     f"{time.strftime('%d/%m %H:%M', time.localtime(stat.st_mtime))}")
-            item = QListWidgetItem(label)
-            item.setData(Qt.ItemDataRole.UserRole, str(log))
-            item.setToolTip(str(log))
-            self.logs_list.addItem(item)
-        if not logs:
-            item = QListWidgetItem("No hay registros.")
-            item.setFlags(Qt.ItemFlag.NoItemFlags)
-            self.logs_list.addItem(item)
-
-    def _open_log(self, item: QListWidgetItem) -> None:
-        path = item.data(Qt.ItemDataRole.UserRole)
-        if path:
-            _open_path(Path(path))
-
     def clear_history(self) -> None:
         answer = QMessageBox.question(
             self, "Limpiar historial",
             "Se borrará el historial de descargas y sesiones. "
-            "Los archivos del juego no se tocan.\n\n¿Continuar?",
+            "Los archivos del juego no se tocan.",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No,
         )
@@ -1032,9 +889,7 @@ class AccountPage(ScrollPage):
         self._build()
 
     def _build(self) -> None:
-        header = PageHeader(
-            "Cuenta",
-            "Perfil activo y cuentas de jugador.")
+        header = PageHeader("Cuenta")
         self.body.addWidget(header)
 
         self.body.addWidget(self._active_card())
@@ -1073,15 +928,11 @@ class AccountPage(ScrollPage):
         row.addWidget(self.active_avatar)
         row.addLayout(column, 1)
         card.body.addLayout(row)
-        card.body.addWidget(faint_label(
-            "Identidad usada al iniciar el juego."))
         return card
 
     def _offline_card(self) -> Card:
         card = Card()
         card.body.addWidget(section_label("Perfil offline"))
-        card.body.addWidget(muted_label(
-            "Nombre sin verificación; UUID determinista."))
 
         row = QHBoxLayout()
         row.setSpacing(14)
@@ -1106,7 +957,7 @@ class AccountPage(ScrollPage):
         use_row = QHBoxLayout()
         use_row.setSpacing(8)
         use_row.addWidget(make_button(
-            "Usar perfil offline", "primary",
+            "Usar offline", "primary",
             "Jugar con el nombre offline",
             self._use_offline), 1)
         use_row.addWidget(make_button(
@@ -1124,12 +975,10 @@ class AccountPage(ScrollPage):
         self.ms_status = Pill("SIN SESIÓN", dim=True)
         head.addWidget(self.ms_status)
         card.body.addLayout(head)
-        card.body.addWidget(muted_label(
-            "Código de dispositivo; tu contraseña nunca se comparte."))
 
         card.body.addWidget(make_button(
-            "Iniciar sesión con Microsoft", "primary",
-            "Vincular una cuenta oficial mediante device code",
+            "Iniciar sesión", "primary",
+            "Iniciar sesión con Microsoft (código de dispositivo)",
             self._start_login))
         card.body.addWidget(Divider())
         card.body.addWidget(section_label("Cuentas guardadas"))
@@ -1138,7 +987,7 @@ class AccountPage(ScrollPage):
         self.accounts_list.setMaximumHeight(120)
         card.body.addWidget(self.accounts_list)
 
-        self.accounts_empty = QLabel("No hay cuentas Microsoft guardadas.")
+        self.accounts_empty = QLabel("Sin cuentas guardadas.")
         self.accounts_empty.setObjectName("emptyState")
         self.accounts_empty.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.accounts_empty.setMinimumHeight(88)
@@ -1211,7 +1060,7 @@ class AccountPage(ScrollPage):
     def refresh_active_summary(self) -> None:
         name, uuid_, kind, online = self.shell._active_identity()
         self.active_avatar.set_identity(name or "?", uuid_ or name or "?")
-        self.active_name.setText(name or "Sin nombre")
+        self.active_name.setText(name or "Sin perfil")
         self.active_uuid.setText(f"UUID {uuid_}" if uuid_
                                  else "UUID pendiente")
         self.active_pill.setText(kind)
@@ -1269,8 +1118,7 @@ class AccountPage(ScrollPage):
     def _remove_account(self, mc_uuid: str) -> None:
         answer = QMessageBox.question(
             self, "Quitar cuenta",
-            f"Se eliminará la cuenta {mc_uuid} de este equipo.\n\n"
-            "¿Continuar?",
+            f"Se eliminará la cuenta {mc_uuid} de este equipo.",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No,
         )
@@ -1303,11 +1151,11 @@ class TipsDialog(QDialog):
         layout.addWidget(title)
 
         body = QLabel(
-            "• RAM: 2–4 GB; más no siempre mejora los FPS.\n"
-            "• GC Serial en equipos modestos; G1 en potentes.\n"
-            "• Cierra el launcher al jugar para liberar memoria.\n"
-            "• Actualiza los drivers de la GPU.\n"
-            "• En Fabric, Sodium + Lithium + FerriteCore mejoran FPS.")
+            "• 2–4 GB de RAM suelen ser suficientes.\n"
+            "• Serial en equipos modestos; G1 en potentes.\n"
+            "• Cierra el launcher al jugar.\n"
+            "• Mantén los drivers de la GPU al día.\n"
+            "• En Fabric, Sodium y Lithium mejoran los FPS.")
         body.setWordWrap(True)
         body.setTextFormat(Qt.TextFormat.PlainText)
         layout.addWidget(body)
@@ -1315,7 +1163,7 @@ class TipsDialog(QDialog):
         buttons = QHBoxLayout()
         buttons.addStretch(1)
         buttons.addWidget(make_button(
-            "Entendido", "primary", "Cerrar este diálogo",
+            "Cerrar", "primary", "Cerrar este diálogo",
             self.accept))
         layout.addLayout(buttons)
 
@@ -1340,11 +1188,8 @@ class MSLoginDialog(QDialog):
         title = QLabel("Iniciar sesión con Microsoft")
         title.setObjectName("pageTitle")
         layout.addWidget(title)
-        layout.addWidget(muted_label(
-            "Se abrirá Microsoft: introduce el código y confirma. El "
-            "launcher continúa solo; nunca ve tu contraseña."))
 
-        self.status = QLabel("Solicitando código a Microsoft…")
+        self.status = QLabel("Solicitando código…")
         self.status.setObjectName("muted")
         self.status.setWordWrap(True)
         layout.addWidget(self.status)
@@ -1386,8 +1231,7 @@ class MSLoginDialog(QDialog):
         buttons.addStretch(1)
         layout.addLayout(buttons)
 
-        self.wait_label = muted_label(
-            "El launcher continuará automáticamente.")
+        self.wait_label = muted_label("Esperando confirmación…")
         self.wait_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.wait_label)
         self.wait_label.setVisible(False)
@@ -1402,8 +1246,9 @@ class MSLoginDialog(QDialog):
     def show_code(self, device: msauth.DeviceCode) -> None:
         self._device = device
         self.code_label.setText(device.user_code)
-        self.status.setText(
-            "Introduce este código en la página de Microsoft:")
+        self.status.setObjectName("muted")
+        repolish(self.status)
+        self.status.setText("Código de verificación:")
         link = (f"<a href='{device.verification_uri}' "
                 f"style='color:{theme.COLORS['ACCENT']}'>"
                 f"{device.verification_uri}</a>")
@@ -1416,7 +1261,7 @@ class MSLoginDialog(QDialog):
     def show_error(self, message: str) -> None:
         self.status.setText(message)
         self.status.setObjectName("statusError")
-        self.status.setStyleSheet(f"color: {theme.COLORS['DANGER']};")
+        repolish(self.status)
         self.code_label.setText("")
         self.link_label.setText("")
         self.copy_button.setEnabled(False)
@@ -1426,7 +1271,7 @@ class MSLoginDialog(QDialog):
     def _copy_code(self) -> None:
         if self._device and self._device.user_code:
             QApplication.clipboard().setText(self._device.user_code)
-            self.status.setText("Código copiado al portapapeles.")
+            self.status.setText("Código copiado.")
 
     def _open_link(self) -> None:
         if self._device and self._device.verification_uri:
@@ -1450,9 +1295,7 @@ class SettingsPage(ScrollPage):
         self._refresh_dirty()
 
     def _build(self) -> None:
-        header = PageHeader(
-            "Ajustes",
-            "Apariencia, Java, rendimiento y datos.")
+        header = PageHeader("Ajustes")
         self.dirty_pill = Pill("SIN GUARDAR")
         self.dirty_pill.setVisible(False)
         header.add_action(self.dirty_pill)
@@ -1476,12 +1319,8 @@ class SettingsPage(ScrollPage):
         card = Card()
         row = QHBoxLayout()
         row.setSpacing(12)
-        titles = QVBoxLayout()
-        titles.setContentsMargins(0, 0, 0, 0)
-        titles.setSpacing(1)
-        titles.addWidget(section_label("Apariencia"))
-        titles.addWidget(muted_label("Se aplica y guarda al instante."))
-        row.addLayout(titles, 1)
+        row.addWidget(section_label("Apariencia"))
+        row.addStretch(1)
         segmented = QFrame()
         segmented.setObjectName("segmented")
         segmented_layout = QHBoxLayout(segmented)
@@ -1520,9 +1359,6 @@ class SettingsPage(ScrollPage):
         settings = self.shell.settings
         card = Card()
         card.body.addWidget(section_label("Java y arranque"))
-        card.body.addWidget(muted_label(
-            "Ruta de Java y argumentos de la JVM. Vacío = detección "
-            "automática."))
 
         form = QFormLayout()
         form.setSpacing(8)
@@ -1582,15 +1418,6 @@ class SettingsPage(ScrollPage):
             self.java_edit.setText(selected)
 
     # --------------------------------------------------------- rendimiento
-    def _field_with_hint(self, widget: QWidget, hint: str) -> QWidget:
-        box = QWidget()
-        layout = QVBoxLayout(box)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(2)
-        layout.addWidget(widget)
-        layout.addWidget(faint_label(hint))
-        return box
-
     def _performance_card(self) -> Card:
         settings = self.shell.settings
         card = Card()
@@ -1616,9 +1443,7 @@ class SettingsPage(ScrollPage):
         index = self.priority_combo.findData(settings.game_priority)
         if index >= 0:
             self.priority_combo.setCurrentIndex(index)
-        form.addRow("Prioridad del proceso", self._field_with_hint(
-            self.priority_combo,
-            "Baja o reposo reduce el impacto en el equipo."))
+        form.addRow("Prioridad del proceso", self.priority_combo)
 
         self.gc_combo = QComboBox()
         for value, label in (("auto", "Automático"),
@@ -1633,9 +1458,7 @@ class SettingsPage(ScrollPage):
         index = self.gc_combo.findData(settings.gc_preset)
         if index >= 0:
             self.gc_combo.setCurrentIndex(index)
-        form.addRow("Recolector (GC)", self._field_with_hint(
-            self.gc_combo,
-            "Serial para equipos modestos; G1 para potentes."))
+        form.addRow("Recolector (GC)", self.gc_combo)
 
         self.cores_spin = QSpinBox()
         max_cores = os.cpu_count() or 32
@@ -1645,9 +1468,7 @@ class SettingsPage(ScrollPage):
         self.cores_spin.setToolTip(
             "Limita el juego a N núcleos lógicos (0 = usar todos).")
         self.cores_spin.setFixedWidth(120)
-        form.addRow("Núcleos de CPU", self._field_with_hint(
-            self.cores_spin,
-            "Todos por defecto; un límite mejora la multitarea."))
+        form.addRow("Núcleos de CPU", self.cores_spin)
         card.body.addLayout(form)
 
         optimize_row = QHBoxLayout()
@@ -1658,8 +1479,6 @@ class SettingsPage(ScrollPage):
             self._optimize_for_hardware))
         optimize_row.addStretch(1)
         card.body.addLayout(optimize_row)
-        card.body.addWidget(faint_label(
-            "Aplica RAM y GC recomendados según el hardware."))
         return card
 
     def _optimize_for_hardware(self) -> None:
@@ -1695,10 +1514,6 @@ class SettingsPage(ScrollPage):
     def _mods_card(self) -> Card:
         card = Card()
         card.body.addWidget(section_label("Mods"))
-        card.body.addWidget(muted_label(
-            "Añade mods .jar a la carpeta del juego. Los loaders "
-            "(Forge, Fabric, NeoForge) se instalan abajo; OptiFine se "
-            "gestiona en Jugar."))
         self.mods_list = QListWidget()
         self.mods_list.setMinimumHeight(96)
         self.mods_list.setMaximumHeight(150)
@@ -1768,13 +1583,8 @@ class SettingsPage(ScrollPage):
                 shown = ", ".join(ids[:2])
                 extra = f" (+{len(ids) - 2})" if len(ids) > 2 else ""
                 parts.append(f"{kind.capitalize()} {shown}{extra}")
-        if parts:
-            self.mods_loader_label.setText(
-                " · ".join(parts) + " · perfiles de loader instalados.")
-        else:
-            self.mods_loader_label.setText(
-                "Ningún loader instalado · la mayoría de mods lo "
-                "requieren.")
+        self.mods_loader_label.setText(
+            " · ".join(parts) if parts else "Sin loaders")
 
     def showEvent(self, event) -> None:  # noqa: N802 - API de Qt
         super().showEvent(event)
@@ -1840,8 +1650,7 @@ class SettingsPage(ScrollPage):
         if not version_id:
             name = self._LOADER_NAMES.get(kind, kind)
             QMessageBox.information(
-                self, name, f"Selecciona primero una versión de "
-                "Minecraft en la pestaña Jugar.")
+                self, name, "Selecciona una versión en Jugar.")
             return
         self._loader_base = version_id
         self._loader_kind = kind
@@ -1967,24 +1776,14 @@ class SettingsPage(ScrollPage):
         danger_row.setSpacing(8)
         danger_row.addWidget(make_button(
             "Vaciar datos", "danger",
-            "Borrar todo el contenido de las carpetas de datos del "
-            "launcher (ajustes y .minecraft se conservan)",
+            "Borra caché, Java y registros; conserva ajustes y .minecraft",
             self._wipe_data))
-        danger_row.addStretch(1)
-        card.body.addLayout(danger_row)
-
-        card.body.addWidget(Divider())
-        reset_row = QHBoxLayout()
-        reset_hint = faint_label(
-            "Restablecer vuelve a los valores de fábrica.")
-        reset_hint.setWordWrap(False)
-        reset_row.addWidget(reset_hint)
-        reset_row.addStretch(1)
-        reset_row.addWidget(make_button(
+        danger_row.addWidget(make_button(
             "Restablecer", "danger",
             "Volver a los ajustes de fábrica",
             self._reset_settings))
-        card.body.addLayout(reset_row)
+        danger_row.addStretch(1)
+        card.body.addLayout(danger_row)
         return card
 
     def _clear_cache(self) -> None:
@@ -2228,114 +2027,61 @@ class AboutPage(ScrollPage):
 
     # ------------------------------------------------------------- build
     def _build(self) -> None:
-        self.body.addWidget(BrandBanner())
-
-        self._app_card()
+        self.body.addWidget(self._hero_card())
         self._project_card()
         self._support_card()
-        self._update_card()
         self._system_card()
         self.body.addStretch(1)
 
-    def _app_card(self) -> None:
+    def _hero_card(self) -> Card:
         card = Card()
         row = QHBoxLayout()
         row.setSpacing(14)
         icon = QLabel()
-        icon.setPixmap(theme.app_icon().pixmap(56, 56))
-        icon.setFixedSize(56, 56)
+        icon.setPixmap(theme.app_icon().pixmap(48, 48))
+        icon.setFixedSize(48, 48)
         row.addWidget(icon)
         column = QVBoxLayout()
         column.setContentsMargins(0, 0, 0, 0)
-        column.setSpacing(1)
-        column.addWidget(section_label("Aplicación"))
+        column.setSpacing(2)
         name = QLabel(f"{APP_NAME} Launcher")
         name.setObjectName("appTitle")
         column.addWidget(name)
         meta = QLabel(
-            f"Versión {APP_VERSION} · desarrollado por Liebe Black · "
-            "launcher de Minecraft Java Edition para Windows.")
+            f"v{APP_VERSION} · Launcher de Minecraft Java Edition")
         meta.setObjectName("muted")
         meta.setWordWrap(True)
         column.addWidget(meta)
         row.addLayout(column, 1)
-        card.body.addLayout(row)
-        card.body.addWidget(muted_label(
-            "Versiones, librerías y Java oficiales de Mojang. Modo "
-            "offline y cuentas Microsoft."))
-        self.body.addWidget(card)
 
-    def _project_card(self) -> None:
-        card = Card()
-        card.body.addWidget(section_label("Proyecto"))
-        repo = QLabel(REPO_URL)
-        repo.setObjectName("mono")
-        repo.setTextInteractionFlags(
-            Qt.TextInteractionFlag.TextSelectableByMouse)
-        card.body.addWidget(repo)
-        row = QHBoxLayout()
-        row.setSpacing(8)
-        row.addWidget(link_button("GitHub", REPO_URL))
-        row.addWidget(link_button("Última versión", RELEASES_URL))
-        row.addWidget(link_button("Reportar error", ISSUES_URL))
-        row.addWidget(link_button("Documentación", DOCS_URL))
-        row.addStretch(1)
-        card.body.addLayout(row)
-        card.body.addWidget(faint_label(
-            "Código abierto. Minecraft es una marca de Mojang; "
-            "proyecto no afiliado."))
-        self.body.addWidget(card)
-
-    def _support_card(self) -> None:
-        card = Card()
-        card.body.addWidget(section_label("Apoya el proyecto"))
-        card.body.addWidget(QLabel(
-            "Gratis y de código abierto. Si te resulta útil, apoya el "
-            "proyecto."))
-        row = QHBoxLayout()
-        row.setSpacing(8)
-        row.addWidget(link_button(
-            "Donar", SPONSORS_URL, "primary",
-            "Abrir la página de patrocinio"))
-        row.addWidget(link_button(
-            "Ver en GitHub", REPO_URL, "ghost"))
-        row.addWidget(make_button(
-            "Copiar diagnóstico", "ghost",
-            "Copia la información del sistema para pegarla al reportar "
-            "un problema",
-            self._copy_diagnostics))
-        row.addStretch(1)
-        card.body.addLayout(row)
-        card.body.addWidget(faint_label(
-            "Donaciones voluntarias; no desbloquean funciones."))
-        self.body.addWidget(card)
-
-    def _update_card(self) -> None:
-        card = Card()
+        updates = QVBoxLayout()
+        updates.setSpacing(4)
         head = QHBoxLayout()
-        head.addWidget(section_label("Actualizaciones"))
-        head.addStretch(1)
+        head.setSpacing(6)
         self.update_pill = Pill("SIN COMPROBAR", dim=True)
         head.addWidget(self.update_pill)
         self.update_check_button = make_button(
-            "Comprobar", "accent",
+            "Comprobar", "ghost",
             "Buscar una versión nueva en GitHub",
             self._start_update_check)
         head.addWidget(self.update_check_button)
-        card.body.addLayout(head)
-        self.update_label = QLabel(f"Instalada: {APP_VERSION}")
+        updates.addLayout(head)
+        self.update_label = QLabel("")
         self.update_label.setObjectName("muted")
-        card.body.addWidget(self.update_label)
+        updates.addWidget(self.update_label)
+        row.addLayout(updates, 0)
+        card.body.addLayout(row)
+
         self.update_page_url = RELEASES_URL
         self.update_asset_url = ""
         self.update_button = make_button(
             "Descargar instalador", "accent",
-            "Abrir la descarga del instalador de la última versión",
+            "Abrir la descarga del instalador",
             self._open_update_download)
         self.update_button.setVisible(False)
         self.update_notes_button = make_button(
             "Ver notas", "ghost",
-            "Abrir la página del release en GitHub",
+            "Abrir la página del release",
             self._open_update_page)
         self.update_notes_button.setVisible(False)
         actions = QHBoxLayout()
@@ -2344,6 +2090,38 @@ class AboutPage(ScrollPage):
         actions.addWidget(self.update_notes_button)
         actions.addStretch(1)
         card.body.addLayout(actions)
+        return card
+
+    def _project_card(self) -> None:
+        card = Card()
+        card.body.addWidget(section_label("Proyecto"))
+        row = QHBoxLayout()
+        row.setSpacing(8)
+        row.addWidget(link_button("GitHub", REPO_URL))
+        row.addWidget(link_button("Releases", RELEASES_URL))
+        row.addWidget(link_button("Issues", ISSUES_URL))
+        row.addWidget(link_button("Documentación", DOCS_URL))
+        row.addStretch(1)
+        card.body.addLayout(row)
+        card.body.addWidget(faint_label(
+            "Código abierto · no afiliado a Mojang."))
+        self.body.addWidget(card)
+
+    def _support_card(self) -> None:
+        card = Card()
+        card.body.addWidget(section_label("Apoya el proyecto"))
+        row = QHBoxLayout()
+        row.setSpacing(8)
+        row.addWidget(link_button(
+            "Donar", SPONSORS_URL, "primary",
+            "Abrir la página de patrocinio"))
+        row.addWidget(make_button(
+            "Copiar diagnóstico", "ghost",
+            "Copia la información del sistema para reportar un problema",
+            self._copy_diagnostics))
+        row.addStretch(1)
+        card.body.addLayout(row)
+        card.body.addWidget(faint_label("Donaciones voluntarias."))
         self.body.addWidget(card)
 
     def ensure_update_check(self) -> None:
@@ -2359,13 +2137,21 @@ class AboutPage(ScrollPage):
         self._update_started = True
         self.update_pill.setText("COMPROBANDO")
         self.update_pill.set_dim(True)
-        self.update_label.setText("Comprobando…")
+        self.update_label.setText("")
         self.update_check_button.setEnabled(False)
         self.update_button.setVisible(False)
         self.update_notes_button.setVisible(False)
-        self._update_checker = _UpdateChecker(self)
-        self._update_checker.checked.connect(self._on_update_checked)
-        self._update_checker.start()
+        checker = _UpdateChecker(self)
+        checker.checked.connect(self._on_update_checked)
+        checker.finished.connect(self._on_update_finished)
+        self._update_checker = checker
+        checker.start()
+
+    def _on_update_finished(self) -> None:
+        checker = getattr(self, "_update_checker", None)
+        self._update_checker = None
+        if checker is not None:
+            checker.deleteLater()
 
     def _on_update_checked(self, tag: str, page_url: str,
                            asset_url: str) -> None:
@@ -2375,22 +2161,20 @@ class AboutPage(ScrollPage):
         if not tag:
             self.update_pill.setText("SIN CONEXIÓN")
             self.update_pill.set_dim(True)
-            self.update_label.setText("Sin conexión o sin releases.")
+            self.update_label.setText("Sin conexión.")
             self.update_button.setVisible(False)
             self.update_notes_button.setVisible(False)
             return
         if _version_key(tag) <= _version_key(APP_VERSION):
             self.update_pill.setText("AL DÍA")
             self.update_pill.set_dim(False)
-            self.update_label.setText(
-                f"Al día · {APP_NAME} {APP_VERSION}.")
+            self.update_label.setText("")
             self.update_button.setVisible(False)
             self.update_notes_button.setVisible(False)
             return
         self.update_pill.setText("NUEVA VERSIÓN")
         self.update_pill.set_dim(False)
-        self.update_label.setText(
-            f"Nueva versión {tag} · instalada {APP_VERSION}.")
+        self.update_label.setText(f"Disponible {tag}")
         self.update_button.setText(
             "Descargar instalador" if asset_url else "Ver releases")
         self.update_button.setVisible(True)
@@ -2420,21 +2204,16 @@ class AboutPage(ScrollPage):
             ("Plataforma", f"{sys.platform} · {platform.machine()}"),
         ]
         card.body.addWidget(InfoGrid(rows, key_width=132))
-        self.body.addWidget(card)
-
-        legal = QLabel(
-            "No redistribuye archivos de Minecraft: los descarga de los "
-            "servidores oficiales. Sin garantías."
-        )
-        legal.setObjectName("faint")
-        legal.setWordWrap(True)
-        self.body.addWidget(legal)
         legal_row = QHBoxLayout()
-        legal_row.addWidget(link_button(
-            "Aviso legal y licencia",
-            f"{REPO_URL}/blob/main/installer/license.txt"))
+        legal_row.setSpacing(8)
+        legal_row.addWidget(faint_label(
+            "No redistribuye archivos de Minecraft. Sin garantías."))
         legal_row.addStretch(1)
-        self.body.addLayout(legal_row)
+        legal_row.addWidget(link_button(
+            "Licencia",
+            f"{REPO_URL}/blob/main/installer/license.txt"))
+        card.body.addLayout(legal_row)
+        self.body.addWidget(card)
 
     # ------------------------------------------------------------ helpers
     def _copy_diagnostics(self) -> None:
