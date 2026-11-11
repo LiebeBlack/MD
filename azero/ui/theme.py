@@ -489,9 +489,12 @@ QComboBox QAbstractItemView::item:selected {
 /* ---- selector de versiones agrupado ---- */
 QPushButton#versionPicker {
     background-color: $SURFACE;
+    background-image: url("$CHEVRON");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
     border: 1px solid $BORDER;
     border-radius: 6px;
-    padding: 6px 12px;
+    padding: 6px 34px 6px 12px;
     min-height: 18px;
     color: $TEXT;
     font-size: 9.5pt;
@@ -508,7 +511,7 @@ QPushButton#versionPicker:pressed {
 QPushButton#versionPicker:focus {
     border: 2px solid $ACCENT;
     background-color: $FIELD_FOCUS;
-    padding: 5px 11px;
+    padding: 5px 33px 5px 11px;
 }
 QPushButton#versionPicker:disabled {
     color: $TEXT_FAINT;

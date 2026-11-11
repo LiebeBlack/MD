@@ -319,6 +319,7 @@ header.is-scrolled {
 .nav-links a[aria-current="true"]::after { transform: scaleX(1); }
 
 .nav-actions { display: flex; align-items: center; gap: 8px; }
+.nav-mobile { display: none; }
 #menu-btn { display: none; }
 
 /* =====================================================================
@@ -1181,13 +1182,13 @@ footer {
 /* =====================================================================
    Animaciones de entrada
    ===================================================================== */
-.reveal {
+.anim .reveal {
   opacity: 0;
   transform: translateY(16px);
   transition: opacity .6s ease, transform .6s cubic-bezier(.2, .7, .2, 1);
   transition-delay: var(--d, 0ms);
 }
-.reveal.is-visible { opacity: 1; transform: none; }
+.anim .reveal.is-visible { opacity: 1; transform: none; }
 
 /* =====================================================================
    Responsive
@@ -1229,6 +1230,7 @@ footer {
   }
   .nav-links a { padding: 11px 12px; font-size: 15px; }
   .nav-links a::after { display: none; }
+  .nav-links .nav-mobile { display: block; color: var(--accent); }
   .nav-actions { margin-left: auto; }
 }
 
@@ -1269,7 +1271,7 @@ footer {
     transition-duration: .01ms !important;
     scroll-behavior: auto !important;
   }
-  .reveal { opacity: 1; transform: none; }
+  .anim .reveal { opacity: 1; transform: none; }
 }
 </style>
 </head>
@@ -1282,9 +1284,10 @@ footer {
   <div class="wrap nav">
     <a class="logo" href="#top" aria-label="AZeroCraft Launcher, inicio">
       <span class="logo-mark" aria-hidden="true">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round">
-          <path d="M12 3 20 7.5v9L12 21l-8-4.5v-9L12 3Z"></path>
-          <path d="M12 3v9m0 0 8-4.5M12 12 4 7.5"></path>
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M12 2.4 20.6 7v10L12 21.6 3.4 17V7L12 2.4Z" fill="currentColor" opacity=".2"></path>
+          <path d="M12 2.4 20.6 7 12 11.6 3.4 7 12 2.4Z" fill="currentColor"></path>
+          <path d="M12 11.6 20.6 7v10L12 21.6V11.6Z" fill="currentColor" opacity=".6"></path>
         </svg>
       </span>
       <span>AZero<b>Craft</b></span>
@@ -1296,11 +1299,12 @@ footer {
       <a href="#manual">Manual</a>
       <a href="#rendimiento">Rendimiento</a>
       <a href="#ayuda">Ayuda</a>
+      <a class="nav-mobile" href="#descargar">Descargar</a>
     </nav>
 
     <div class="nav-actions">
       <a class="btn btn-primary btn-sm nav-cta" href="#descargar">Descargar</a>
-      <button class="icon-btn" id="theme-toggle" type="button" aria-label="Cambiar al tema claro" aria-pressed="false">
+      <button class="icon-btn" id="theme-toggle" type="button" aria-label="Cambiar al tema claro">
         <svg class="ico-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
           <path d="M20.5 14.2A8.5 8.5 0 0 1 9.8 3.5a8.5 8.5 0 1 0 10.7 10.7Z"></path>
         </svg>
@@ -1484,8 +1488,8 @@ footer {
   <div class="wrap reveal">
     <div class="metrics">
       <div class="metric"><b>1.7 → 26.x</b><span>Versiones compatibles</span></div>
-      <div class="metric"><b><span data-count="5">5</span></b><span>Loaders integrados</span></div>
-      <div class="metric"><b>SHA-256</b><span>Verificación de descargas</span></div>
+      <div class="metric"><b><span data-count="4">4</span></b><span>Loaders integrados</span></div>
+      <div class="metric"><b>SHA-1/256</b><span>Verificación de descargas</span></div>
       <div class="metric"><b><span data-count="0">0</span></b><span>Telemetría propia</span></div>
     </div>
   </div>
@@ -1558,7 +1562,7 @@ footer {
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17a9 9 0 1 1 18 0"></path><path d="m12 13 4-4"></path><circle cx="12" cy="17" r="1.6"></circle></svg>
           </span>
           <h3>Control de recursos</h3>
-          <p>Ajusta memoria, prioridad del proceso, afinidad de CPU, recolector de basura y argumentos de la JVM. La configuración se guarda por instalación.</p>
+          <p>Ajusta memoria, prioridad del proceso, afinidad de CPU, recolector de basura y argumentos de la JVM. La configuración se conserva entre sesiones.</p>
           <span class="tag">A medida</span>
         </article>
 
@@ -1590,7 +1594,7 @@ footer {
     <div class="wrap">
       <div class="sec-head reveal">
         <span class="eyebrow">Compatibilidad</span>
-        <h2>La versión correcta, con el Java correcto</h2>
+        <h2>Java correcto para cada versión</h2>
         <p>Selecciona una etapa de Minecraft para consultar el runtime recomendado y el formato de argumentos que interpreta el launcher.</p>
       </div>
 
@@ -1676,7 +1680,7 @@ footer {
     <div class="wrap">
       <div class="sec-head reveal">
         <span class="eyebrow">Manual de uso</span>
-        <h2>De cero a jugar, sin pasos innecesarios</h2>
+        <h2>De cero a jugar, sin rodeos</h2>
         <p>Todo se gestiona desde la interfaz. Estos son los seis pasos que cubren el uso habitual del launcher.</p>
       </div>
 
@@ -1748,7 +1752,7 @@ footer {
         <article class="perf-card reveal" style="--d:60ms">
           <h3>Argumentos JVM</h3>
           <div class="val">Personalizables</div>
-          <p>Añade opciones propias. Si defines otro recolector, el launcher advierte de una posible duplicidad.</p>
+          <p>Añade opciones propias para la JVM. Revisa que no dupliquen el recolector de basura que hayas elegido.</p>
         </article>
         <article class="perf-card reveal" style="--d:120ms">
           <h3>Optimización rápida</h3>
@@ -1798,7 +1802,7 @@ footer {
         </div>
         <div class="guarantee reveal" style="--d:80ms">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v14H4z"></path><path d="M4 9h16M9 5v14"></path></svg>
-          <span>Datos y registros almacenados en la carpeta elegida por el usuario.</span>
+          <span>Datos y registros del launcher en la carpeta elegida por el usuario.</span>
         </div>
         <div class="guarantee reveal" style="--d:160ms">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v18M3 12h18"></path></svg>
@@ -1956,9 +1960,10 @@ python main.py</code></pre>
       <div class="footer-brand">
         <a class="logo" href="#top" aria-label="AZeroCraft Launcher, inicio">
           <span class="logo-mark" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round">
-              <path d="M12 3 20 7.5v9L12 21l-8-4.5v-9L12 3Z"></path>
-              <path d="M12 3v9m0 0 8-4.5M12 12 4 7.5"></path>
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M12 2.4 20.6 7v10L12 21.6 3.4 17V7L12 2.4Z" fill="currentColor" opacity=".2"></path>
+              <path d="M12 2.4 20.6 7 12 11.6 3.4 7 12 2.4Z" fill="currentColor"></path>
+              <path d="M12 11.6 20.6 7v10L12 21.6V11.6Z" fill="currentColor" opacity=".6"></path>
             </svg>
           </span>
           <span>AZero<b>Craft</b></span>
@@ -1982,7 +1987,7 @@ python main.py</code></pre>
       <div>
         <h4>Proyecto</h4>
         <a href="#compilar">Compilar</a>
-        <a href="https://github.com/LiebeBlack/MD/blob/main/installer/license.txt" target="_blank" rel="noopener">Licencia</a>
+        <a href="https://github.com/LiebeBlack/MD/blob/main/installer/license.txt" target="_blank" rel="noopener">Condiciones de uso</a>
         <a href="https://github.com/sponsors/LiebeBlack" target="_blank" rel="noopener">Apoyar</a>
         <a href="https://github.com/LiebeBlack" target="_blank" rel="noopener">Liebe Black</a>
       </div>
@@ -2003,6 +2008,11 @@ python main.py</code></pre>
   "use strict";
 
   var root = document.documentElement;
+  root.classList.add("anim");
+  function showAll() {
+    root.classList.remove("anim");
+  }
+  window.addEventListener("error", showAll);
   var reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   var header = document.getElementById("topbar");
   var progress = document.getElementById("progress");
@@ -2017,7 +2027,6 @@ python main.py</code></pre>
   function applyTheme(name, persist) {
     var dark = name !== "light";
     root.dataset.theme = dark ? "dark" : "light";
-    themeBtn.setAttribute("aria-pressed", String(!dark));
     themeBtn.setAttribute("aria-label", dark ? "Cambiar al tema claro" : "Cambiar al tema oscuro");
     if (metaTheme) metaTheme.setAttribute("content", dark ? "#070B12" : "#F5F8FC");
     if (persist) {
@@ -2084,6 +2093,19 @@ python main.py</code></pre>
 
   /* -------------------------------------------------- animaciones de entrada */
   var revealItems = document.querySelectorAll(".reveal");
+
+  function revealWithin(node) {
+    node.querySelectorAll(".reveal").forEach(function (item) {
+      item.classList.add("is-visible");
+    });
+  }
+
+  function revealHash() {
+    if (!location.hash) return;
+    var target = document.querySelector(location.hash);
+    if (target) revealWithin(target);
+  }
+
   if ("IntersectionObserver" in window && !reduceMotion) {
     var revealObserver = new IntersectionObserver(function (entries) {
       entries.forEach(function (entry) {
@@ -2093,6 +2115,12 @@ python main.py</code></pre>
       });
     }, { threshold: .12, rootMargin: "0px 0px -8% 0px" });
     revealItems.forEach(function (item) { revealObserver.observe(item); });
+    window.addEventListener("hashchange", revealHash);
+    revealHash();
+    /* Salvaguarda: si el observador no llega a activarse, muestra el contenido. */
+    window.setTimeout(function () {
+      if (!document.querySelector(".reveal.is-visible")) showAll();
+    }, 2600);
   } else {
     revealItems.forEach(function (item) { item.classList.add("is-visible"); });
   }

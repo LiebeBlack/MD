@@ -762,7 +762,7 @@ class VersionPicker(QPushButton):
 
     def _refresh_text(self) -> None:
         label = self._selected or self._placeholder
-        self.setText(f"{label}   ▾")
+        self.setText(label)
         self.setAccessibleDescription(label)
 
     def _on_picked(self, version_id: str) -> None:
